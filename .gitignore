@@ -13,3 +13,9 @@ auto-imports.d.ts
 components.d.ts
 auto-imports.zod.d.ts
 package.json.tmp
+
+# Only track preset-manager plugin
+/*
+!/src/preset-manager/
+!/dist/preset-manager/
+!/.gitignore

@@ -16,6 +16,10 @@ package.json.tmp
 
 # Only track preset-manager plugin
 /*
+!/src/
+/src/*
 !/src/preset-manager/
+!/dist/
+/dist/*
 !/dist/preset-manager/
 !/.gitignore

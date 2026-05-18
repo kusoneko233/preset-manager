@@ -85,46 +85,49 @@ function onDragStart(e: DragEvent, draft: DraftPrompt) {
 
 <style scoped>
 .panel-title {
-  border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+  min-height: 42px;
+  border-bottom: 1px solid var(--pm-border);
   padding-right: 40px;
 }
 .add-btn {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 5px;
-  border: 1px solid rgba(51, 65, 85, 0.5);
+  border-radius: 999px;
+  border: 1px solid var(--pm-border);
   background: transparent;
-  color: #94a3b8;
+  color: var(--pm-text-muted);
   cursor: pointer;
   transition: all 0.12s;
 }
 .add-btn:hover {
-  background: rgba(99, 102, 241, 0.15);
-  color: #818cf8;
-  border-color: rgba(99, 102, 241, 0.4);
+  background: var(--pm-accent);
+  color: var(--pm-accent-text);
+  border-color: var(--pm-accent);
 }
 .draft-item {
-  border: 1px solid rgba(51, 65, 85, 0.3);
-  border-radius: 6px;
-  background: rgba(15, 23, 42, 0.5);
-  margin-bottom: 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  margin-bottom: 3px;
   cursor: grab;
 }
 .draft-item:hover {
-  border-color: rgba(99, 102, 241, 0.3);
+  border-color: var(--pm-border);
+  background: var(--pm-bg-hover);
 }
 .draft-header {
   display: flex;
   align-items: center;
+  min-height: 34px;
   padding: 6px 8px;
   cursor: pointer;
 }
 .draft-name {
   font-size: 12px;
-  color: #cbd5e1;
+  color: var(--pm-text);
 }
 .del-btn {
   width: 20px;
@@ -135,45 +138,45 @@ function onDragStart(e: DragEvent, draft: DraftPrompt) {
   border-radius: 4px;
   border: none;
   background: transparent;
-  color: #64748b;
+  color: var(--pm-text-subtle);
   cursor: pointer;
 }
 .del-btn:hover {
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.1);
+  color: var(--pm-danger);
+  background: color-mix(in srgb, var(--pm-danger) 13%, transparent);
 }
 .draft-body {
   padding: 6px 8px 8px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  border-top: 1px solid rgba(51, 65, 85, 0.2);
+  border-top: 1px solid var(--pm-border);
 }
 .draft-input,
 .draft-select {
   width: 100%;
-  padding: 4px 8px;
-  border-radius: 5px;
-  border: 1px solid rgba(51, 65, 85, 0.4);
-  background: rgba(0, 0, 0, 0.2);
-  color: #e2e8f0;
+  padding: 6px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--pm-border);
+  background: var(--pm-input-bg);
+  color: var(--pm-text);
   font-size: 12px;
   outline: none;
 }
 .draft-input:focus,
 .draft-select:focus {
-  border-color: rgba(99, 102, 241, 0.5);
+  border-color: var(--pm-border-strong);
 }
 .draft-select option {
-  background: #1e293b;
+  background: var(--pm-bg-elevated);
 }
 .draft-textarea {
   width: 100%;
-  padding: 6px 8px;
-  border-radius: 5px;
-  border: 1px solid rgba(51, 65, 85, 0.4);
-  background: rgba(0, 0, 0, 0.2);
-  color: #e2e8f0;
+  padding: 8px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--pm-border);
+  background: var(--pm-input-bg);
+  color: var(--pm-text);
   font-size: 12px;
   resize: vertical;
   min-height: 60px;
@@ -181,6 +184,6 @@ function onDragStart(e: DragEvent, draft: DraftPrompt) {
   font-family: inherit;
 }
 .draft-textarea:focus {
-  border-color: rgba(99, 102, 241, 0.5);
+  border-color: var(--pm-border-strong);
 }
 </style>

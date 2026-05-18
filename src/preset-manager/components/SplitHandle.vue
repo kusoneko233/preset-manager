@@ -55,36 +55,39 @@ function onMouseDown(e: MouseEvent) {
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--pm-border);
   transition: background 0.15s;
   z-index: 10;
 }
 .split-handle.vertical {
-  width: 6px;
+  width: 5px;
   cursor: col-resize;
 }
 .split-handle.horizontal {
-  height: 6px;
+  height: 5px;
   cursor: row-resize;
 }
 .split-handle:hover,
 .split-handle.dragging {
-  background: rgba(99, 102, 241, 0.3);
+  background: color-mix(in srgb, var(--pm-accent) 22%, var(--pm-border));
 }
 .split-handle-bar {
-  border-radius: 2px;
-  background: rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
+  background: var(--pm-text-subtle);
+  opacity: 0;
   transition: background 0.15s;
 }
 .split-handle.vertical .split-handle-bar {
-  width: 2px;
-  height: 32px;
+  width: 1px;
+  height: 42px;
 }
 .split-handle.horizontal .split-handle-bar {
-  height: 2px;
-  width: 32px;
+  height: 1px;
+  width: 42px;
 }
 .split-handle:hover .split-handle-bar,
 .split-handle.dragging .split-handle-bar {
-  background: rgba(99, 102, 241, 0.7);
+  background: var(--pm-accent);
+  opacity: 0.8;
 }
 </style>

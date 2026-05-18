@@ -17,24 +17,25 @@ function createFloatingButton() {
       width: '48px',
       height: '48px',
       borderRadius: '50%',
-      background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-      color: '#fff',
+      background: '#0a0a0a',
+      color: '#f7f7f5',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       cursor: 'pointer',
       zIndex: 9998,
-      boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-      fontSize: '20px',
-      transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+      border: '1px solid rgba(255,255,255,0.16)',
+      boxShadow: '0 14px 40px rgba(0,0,0,0.35)',
+      fontSize: '18px',
+      transition: 'transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease',
       userSelect: 'none',
     })
     .html('<i class="fas fa-sliders-h"></i>')
     .on('mouseenter', function () {
-      $(this).css({ transform: 'scale(1.1)', boxShadow: '0 6px 16px rgba(0,0,0,0.4)' });
+      $(this).css({ transform: 'scale(1.06)', boxShadow: '0 18px 46px rgba(0,0,0,0.42)', background: '#161616' });
     })
     .on('mouseleave', function () {
-      $(this).css({ transform: 'scale(1)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' });
+      $(this).css({ transform: 'scale(1)', boxShadow: '0 14px 40px rgba(0,0,0,0.35)', background: '#0a0a0a' });
     })
     .appendTo(window.parent.document.body);
 
@@ -101,9 +102,9 @@ function togglePanel() {
       maxHeight: '90vh',
       border: 'none',
       borderRadius: '12px',
-      boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+      boxShadow: 'none',
       zIndex: 9999,
-      background: '#1a1a2e',
+      background: 'transparent',
     })
     .appendTo(window.parent.document.body);
 

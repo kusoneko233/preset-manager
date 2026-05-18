@@ -162,39 +162,42 @@ onMounted(() => {
 
 <style scoped>
 .panel-header {
-  padding: 8px;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--pm-border);
+  background: var(--pm-bg);
 }
 .preset-select {
   width: 100%;
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid rgba(51, 65, 85, 0.5);
-  background: rgba(15, 23, 42, 0.8);
-  color: #e2e8f0;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--pm-border);
+  background: var(--pm-input-bg);
+  color: var(--pm-text);
   font-size: 13px;
   outline: none;
   cursor: pointer;
 }
 .preset-select:focus {
-  border-color: rgba(99, 102, 241, 0.5);
+  border-color: var(--pm-border-strong);
 }
 .preset-select option {
-  background: #1e293b;
-  color: #e2e8f0;
+  background: var(--pm-bg-elevated);
+  color: var(--pm-text);
 }
 .prompt-list {
-  padding: 6px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   transition: background 0.15s;
+  background: var(--pm-bg);
 }
 .prompt-list.drop-target {
-  background: rgba(99, 102, 241, 0.05);
-  outline: 2px dashed rgba(99, 102, 241, 0.3);
+  background: color-mix(in srgb, var(--pm-accent) 6%, var(--pm-bg));
+  outline: 2px dashed var(--pm-border-strong);
   outline-offset: -2px;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 .empty-state {
   display: flex;

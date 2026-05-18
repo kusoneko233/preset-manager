@@ -100,22 +100,24 @@ async function restore(id: string) {
 .history-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: color-mix(in srgb, var(--pm-bg) 65%, rgba(0, 0, 0, 0.35));
   z-index: 900;
   display: flex;
   justify-content: flex-end;
+  backdrop-filter: blur(8px);
 }
 .history-panel {
   width: 360px;
   max-width: 90%;
-  background: #0f172a;
-  border-left: 1px solid rgba(51, 65, 85, 0.5);
+  background: var(--pm-bg-panel);
+  border-left: 1px solid var(--pm-border-strong);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: var(--pm-shadow);
 }
 .panel-header {
-  border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+  border-bottom: 1px solid var(--pm-border);
 }
 .close-btn {
   width: 28px;
@@ -123,15 +125,16 @@ async function restore(id: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  border: none;
+  border-radius: 999px;
+  border: 1px solid transparent;
   background: transparent;
-  color: #94a3b8;
+  color: var(--pm-text-muted);
   cursor: pointer;
 }
 .close-btn:hover {
-  background: rgba(51, 65, 85, 0.5);
-  color: #e2e8f0;
+  background: var(--pm-bg-hover);
+  color: var(--pm-text);
+  border-color: var(--pm-border);
 }
 .panel-body {
   flex: 1;
@@ -144,7 +147,7 @@ async function restore(id: string) {
 .section-title {
   font-size: 12px;
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--pm-text-muted);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -158,40 +161,40 @@ async function restore(id: string) {
   margin-bottom: 2px;
 }
 .record-item:hover {
-  background: rgba(51, 65, 85, 0.2);
+  background: var(--pm-bg-hover);
 }
 .record-desc {
   font-size: 11px;
-  color: #cbd5e1;
+  color: var(--pm-text);
 }
 .record-time {
   font-size: 10px;
-  color: #64748b;
+  color: var(--pm-text-subtle);
 }
 .snapshot-btn {
-  padding: 3px 8px;
-  border-radius: 4px;
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  background: rgba(99, 102, 241, 0.1);
-  color: #818cf8;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--pm-border);
+  background: transparent;
+  color: var(--pm-text);
   font-size: 11px;
   cursor: pointer;
   transition: all 0.12s;
 }
 .snapshot-btn:hover {
-  background: rgba(99, 102, 241, 0.2);
+  background: var(--pm-bg-hover);
 }
 .snapshot-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px;
-  border: 1px solid rgba(51, 65, 85, 0.3);
-  border-radius: 6px;
+  border: 1px solid var(--pm-border);
+  border-radius: 8px;
   margin-bottom: 4px;
 }
 .snapshot-item:hover {
-  border-color: rgba(51, 65, 85, 0.5);
+  border-color: var(--pm-border-strong);
 }
 .snap-info {
   display: flex;
@@ -200,19 +203,19 @@ async function restore(id: string) {
 }
 .snap-name {
   font-size: 12px;
-  color: #e2e8f0;
+  color: var(--pm-text);
   word-break: break-all;
 }
 .snap-meta {
   font-size: 10px;
-  color: #64748b;
+  color: var(--pm-text-subtle);
   margin-top: 2px;
 }
 .auto-badge {
   padding: 0 4px;
-  border-radius: 3px;
-  background: rgba(99, 102, 241, 0.15);
-  color: #818cf8;
+  border-radius: 999px;
+  background: var(--pm-bg-elevated);
+  color: var(--pm-text-muted);
   font-size: 9px;
   margin-left: 4px;
 }
@@ -227,15 +230,16 @@ async function restore(id: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  border: none;
+  border-radius: 999px;
+  border: 1px solid transparent;
   background: transparent;
-  color: #64748b;
+  color: var(--pm-text-subtle);
   cursor: pointer;
 }
 .snap-btn:hover {
-  color: #94a3b8;
-  background: rgba(51, 65, 85, 0.4);
+  color: var(--pm-text);
+  background: var(--pm-bg-hover);
+  border-color: var(--pm-border);
 }
 .slide-enter-active, .slide-leave-active {
   transition: all 0.2s ease;

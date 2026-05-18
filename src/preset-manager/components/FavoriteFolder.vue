@@ -133,33 +133,34 @@ function onItemDragStart(e: DragEvent, item: PresetNormalPrompt, index: number) 
 
 <style scoped>
 .favorite-folder {
-  border: 1px solid rgba(51, 65, 85, 0.3);
-  border-radius: 6px;
-  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
   overflow: hidden;
 }
 .folder-header {
   display: flex;
   align-items: center;
+  min-height: 34px;
   padding: 6px 8px;
   cursor: pointer;
   gap: 4px;
 }
 .folder-header:hover {
-  background: rgba(51, 65, 85, 0.2);
+  background: var(--pm-bg-hover);
 }
 .folder-name {
   font-size: 12px;
-  color: #cbd5e1;
+  color: var(--pm-text);
   font-weight: 500;
 }
 .folder-name-input {
   flex: 1;
-  padding: 1px 6px;
-  border-radius: 4px;
-  border: 1px solid rgba(99, 102, 241, 0.5);
-  background: rgba(0, 0, 0, 0.3);
-  color: #e2e8f0;
+  padding: 4px 7px;
+  border-radius: 7px;
+  border: 1px solid var(--pm-border-strong);
+  background: var(--pm-input-bg);
+  color: var(--pm-text);
   font-size: 12px;
   outline: none;
 }
@@ -181,13 +182,13 @@ function onItemDragStart(e: DragEvent, item: PresetNormalPrompt, index: number) 
   border-radius: 4px;
   border: none;
   background: transparent;
-  color: #64748b;
+  color: var(--pm-text-subtle);
   cursor: pointer;
   transition: all 0.12s;
 }
 .folder-btn:hover {
-  color: #94a3b8;
-  background: rgba(51, 65, 85, 0.4);
+  color: var(--pm-text);
+  background: var(--pm-bg-hover);
 }
 .folder-items {
   padding: 2px 6px 6px;
@@ -198,25 +199,25 @@ function onItemDragStart(e: DragEvent, item: PresetNormalPrompt, index: number) 
   min-height: 24px;
 }
 .folder-items.drag-over {
-  background: rgba(99, 102, 241, 0.05);
+  background: color-mix(in srgb, var(--pm-accent) 6%, transparent);
 }
 .fav-item {
   display: flex;
   align-items: center;
   padding: 4px 8px;
-  border-radius: 5px;
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(51, 65, 85, 0.3);
+  border-radius: 8px;
+  background: var(--pm-bg-hover);
+  border: 1px solid transparent;
   cursor: grab;
   gap: 4px;
 }
 .fav-item:hover {
-  border-color: rgba(99, 102, 241, 0.3);
+  border-color: var(--pm-border);
 }
 .fav-item-name {
   flex: 1;
   font-size: 11px;
-  color: #cbd5e1;
+  color: var(--pm-text);
   word-break: break-all;
 }
 .fav-remove-btn {
@@ -228,7 +229,7 @@ function onItemDragStart(e: DragEvent, item: PresetNormalPrompt, index: number) 
   border-radius: 3px;
   border: none;
   background: transparent;
-  color: #475569;
+  color: var(--pm-text-subtle);
   cursor: pointer;
   flex-shrink: 0;
   opacity: 0;
@@ -238,7 +239,7 @@ function onItemDragStart(e: DragEvent, item: PresetNormalPrompt, index: number) 
   opacity: 1;
 }
 .fav-remove-btn:hover {
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.1);
+  color: var(--pm-danger);
+  background: color-mix(in srgb, var(--pm-danger) 12%, transparent);
 }
 </style>

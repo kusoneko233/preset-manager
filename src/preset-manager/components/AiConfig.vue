@@ -56,11 +56,12 @@ const proxyPresets = computed(() => {
 
 <style scoped>
 .ai-config {
-  padding: 8px;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+  padding: 10px;
+  border-bottom: 1px solid var(--pm-border);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  background: var(--pm-bg-soft);
 }
 .config-row {
   display: flex;
@@ -68,42 +69,43 @@ const proxyPresets = computed(() => {
 }
 .config-label {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--pm-text-muted);
   display: flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
 }
 .config-label input[type="checkbox"] {
-  accent-color: #6366f1;
+  accent-color: var(--pm-accent);
 }
 .config-input {
   width: 100%;
-  padding: 4px 8px;
-  border-radius: 4px;
-  border: 1px solid rgba(51, 65, 85, 0.4);
-  background: rgba(0, 0, 0, 0.2);
-  color: #e2e8f0;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--pm-border);
+  background: var(--pm-input-bg);
+  color: var(--pm-text);
   font-size: 11px;
   outline: none;
 }
 .config-input:focus {
-  border-color: rgba(99, 102, 241, 0.5);
+  border-color: var(--pm-border-strong);
 }
 .config-input option {
-  background: #1e293b;
+  background: var(--pm-bg-elevated);
 }
 .clear-btn {
-  padding: 3px 8px;
-  border-radius: 4px;
-  border: 1px solid rgba(248, 113, 113, 0.3);
-  background: rgba(248, 113, 113, 0.1);
-  color: #f87171;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--pm-danger) 32%, transparent);
+  background: color-mix(in srgb, var(--pm-danger) 8%, transparent);
+  color: var(--pm-danger);
   font-size: 10px;
   cursor: pointer;
   transition: all 0.12s;
 }
 .clear-btn:hover {
-  background: rgba(248, 113, 113, 0.2);
+  background: color-mix(in srgb, var(--pm-danger) 16%, transparent);
 }
 </style>

@@ -284,55 +284,62 @@ const AiConfigComponent = {
 .drawer-container {
   display: flex;
   flex-direction: column;
-  background: rgba(15, 23, 42, 0.95);
-  border-top: 1px solid rgba(51, 65, 85, 0.5);
-  backdrop-filter: blur(8px);
+  background: var(--pm-bg);
+  border-top: 1px solid var(--pm-border);
+  box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.2);
 }
 .drawer-handle {
-  height: 8px;
+  height: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: row-resize;
 }
 .drawer-handle:hover .handle-bar {
-  background: rgba(99, 102, 241, 0.5);
+  background: var(--pm-text-muted);
 }
 .handle-bar {
-  width: 40px;
+  width: 44px;
   height: 3px;
-  border-radius: 2px;
-  background: rgba(51, 65, 85, 0.6);
+  border-radius: 999px;
+  background: var(--pm-border-strong);
   transition: background 0.12s;
 }
 .ai-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 10px;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+  min-height: 38px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--pm-border);
+  color: var(--pm-text);
 }
 .ai-btn {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  border: none;
+  border-radius: 999px;
+  border: 1px solid transparent;
   background: transparent;
-  color: #64748b;
+  color: var(--pm-text-subtle);
   cursor: pointer;
   transition: all 0.12s;
 }
-.ai-btn:hover { color: #94a3b8; background: rgba(51, 65, 85, 0.4); }
+.ai-btn:hover {
+  color: var(--pm-text);
+  background: var(--pm-bg-hover);
+  border-color: var(--pm-border);
+}
 .messages-area {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  background: var(--pm-bg);
 }
 .ai-message {
   max-width: 85%;
@@ -344,20 +351,22 @@ const AiConfigComponent = {
   align-self: flex-start;
 }
 .msg-content {
-  padding: 6px 10px;
-  border-radius: 8px;
+  padding: 7px 11px;
+  border-radius: 12px;
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-all;
+  border: 1px solid var(--pm-border);
 }
 .ai-message.user .msg-content {
-  background: rgba(99, 102, 241, 0.2);
-  color: #c7d2fe;
+  background: var(--pm-accent);
+  border-color: var(--pm-accent);
+  color: var(--pm-accent-text);
 }
 .ai-message.assistant .msg-content {
-  background: rgba(30, 41, 59, 0.8);
-  color: #cbd5e1;
+  background: var(--pm-bg-elevated);
+  color: var(--pm-text);
 }
 .typing {
   display: flex;
@@ -368,7 +377,7 @@ const AiConfigComponent = {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #64748b;
+  background: var(--pm-text-subtle);
   animation: bounce 1.2s infinite;
 }
 .dot:nth-child(2) { animation-delay: 0.2s; }
@@ -380,41 +389,46 @@ const AiConfigComponent = {
 .input-bar {
   display: flex;
   gap: 6px;
-  padding: 8px;
-  border-top: 1px solid rgba(51, 65, 85, 0.3);
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--pm-border);
+  background: var(--pm-bg);
 }
 .ai-input {
   flex: 1;
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid rgba(51, 65, 85, 0.5);
-  background: rgba(0, 0, 0, 0.2);
-  color: #e2e8f0;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--pm-border);
+  background: var(--pm-input-bg);
+  color: var(--pm-text);
   font-size: 12px;
   outline: none;
 }
-.ai-input:focus { border-color: rgba(99, 102, 241, 0.5); }
+.ai-input:focus {
+  border-color: var(--pm-border-strong);
+}
 .send-btn {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 999px;
   border: none;
-  background: rgba(99, 102, 241, 0.2);
-  color: #818cf8;
+  background: var(--pm-accent);
+  color: var(--pm-accent-text);
   cursor: pointer;
   transition: all 0.12s;
 }
-.send-btn:hover:not(:disabled) { background: rgba(99, 102, 241, 0.3); }
+.send-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
 .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 .detached-window {
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(51, 65, 85, 0.5);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
+  background: var(--pm-bg);
+  border: 1px solid var(--pm-border-strong);
+  border-radius: 12px;
+  box-shadow: var(--pm-shadow);
   display: flex;
   flex-direction: column;
   overflow: hidden;

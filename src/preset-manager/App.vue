@@ -1,14 +1,16 @@
 <template>
-  <div class="app-root" :class="{ fullscreen: isFullscreen }">
+  <div class="app-root" :class="[`theme-${theme}`, { fullscreen: isFullscreen }]">
     <TitleBar
       :is-fullscreen="isFullscreen"
       :can-undo="history.canUndo"
       :can-redo="history.canRedo"
       :ai-visible="ai.visible"
+      :theme="theme"
       @undo="doUndo"
       @redo="doRedo"
       @toggle-history="showHistory = !showHistory"
       @toggle-ai="ai.toggleVisible()"
+      @toggle-theme="toggleTheme"
       @toggle-fullscreen="toggleFullscreen"
       @close="closePanel"
     />
@@ -76,7 +78,9 @@ const rightWidth = ref(280);
 const leftSidebarRef = ref<any>();
 
 const WINDOW_STATE_KEY = 'presetManagerWindowState';
+const THEME_KEY = 'presetManagerTheme';
 type WindowState = { top: number; left: number; width: number; height: number };
+type AppTheme = 'dark' | 'light';
 let lastWindowState: WindowState | null = null;
 type WindowResizeDirection = 'top' | 'right' | 'bottom' | 'left' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 const MIN_WINDOW_WIDTH = 640;
@@ -84,6 +88,7 @@ const MIN_WINDOW_HEIGHT = 420;
 
 const startLeftWidth = ref(240);
 const startRightWidth = ref(280);
+const theme = ref<AppTheme>(readTheme());
 
 const favoritedIds = computed(() => {
   const ids = new Set<string>();
@@ -113,6 +118,20 @@ function onRightSplitResize(delta: number) {
 
 const parentDoc = inject<Document>('parentDocument')!;
 const iframeEl = inject<HTMLIFrameElement>('iframeElement')!;
+
+function readTheme(): AppTheme {
+  return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
+}
+
+function applyTheme(nextTheme: AppTheme) {
+  document.body.dataset.pmTheme = nextTheme;
+  localStorage.setItem(THEME_KEY, nextTheme);
+}
+
+function toggleTheme() {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark';
+  applyTheme(theme.value);
+}
 
 function readWindowState(): WindowState | null {
   try {
@@ -265,6 +284,8 @@ function onFavorite(prompt: PresetPrompt) {
 }
 
 onMounted(() => {
+  applyTheme(theme.value);
+
   const savedState = readWindowState();
   if (savedState) applyWindowState(savedState);
 
@@ -289,6 +310,112 @@ html, body {
   background: transparent;
 }
 * { box-sizing: border-box; }
+
+body[data-pm-theme="dark"],
+.theme-dark {
+  --pm-bg: #050505;
+  --pm-bg-soft: #0a0a0a;
+  --pm-bg-panel: #0f1117;
+  --pm-bg-sidebar: #111525;
+  --pm-bg-elevated: #171a23;
+  --pm-bg-hover: rgba(255, 255, 255, 0.06);
+  --pm-bg-active: rgba(255, 255, 255, 0.1);
+  --pm-border: rgba(255, 255, 255, 0.1);
+  --pm-border-strong: rgba(255, 255, 255, 0.16);
+  --pm-text: #f3f4f6;
+  --pm-text-muted: #a5a7ad;
+  --pm-text-subtle: #6f7380;
+  --pm-accent: #f7f7f5;
+  --pm-accent-text: #070707;
+  --pm-danger: #ff6b6b;
+  --pm-success: #7dd87d;
+  --pm-warning: #f4c96b;
+  --pm-shadow: 0 24px 70px rgba(0, 0, 0, 0.56);
+  --pm-input-bg: #0b0b0c;
+}
+
+body[data-pm-theme="light"],
+.theme-light {
+  --pm-bg: #f7f7f4;
+  --pm-bg-soft: #ffffff;
+  --pm-bg-panel: #ffffff;
+  --pm-bg-sidebar: #f3f3ef;
+  --pm-bg-elevated: #ffffff;
+  --pm-bg-hover: rgba(0, 0, 0, 0.05);
+  --pm-bg-active: rgba(0, 0, 0, 0.08);
+  --pm-border: rgba(0, 0, 0, 0.12);
+  --pm-border-strong: rgba(0, 0, 0, 0.18);
+  --pm-text: #111111;
+  --pm-text-muted: #5f6368;
+  --pm-text-subtle: #8d908b;
+  --pm-accent: #111111;
+  --pm-accent-text: #ffffff;
+  --pm-danger: #c74444;
+  --pm-success: #197a36;
+  --pm-warning: #9b6b00;
+  --pm-shadow: 0 24px 70px rgba(0, 0, 0, 0.18);
+  --pm-input-bg: #ffffff;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--pm-accent) 22%, transparent);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--pm-border-strong);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.text-slate-200,
+.text-slate-300 {
+  color: var(--pm-text) !important;
+}
+
+.text-slate-400,
+.text-slate-500 {
+  color: var(--pm-text-muted) !important;
+}
+
+.text-slate-600 {
+  color: var(--pm-text-subtle) !important;
+}
+
+.text-indigo-400,
+.text-indigo-500,
+.text-amber-400,
+.text-amber-500 {
+  color: var(--pm-text) !important;
+}
+
+.text-red-400 {
+  color: var(--pm-danger) !important;
+}
+
+.bg-slate-600 {
+  background: var(--pm-border-strong) !important;
+}
 </style>
 
 <style scoped>
@@ -296,13 +423,16 @@ html, body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #1a1a2e;
-  color: #e2e8f0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--pm-bg);
+  color: var(--pm-text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   overflow: hidden;
+  border: 1px solid var(--pm-border-strong);
   border-radius: 12px;
+  box-shadow: var(--pm-shadow);
 }
 .app-root.fullscreen {
+  border: 0;
   border-radius: 0;
 }
 .window-resize-handle {
@@ -379,30 +509,30 @@ html, body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-left: 1px solid rgba(51, 65, 85, 0.3);
+  border-left: 1px solid var(--pm-border);
 }
 .second-toggle {
   position: absolute;
   right: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 20px;
+  width: 24px;
   height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(30, 41, 59, 0.9);
-  border: 1px solid rgba(51, 65, 85, 0.4);
+  background: var(--pm-bg-elevated);
+  border: 1px solid var(--pm-border);
   border-right: none;
-  border-radius: 6px 0 0 6px;
-  color: #64748b;
+  border-radius: 8px 0 0 8px;
+  color: var(--pm-text-subtle);
   cursor: pointer;
   z-index: 20;
   transition: all 0.12s;
 }
 .second-toggle:hover {
-  color: #94a3b8;
-  background: rgba(51, 65, 85, 0.9);
+  color: var(--pm-text);
+  background: var(--pm-bg-hover);
 }
 .second-toggle.active {
   right: auto;

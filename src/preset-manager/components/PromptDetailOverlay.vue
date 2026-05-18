@@ -79,21 +79,21 @@ async function copyContent() {
 .overlay-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: color-mix(in srgb, var(--pm-bg) 72%, rgba(0, 0, 0, 0.45));
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(10px);
 }
 .overlay-card {
   width: 90%;
   max-width: 700px;
   max-height: 80%;
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid rgba(51, 65, 85, 0.6);
+  background: var(--pm-bg-panel);
+  border: 1px solid var(--pm-border-strong);
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--pm-shadow);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -102,26 +102,27 @@ async function copyContent() {
   display: flex;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+  border-bottom: 1px solid var(--pm-border);
   gap: 8px;
 }
 .overlay-title {
   font-size: 15px;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--pm-text);
   word-break: break-all;
 }
 .role-badge {
   font-size: 10px;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: 999px;
   font-weight: 500;
   text-transform: uppercase;
   flex-shrink: 0;
+  border: 1px solid var(--pm-border);
 }
-.role-badge.system { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
-.role-badge.user { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
-.role-badge.assistant { background: rgba(251, 146, 60, 0.15); color: #fb923c; }
+.role-badge.system { background: var(--pm-bg-elevated); color: var(--pm-text); }
+.role-badge.user { background: color-mix(in srgb, var(--pm-success) 12%, transparent); color: var(--pm-success); }
+.role-badge.assistant { background: color-mix(in srgb, var(--pm-warning) 12%, transparent); color: var(--pm-warning); }
 .overlay-btn {
   position: relative;
   width: 32px;
@@ -129,22 +130,22 @@ async function copyContent() {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  border: none;
+  border-radius: 999px;
+  border: 1px solid transparent;
   background: transparent;
-  color: #94a3b8;
+  color: var(--pm-text-muted);
   cursor: pointer;
   transition: all 0.12s;
 }
-.overlay-btn:hover { background: rgba(51, 65, 85, 0.6); color: #e2e8f0; }
+.overlay-btn:hover { background: var(--pm-bg-hover); color: var(--pm-text); border-color: var(--pm-border); }
 .copy-toast {
   position: absolute;
   top: -24px;
   left: 50%;
   transform: translateX(-50%);
   padding: 2px 8px;
-  background: #4ade80;
-  color: #0f172a;
+  background: var(--pm-success);
+  color: var(--pm-bg);
   font-size: 10px;
   border-radius: 4px;
   white-space: nowrap;
@@ -158,7 +159,7 @@ async function copyContent() {
 .overlay-content {
   font-size: 13px;
   line-height: 1.6;
-  color: #cbd5e1;
+  color: var(--pm-text);
   white-space: pre-wrap;
   word-break: break-all;
   margin: 0;
@@ -168,22 +169,22 @@ async function copyContent() {
   display: flex;
   gap: 8px;
   padding: 12px 16px;
-  border-top: 1px solid rgba(51, 65, 85, 0.4);
+  border-top: 1px solid var(--pm-border);
 }
 .footer-btn {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid rgba(51, 65, 85, 0.4);
-  background: rgba(30, 41, 59, 0.6);
-  color: #94a3b8;
+  border-radius: 999px;
+  border: 1px solid var(--pm-border);
+  background: transparent;
+  color: var(--pm-text-muted);
   font-size: 12px;
   cursor: pointer;
   transition: all 0.12s;
 }
-.footer-btn:hover { background: rgba(51, 65, 85, 0.6); color: #e2e8f0; border-color: rgba(99, 102, 241, 0.4); }
+.footer-btn:hover { background: var(--pm-bg-hover); color: var(--pm-text); border-color: var(--pm-border-strong); }
 .overlay-enter-active, .overlay-leave-active { transition: opacity 0.15s; }
 .overlay-enter-from, .overlay-leave-to { opacity: 0; }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.15s; }

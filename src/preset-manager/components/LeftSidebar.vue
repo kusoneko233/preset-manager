@@ -49,8 +49,8 @@ defineExpose({ isCollapsed });
   flex-shrink: 0;
   position: relative;
   display: flex;
-  background: rgba(15, 23, 42, 0.4);
-  border-right: 1px solid rgba(51, 65, 85, 0.3);
+  background: var(--pm-bg-sidebar);
+  border-right: 1px solid var(--pm-border);
   overflow: hidden;
 }
 .left-sidebar.collapsed {
@@ -59,23 +59,23 @@ defineExpose({ isCollapsed });
 .collapse-toggle {
   position: absolute;
   top: 52px;
-  right: 10px;
-  width: 20px;
-  height: 20px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  border: none;
-  background: rgba(30, 41, 59, 0.9);
-  color: #64748b;
+  border-radius: 999px;
+  border: 1px solid var(--pm-border);
+  background: var(--pm-bg-elevated);
+  color: var(--pm-text-subtle);
   cursor: pointer;
   z-index: 30;
   transition: all 0.12s;
 }
 .collapse-toggle:hover {
-  color: #94a3b8;
-  background: rgba(51, 65, 85, 0.8);
+  color: var(--pm-text);
+  background: var(--pm-bg-hover);
 }
 .left-sidebar.collapsed .collapse-toggle {
   right: 50%;
@@ -93,8 +93,10 @@ defineExpose({ isCollapsed });
 .workbench-area {
   min-height: 80px;
   overflow: hidden;
+  background: var(--pm-bg-sidebar);
 }
 .favorites-area {
   overflow: hidden;
+  background: var(--pm-bg-sidebar);
 }
 </style>

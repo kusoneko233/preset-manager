@@ -102,15 +102,19 @@ defineExpose({ expanded });
 
 <style scoped>
 .prompt-item {
-  border: 1px solid rgba(51, 65, 85, 0.4);
+  border: 1px solid transparent;
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.6);
+  background: transparent;
   transition: all 0.15s;
   cursor: grab;
 }
 .prompt-item:hover {
-  border-color: rgba(99, 102, 241, 0.3);
-  background: rgba(15, 23, 42, 0.8);
+  border-color: var(--pm-border);
+  background: var(--pm-bg-hover);
+}
+.prompt-item.expanded {
+  border-color: var(--pm-border);
+  background: var(--pm-bg-soft);
 }
 .prompt-item.dragging {
   opacity: 0.5;
@@ -124,13 +128,14 @@ defineExpose({ expanded });
 .prompt-header {
   display: flex;
   align-items: center;
-  padding: 8px 10px;
+  min-height: 38px;
+  padding: 7px 10px;
   cursor: pointer;
   gap: 8px;
 }
 .prompt-name {
   font-size: 13px;
-  color: #e2e8f0;
+  color: var(--pm-text);
   word-break: break-all;
 }
 .star-btn {
@@ -142,62 +147,64 @@ defineExpose({ expanded });
   border-radius: 4px;
   border: none;
   background: transparent;
-  color: #64748b;
+  color: var(--pm-text-subtle);
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.15s;
 }
 .star-btn:hover {
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.1);
+  color: var(--pm-warning);
+  background: color-mix(in srgb, var(--pm-warning) 12%, transparent);
 }
 .star-btn.favorited {
-  color: #fbbf24;
+  color: var(--pm-warning);
 }
 .role-badge {
   font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
   font-weight: 500;
   text-transform: uppercase;
+  border: 1px solid var(--pm-border);
 }
 .role-badge.system {
-  background: rgba(99, 102, 241, 0.15);
-  color: #818cf8;
+  background: var(--pm-bg-elevated);
+  color: var(--pm-text);
 }
 .role-badge.user {
-  background: rgba(34, 197, 94, 0.15);
-  color: #4ade80;
+  background: color-mix(in srgb, var(--pm-success) 12%, transparent);
+  color: var(--pm-success);
 }
 .role-badge.assistant {
-  background: rgba(251, 146, 60, 0.15);
-  color: #fb923c;
+  background: color-mix(in srgb, var(--pm-warning) 12%, transparent);
+  color: var(--pm-warning);
 }
 .status-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #475569;
+  background: var(--pm-text-subtle);
 }
 .status-dot.enabled {
-  background: #4ade80;
+  background: var(--pm-success);
 }
 .prompt-body {
   padding: 0 10px 10px;
-  border-top: 1px solid rgba(51, 65, 85, 0.3);
+  border-top: 1px solid var(--pm-border);
   margin-top: 0;
   padding-top: 8px;
 }
 .content-preview {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--pm-text-muted);
   line-height: 1.5;
   max-height: 120px;
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 6px;
+  background: var(--pm-input-bg);
+  border: 1px solid var(--pm-border);
+  border-radius: 8px;
   padding: 8px;
 }
 .prompt-actions {
@@ -209,18 +216,18 @@ defineExpose({ expanded });
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
-  border-radius: 5px;
-  border: 1px solid rgba(51, 65, 85, 0.4);
-  background: rgba(30, 41, 59, 0.6);
-  color: #94a3b8;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--pm-border);
+  background: transparent;
+  color: var(--pm-text-muted);
   font-size: 11px;
   cursor: pointer;
   transition: all 0.12s;
 }
 .action-btn:hover {
-  background: rgba(51, 65, 85, 0.6);
-  color: #e2e8f0;
-  border-color: rgba(99, 102, 241, 0.4);
+  background: var(--pm-bg-hover);
+  color: var(--pm-text);
+  border-color: var(--pm-border-strong);
 }
 </style>

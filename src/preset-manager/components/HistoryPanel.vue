@@ -3,54 +3,75 @@
     <Transition name="slide">
       <div v-if="visible" class="history-overlay" @click.self="$emit('close')">
         <div class="history-panel">
-          <div class="panel-header flex items-center justify-between px-4 py-3">
-            <span class="text-sm font-medium text-slate-200">
-              <i class="fas fa-history mr-2 text-indigo-400" />备份管理
-            </span>
-            <button class="close-btn" @click="$emit('close')">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">
+                <i class="fas fa-history" />
+                <span>历史与备份</span>
+              </div>
+              <div class="panel-subtitle">回到操作记录，或管理预设快照</div>
+            </div>
+            <button class="close-btn" title="关闭" @click="$emit('close')">
               <i class="fas fa-times" />
             </button>
           </div>
 
           <div class="panel-body">
-            <div class="section">
-              <div class="section-title flex items-center justify-between">
+            <section class="section">
+              <div class="section-title">
                 <span>操作记录</span>
-                <span class="text-xs text-slate-500">{{ history.undoStack.length }} / 50</span>
+                <span class="section-count">{{ history.undoStack.length }} / 50</span>
               </div>
-              <div v-if="!history.undoStack.length" class="text-xs text-slate-600 py-2">无操作记录</div>
-              <div v-for="(record, i) in [...history.undoStack].reverse().slice(0, 10)" :key="i" class="record-item">
-                <span class="record-desc">{{ record.description }}</span>
-                <span class="record-time">{{ formatTime(record.timestamp) }}</span>
-              </div>
-            </div>
 
-            <div class="section">
-              <div class="section-title flex items-center justify-between">
+              <div v-if="!operationItems.length" class="empty-state">无操作记录</div>
+
+              <div v-else class="record-list">
+                <div v-for="item in operationItems" :key="`${item.record.timestamp}:${item.index}`" class="record-item">
+                  <div class="record-main">
+                    <span class="record-desc">{{ item.record.description }}</span>
+                    <span class="record-meta">{{ item.record.presetName }} · {{ formatDateTime(item.record.timestamp) }}</span>
+                  </div>
+                  <button class="icon-btn" title="回到此处" @click="restoreOperation(item.index, item.record.description)">
+                    <i class="fas fa-undo" />
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="section-title">
                 <span>快照备份</span>
                 <button class="snapshot-btn" @click="createManualSnapshot">
-                  <i class="fas fa-camera mr-1" /> 创建快照
+                  <i class="fas fa-camera" />
+                  <span>创建快照</span>
                 </button>
               </div>
-              <div v-if="!history.snapshots.length" class="text-xs text-slate-600 py-2">无备份快照</div>
-              <div v-for="snap in history.snapshots" :key="snap.id" class="snapshot-item">
-                <div class="snap-info">
-                  <span class="snap-name">{{ snap.name }}</span>
-                  <span class="snap-meta">
-                    {{ snap.presetName }} · {{ formatTime(snap.timestamp) }}
-                    <span v-if="snap.auto" class="auto-badge">自动</span>
-                  </span>
-                </div>
-                <div class="snap-actions">
-                  <button class="snap-btn" title="回档" @click="restore(snap.id)">
-                    <i class="fas fa-undo text-xs" />
-                  </button>
-                  <button class="snap-btn" title="删除" @click="history.deleteSnapshot(snap.id)">
-                    <i class="fas fa-trash text-xs" />
-                  </button>
+
+              <div v-if="!history.snapshots.length" class="empty-state">无备份快照</div>
+
+              <div v-else class="snapshot-list">
+                <div v-for="snap in history.snapshots" :key="snap.id" class="snapshot-item">
+                  <div class="snap-info">
+                    <div class="snap-title-row">
+                      <span class="snap-name">{{ snap.name }}</span>
+                      <span v-if="snap.auto" class="auto-badge">自动</span>
+                    </div>
+                    <span class="snap-meta">{{ snap.presetName }} · {{ formatDateTime(snap.timestamp) }}</span>
+                  </div>
+                  <div class="snap-actions">
+                    <button class="icon-btn" title="重命名" @click="renameSnapshot(snap)">
+                      <i class="fas fa-pen" />
+                    </button>
+                    <button class="icon-btn" title="恢复快照" @click="restoreSnapshot(snap.id, snap.name)">
+                      <i class="fas fa-undo" />
+                    </button>
+                    <button class="icon-btn danger" title="删除快照" @click="deleteSnapshot(snap.id, snap.name)">
+                      <i class="fas fa-trash" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            </section>
           </div>
         </div>
       </div>
@@ -59,6 +80,7 @@
 </template>
 
 <script setup lang="ts">
+import type { Snapshot } from '../stores/history';
 import { useHistoryStore } from '../stores/history';
 import { useManagerStore } from '../stores/manager';
 
@@ -68,30 +90,90 @@ defineEmits<{ close: [] }>();
 const history = useHistoryStore();
 const manager = useManagerStore();
 
-function formatTime(ts: number) {
+const operationItems = computed(() => history.undoStack.map((record, index) => ({ record, index })).reverse());
+
+function formatDateTime(ts: number) {
   const d = new Date(ts);
-  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${month}-${day} ${hours}:${minutes}`;
+}
+
+function refreshPresets() {
+  manager.refreshMainPreset();
+  manager.refreshSecondPreset();
+}
+
+function getDefaultSnapshotName(presetName: string) {
+  return `手动备份 - ${presetName} - ${formatDateTime(Date.now())}`;
 }
 
 function createManualSnapshot() {
-  const name = manager.presetName;
-  if (!name) {
-    toastr.warning('请先选择预设', '', { timeOut: 2000 });
+  const presetName = manager.presetName;
+  if (!presetName) {
+    toastr.warning('请先选择主预设', '', { timeOut: 2000 });
     return;
   }
-  const snap = history.createSnapshot(name, `手动备份 - ${name}`);
+
+  const input = prompt('快照名称', getDefaultSnapshotName(presetName));
+  if (input === null) return;
+
+  const snapshotName = input.trim();
+  if (!snapshotName) {
+    toastr.warning('快照名称不能为空', '', { timeOut: 1600 });
+    return;
+  }
+
+  const snap = history.createSnapshot(presetName, snapshotName);
   if (snap) toastr.success('快照已创建', '', { timeOut: 1500 });
 }
 
-async function restore(id: string) {
-  if (!confirm('确定回档到此快照？当前更改将被覆盖（可通过撤回恢复）。')) return;
+async function restoreOperation(index: number, description: string) {
+  if (!confirm(`确定回到这条历史记录之后的状态吗？\n\n${description}\n\n当前状态会先写入撤销历史。`)) return;
+
+  const record = await history.restoreOperation(index);
+  if (record) {
+    refreshPresets();
+    toastr.success('已回到指定历史记录', '', { timeOut: 1500 });
+  } else {
+    toastr.error('历史恢复失败', '', { timeOut: 2000 });
+  }
+}
+
+function renameSnapshot(snapshot: Snapshot) {
+  const input = prompt('快照名称', snapshot.name);
+  if (input === null) return;
+
+  const ok = history.renameSnapshot(snapshot.id, input);
+  if (ok) {
+    toastr.success('快照已重命名', '', { timeOut: 1400 });
+  } else {
+    toastr.warning('快照名称不能为空', '', { timeOut: 1600 });
+  }
+}
+
+async function restoreSnapshot(id: string, name: string) {
+  if (!confirm(`确定恢复快照吗？\n\n${name}\n\n当前更改会先写入撤销历史。`)) return;
+
   const ok = await history.restoreSnapshot(id);
   if (ok) {
-    manager.refreshMainPreset();
-    manager.refreshSecondPreset();
-    toastr.success('回档成功', '', { timeOut: 1500 });
+    refreshPresets();
+    toastr.success('快照已恢复', '', { timeOut: 1500 });
   } else {
-    toastr.error('回档失败', '', { timeOut: 2000 });
+    toastr.error('快照恢复失败', '', { timeOut: 2000 });
+  }
+}
+
+function deleteSnapshot(id: string, name: string) {
+  if (!confirm(`确定删除这个快照吗？\n\n${name}`)) return;
+
+  const ok = history.deleteSnapshot(id);
+  if (ok) {
+    toastr.info('快照已删除', '', { timeOut: 1400 });
+  } else {
+    toastr.error('快照删除失败', '', { timeOut: 1800 });
   }
 }
 </script>
@@ -100,154 +182,249 @@ async function restore(id: string) {
 .history-overlay {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--pm-bg) 65%, rgba(0, 0, 0, 0.35));
   z-index: 900;
   display: flex;
   justify-content: flex-end;
+  background: color-mix(in srgb, var(--pm-bg) 64%, rgba(0, 0, 0, 0.34));
   backdrop-filter: blur(8px);
 }
+
 .history-panel {
-  width: 360px;
-  max-width: 90%;
-  background: var(--pm-bg-panel);
-  border-left: 1px solid var(--pm-border-strong);
+  width: 420px;
+  max-width: min(92%, 420px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  border-left: 1px solid var(--pm-border-strong);
+  background: var(--pm-bg-panel);
   box-shadow: var(--pm-shadow);
 }
+
 .panel-header {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--pm-border);
 }
-.close-btn {
-  width: 28px;
-  height: 28px;
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--pm-text);
+  font-size: 14px;
+  font-weight: 680;
+}
+
+.panel-title i {
+  color: var(--pm-text-muted);
+  font-size: 13px;
+}
+
+.panel-subtitle {
+  margin-top: 4px;
+  color: var(--pm-text-subtle);
+  font-size: 11px;
+}
+
+.close-btn,
+.icon-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
   border: 1px solid transparent;
+  border-radius: 999px;
   background: transparent;
-  color: var(--pm-text-muted);
+  color: var(--pm-text-subtle);
   cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
-.close-btn:hover {
+
+.close-btn {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+}
+
+.icon-btn {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  font-size: 11px;
+}
+
+.close-btn:hover,
+.icon-btn:hover {
+  border-color: var(--pm-border);
   background: var(--pm-bg-hover);
   color: var(--pm-text);
-  border-color: var(--pm-border);
 }
+
+.icon-btn.danger:hover {
+  color: var(--pm-danger);
+}
+
 .panel-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 12px;
+  padding: 14px;
 }
+
 .section {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
 .section-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--pm-text-muted);
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.record-item {
+  min-height: 30px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 4px 8px;
-  border-radius: 4px;
-  margin-bottom: 2px;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--pm-text-muted);
+  font-size: 12px;
+  font-weight: 680;
 }
-.record-item:hover {
-  background: var(--pm-bg-hover);
-}
-.record-desc {
-  font-size: 11px;
-  color: var(--pm-text);
-}
-.record-time {
-  font-size: 10px;
+
+.section-count {
   color: var(--pm-text-subtle);
-}
-.snapshot-btn {
-  padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--pm-border);
-  background: transparent;
-  color: var(--pm-text);
   font-size: 11px;
-  cursor: pointer;
-  transition: all 0.12s;
+  font-weight: 520;
 }
-.snapshot-btn:hover {
-  background: var(--pm-bg-hover);
+
+.empty-state {
+  padding: 12px 4px;
+  color: var(--pm-text-subtle);
+  font-size: 12px;
 }
+
+.record-list,
+.snapshot-list {
+  display: grid;
+  gap: 6px;
+}
+
+.record-item,
 .snapshot-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px;
+  gap: 10px;
+  min-width: 0;
   border: 1px solid var(--pm-border);
   border-radius: 8px;
-  margin-bottom: 4px;
+  background: color-mix(in srgb, var(--pm-bg-elevated) 58%, transparent);
 }
+
+.record-item {
+  padding: 8px 8px 8px 10px;
+}
+
+.snapshot-item {
+  padding: 9px 8px 9px 10px;
+}
+
+.record-item:hover,
 .snapshot-item:hover {
   border-color: var(--pm-border-strong);
+  background: var(--pm-bg-hover);
 }
+
+.record-main,
 .snap-info {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  min-width: 0;
 }
+
+.record-desc,
 .snap-name {
-  font-size: 12px;
+  overflow: hidden;
   color: var(--pm-text);
-  word-break: break-all;
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
+.record-meta,
 .snap-meta {
-  font-size: 10px;
+  margin-top: 3px;
+  overflow: hidden;
   color: var(--pm-text-subtle);
-  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
+.snap-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .auto-badge {
-  padding: 0 4px;
+  flex: 0 0 auto;
+  padding: 1px 6px;
   border-radius: 999px;
   background: var(--pm-bg-elevated);
   color: var(--pm-text-muted);
-  font-size: 9px;
-  margin-left: 4px;
+  font-size: 10px;
 }
+
 .snap-actions {
   display: flex;
-  gap: 4px;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  gap: 2px;
 }
-.snap-btn {
-  width: 24px;
-  height: 24px;
-  display: flex;
+
+.snapshot-btn {
+  height: 28px;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--pm-border);
   border-radius: 999px;
-  border: 1px solid transparent;
   background: transparent;
-  color: var(--pm-text-subtle);
-  cursor: pointer;
-}
-.snap-btn:hover {
   color: var(--pm-text);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.snapshot-btn:hover {
+  border-color: var(--pm-border-strong);
   background: var(--pm-bg-hover);
-  border-color: var(--pm-border);
 }
-.slide-enter-active, .slide-leave-active {
-  transition: all 0.2s ease;
+
+.slide-enter-active,
+.slide-leave-active {
+  transition: opacity 0.2s ease;
 }
-.slide-enter-from, .slide-leave-to {
+
+.slide-enter-from,
+.slide-leave-to {
   opacity: 0;
 }
-.slide-enter-from .history-panel, .slide-leave-to .history-panel {
+
+.slide-enter-active .history-panel,
+.slide-leave-active .history-panel {
+  transition: transform 0.2s ease;
+}
+
+.slide-enter-from .history-panel,
+.slide-leave-to .history-panel {
   transform: translateX(100%);
 }
 </style>

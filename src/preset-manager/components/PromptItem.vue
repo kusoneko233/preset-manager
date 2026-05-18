@@ -29,6 +29,10 @@
       </div>
     </div>
 
+    <div v-if="!expanded && prompt.content" class="prompt-preview">
+      {{ prompt.content }}
+    </div>
+
     <div v-if="expanded" class="prompt-body">
       <div v-if="prompt.content" class="content-preview">{{ prompt.content }}</div>
       <div v-else class="text-slate-500 text-xs italic">[占位符 - 无内容]</div>
@@ -102,19 +106,19 @@ defineExpose({ expanded });
 
 <style scoped>
 .prompt-item {
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
+  border: 1px solid var(--pm-row-border);
+  border-radius: var(--pm-prompt-radius, 10px);
+  background: var(--pm-row-bg);
   transition: all 0.15s;
   cursor: grab;
 }
 .prompt-item:hover {
   border-color: var(--pm-border);
-  background: var(--pm-bg-hover);
+  background: var(--pm-row-hover);
 }
 .prompt-item.expanded {
-  border-color: var(--pm-border);
-  background: var(--pm-bg-soft);
+  border-color: var(--pm-border-strong);
+  background: var(--pm-row-active);
 }
 .prompt-item.dragging {
   opacity: 0.5;
@@ -128,19 +132,19 @@ defineExpose({ expanded });
 .prompt-header {
   display: flex;
   align-items: center;
-  min-height: 38px;
-  padding: 7px 10px;
+  min-height: var(--pm-prompt-row-min, 44px);
+  padding: var(--pm-prompt-pad-y, 8px) var(--pm-prompt-pad-x, 10px);
   cursor: pointer;
   gap: 8px;
 }
 .prompt-name {
-  font-size: 13px;
   color: var(--pm-text);
   word-break: break-all;
+  font-weight: 560;
 }
 .star-btn {
-  width: 20px;
-  height: 20px;
+  width: var(--pm-prompt-icon-size, 22px);
+  height: var(--pm-prompt-icon-size, 22px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -159,9 +163,19 @@ defineExpose({ expanded });
 .star-btn.favorited {
   color: var(--pm-warning);
 }
+.prompt-preview {
+  display: -webkit-box;
+  margin: calc(-1 * var(--pm-prompt-pad-y, 8px) + 1px) calc(var(--pm-prompt-pad-x, 10px) + 48px) var(--pm-prompt-pad-y, 8px) calc(var(--pm-prompt-pad-x, 10px) + var(--pm-prompt-icon-size, 22px) + 8px);
+  color: var(--pm-text-muted);
+  line-height: 1.45;
+  word-break: break-all;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--pm-prompt-preview-lines, 1);
+}
 .role-badge {
-  font-size: 10px;
-  padding: 2px 7px;
+  font-size: calc(var(--pm-prompt-preview-font-size, 13px) * 0.8);
+  padding: 2px 8px;
   border-radius: 999px;
   font-weight: 500;
   text-transform: uppercase;
@@ -189,13 +203,13 @@ defineExpose({ expanded });
   background: var(--pm-success);
 }
 .prompt-body {
-  padding: 0 10px 10px;
+  padding: 0 var(--pm-prompt-pad-x, 10px) var(--pm-prompt-pad-y, 8px);
   border-top: 1px solid var(--pm-border);
   margin-top: 0;
-  padding-top: 8px;
+  padding-top: var(--pm-prompt-pad-y, 8px);
 }
 .content-preview {
-  font-size: 12px;
+  font-size: var(--pm-prompt-preview-font-size, 13px);
   color: var(--pm-text-muted);
   line-height: 1.5;
   max-height: 120px;
@@ -205,12 +219,12 @@ defineExpose({ expanded });
   background: var(--pm-input-bg);
   border: 1px solid var(--pm-border);
   border-radius: 8px;
-  padding: 8px;
+  padding: var(--pm-prompt-pad-y, 8px);
 }
 .prompt-actions {
   display: flex;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: var(--pm-prompt-pad-y, 8px);
 }
 .action-btn {
   display: flex;

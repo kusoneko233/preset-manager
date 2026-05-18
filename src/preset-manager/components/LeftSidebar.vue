@@ -6,7 +6,7 @@
           <WorkbenchPanel />
         </div>
 
-        <SplitHandle direction="horizontal" @drag-start="onHorizontalDragStart" @resize="onHorizontalResize" />
+        <SplitHandle class="sidebar-section-handle" direction="horizontal" @drag-start="onHorizontalDragStart" @resize="onHorizontalResize" />
 
         <div class="favorites-area" style="flex: 1; min-height: 80px">
           <FavoritesPanel />
@@ -49,19 +49,41 @@ defineExpose({ isCollapsed });
   flex-shrink: 0;
   position: relative;
   display: flex;
-  background: var(--pm-bg-sidebar);
-  border-right: 1px solid var(--pm-border);
+  background:
+    radial-gradient(360px 250px at -70px -60px, var(--pm-sidebar-glow) 0%, transparent 68%),
+    radial-gradient(300px 520px at -120px 44%, var(--pm-sidebar-glow-soft) 0%, transparent 72%),
+    linear-gradient(180deg, transparent 0%, var(--pm-sidebar-shadow) 100%),
+    var(--pm-bg-sidebar);
+  border-right: 0;
   overflow: hidden;
+}
+.left-sidebar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 28%);
+  opacity: 0.2;
+}
+.left-sidebar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent calc(100% - 42px), rgba(0, 0, 0, 0.1));
+  opacity: 0.34;
 }
 .left-sidebar.collapsed {
   min-width: 32px;
 }
 .collapse-toggle {
   position: absolute;
-  top: 52px;
+  top: 50%;
   right: 8px;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 46px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -71,6 +93,7 @@ defineExpose({ isCollapsed });
   color: var(--pm-text-subtle);
   cursor: pointer;
   z-index: 30;
+  transform: translateY(-50%);
   transition: all 0.12s;
 }
 .collapse-toggle:hover {
@@ -78,25 +101,39 @@ defineExpose({ isCollapsed });
   background: var(--pm-bg-hover);
 }
 .left-sidebar.collapsed .collapse-toggle {
-  right: 50%;
-  transform: translateX(50%);
   top: 50%;
-  margin-top: -12px;
+  right: 3px;
+  width: 26px;
+  height: 46px;
+  transform: translateY(-50%);
 }
 .sidebar-content {
+  position: relative;
+  z-index: 1;
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+  padding: 8px 10px 10px;
 }
 .workbench-area {
   min-height: 80px;
   overflow: hidden;
-  background: var(--pm-bg-sidebar);
+  background: transparent;
+}
+.sidebar-section-handle {
+  height: 14px;
+  opacity: 0;
+  margin: 2px 0;
+  transition: opacity 0.12s ease;
+}
+.sidebar-section-handle:hover,
+.sidebar-section-handle.dragging {
+  opacity: 0.45;
 }
 .favorites-area {
   overflow: hidden;
-  background: var(--pm-bg-sidebar);
+  background: transparent;
 }
 </style>

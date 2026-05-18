@@ -186,10 +186,10 @@ onMounted(() => {
   color: var(--pm-text);
 }
 .prompt-list {
-  padding: 10px;
+  padding: var(--pm-prompt-list-pad, 8px);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--pm-prompt-list-gap, 6px);
   transition: background 0.15s;
   background: var(--pm-bg);
 }

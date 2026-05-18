@@ -3,12 +3,7 @@
     class="title-bar flex items-center px-3 py-2 select-none"
     @mousedown.stop.prevent="onDragStart"
   >
-    <div class="title-left flex items-center gap-3 flex-1 min-w-0">
-      <div class="window-dots" aria-hidden="true">
-        <span class="dot close" />
-        <span class="dot minimize" />
-        <span class="dot maximize" />
-      </div>
+    <div class="title-left flex items-center gap-2 flex-1 min-w-0">
       <div class="brand-mark">
         <i class="fas fa-sliders-h text-xs" />
       </div>
@@ -51,6 +46,9 @@
       >
         <i :class="['fas text-xs', theme === 'dark' ? 'fa-sun' : 'fa-moon']" />
       </button>
+      <button class="title-btn" title="界面设置" @click="$emit('toggleUiSettings')">
+        <i class="fas fa-font text-xs" />
+      </button>
 
       <div class="title-separator" />
 
@@ -81,6 +79,7 @@ defineEmits<{
   toggleHistory: [];
   toggleAi: [];
   toggleTheme: [];
+  toggleUiSettings: [];
   toggleFullscreen: [];
   close: [];
 }>();
@@ -130,26 +129,6 @@ function onDragStart(e: MouseEvent) {
   background: var(--pm-bg);
   border-bottom: 1px solid var(--pm-border);
   cursor: move;
-}
-.window-dots {
-  display: flex;
-  gap: 7px;
-  flex-shrink: 0;
-}
-.dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  opacity: 0.95;
-}
-.dot.close {
-  background: #ff5f57;
-}
-.dot.minimize {
-  background: #ffbd2e;
-}
-.dot.maximize {
-  background: #28c840;
 }
 .brand-mark {
   width: 24px;

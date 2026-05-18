@@ -1,5 +1,9 @@
 <template>
-  <div class="app-root" :class="[`theme-${theme}`, { fullscreen: isFullscreen }]">
+  <div
+    class="app-root"
+    :class="[`theme-${theme}`, { fullscreen: isFullscreen, 'hide-prompt-preview': promptPreviewLines === 0 }]"
+    :style="uiVars"
+  >
     <TitleBar
       :is-fullscreen="isFullscreen"
       :can-undo="history.canUndo"
@@ -11,6 +15,7 @@
       @toggle-history="showHistory = !showHistory"
       @toggle-ai="ai.toggleVisible()"
       @toggle-theme="toggleTheme"
+      @toggle-ui-settings="showUiSettings = !showUiSettings"
       @toggle-fullscreen="toggleFullscreen"
       @close="closePanel"
     />
@@ -18,32 +23,113 @@
     <div class="main-body">
       <LeftSidebar ref="leftSidebarRef" :width="leftWidth" />
 
-      <SplitHandle direction="vertical" @drag-start="onLeftDragStart" @resize="onLeftSplitResize" />
+      <SplitHandle class="sidebar-edge-handle" direction="vertical" @drag-start="onLeftDragStart" @resize="onLeftSplitResize" />
 
-      <div class="center-area" style="flex: 1; min-width: 200px">
-        <PresetPanel panel-id="main" :favorited-ids="favoritedIds" @favorite="onFavorite" />
-      </div>
+      <div class="preset-workspace" :class="{ 'with-ai-drawer': ai.visible && ai.mode === 'drawer' }">
+        <div
+          class="preset-panels"
+          :style="{ paddingBottom: ai.visible && ai.mode === 'drawer' ? `${ai.drawerHeight}px` : '0px' }"
+        >
+          <div class="center-area" style="flex: 1; min-width: 200px">
+            <PresetPanel panel-id="main" :favorited-ids="favoritedIds" @favorite="onFavorite" />
+          </div>
 
-      <template v-if="showSecondPreset">
-        <SplitHandle direction="vertical" @drag-start="onRightDragStart" @resize="onRightSplitResize" />
-        <div class="second-preset-area" :style="{ width: `${rightWidth}px` }">
-          <PresetPanel panel-id="second" :favorited-ids="favoritedIds" @favorite="onFavorite" />
+          <template v-if="showSecondPreset">
+            <SplitHandle direction="vertical" @drag-start="onRightDragStart" @resize="onRightSplitResize" />
+            <div class="second-preset-area" :style="{ width: `${rightWidth}px` }">
+              <PresetPanel panel-id="second" :favorited-ids="favoritedIds" @favorite="onFavorite" />
+            </div>
+          </template>
+
+          <button
+            class="second-toggle"
+            :class="{ active: showSecondPreset }"
+            :title="showSecondPreset ? '收起第二预设' : '展开第二预设'"
+            @click="showSecondPreset = !showSecondPreset"
+          >
+            <i :class="['fas text-xs', showSecondPreset ? 'fa-chevron-right' : 'fa-chevron-left']" />
+          </button>
         </div>
-      </template>
 
-      <button
-        v-if="!ai.visible"
-        class="second-toggle"
-        :class="{ active: showSecondPreset }"
-        :title="showSecondPreset ? '收起第二预设' : '展开第二预设'"
-        @click="showSecondPreset = !showSecondPreset"
-      >
-        <i :class="['fas text-xs', showSecondPreset ? 'fa-chevron-right' : 'fa-chevron-left']" />
-      </button>
+        <AiAssistant />
+      </div>
     </div>
 
-    <AiAssistant />
     <HistoryPanel :visible="showHistory" @close="showHistory = false" />
+
+    <Transition name="settings-pop">
+      <div v-if="showUiSettings" class="ui-settings-panel">
+        <div class="settings-head">
+          <span>界面设置</span>
+          <button class="settings-close" title="关闭" @click="showUiSettings = false">
+            <i class="fas fa-times text-xs" />
+          </button>
+        </div>
+
+        <div class="settings-presets">
+          <div v-for="preset in uiPresetOptions" :key="preset.key" class="settings-preset-slot">
+            <button
+              class="settings-preset-apply"
+              :class="{ active: isCurrentUiPreset(preset.key) }"
+              :title="`套用${preset.label}档位`"
+              @click="applyUiPreset(preset.key)"
+            >
+              <span>{{ preset.label }}</span>
+              <small>{{ Math.round(uiPresets[preset.key].promptScale * 100) }}% · {{ previewLabel(uiPresets[preset.key].promptPreviewLines) }}</small>
+            </button>
+            <button class="settings-preset-save" :title="`保存当前比例到${preset.label}`" @click="saveCurrentToUiPreset(preset.key)">
+              <i class="fas fa-save text-xs" />
+            </button>
+          </div>
+        </div>
+
+        <button class="settings-reset-btn" @click="resetUiSettingsDefaults">
+          恢复默认比例
+        </button>
+
+        <label class="settings-row">
+          <span>整体字体</span>
+          <span class="settings-value">{{ Math.round(uiScale * 100) }}%</span>
+        </label>
+        <input
+          class="settings-range"
+          type="range"
+          min="0.9"
+          max="1.16"
+          step="0.02"
+          :value="uiScale"
+          @input="setUiScale(Number(($event.target as HTMLInputElement).value))"
+        />
+
+        <label class="settings-row settings-row-spaced">
+          <span>预设条目</span>
+          <span class="settings-value">{{ Math.round(promptScale * 100) }}%</span>
+        </label>
+        <input
+          class="settings-range"
+          type="range"
+          min="1"
+          max="1.42"
+          step="0.02"
+          :value="promptScale"
+          @input="setPromptScale(Number(($event.target as HTMLInputElement).value))"
+        />
+
+        <label class="settings-row settings-row-spaced">
+          <span>内容预览</span>
+          <span class="settings-value">{{ promptPreviewLines === 0 ? '关闭' : `${promptPreviewLines} 行` }}</span>
+        </label>
+        <input
+          class="settings-range"
+          type="range"
+          min="0"
+          max="3"
+          step="1"
+          :value="promptPreviewLines"
+          @input="setPromptPreviewLines(Number(($event.target as HTMLInputElement).value))"
+        />
+      </div>
+    </Transition>
 
     <template v-if="!isFullscreen">
       <div class="window-resize-handle resize-top-left" @mousedown.stop.prevent="onWindowResizeStart($event, 'top-left')" />
@@ -79,16 +165,60 @@ const leftSidebarRef = ref<any>();
 
 const WINDOW_STATE_KEY = 'presetManagerWindowState';
 const THEME_KEY = 'presetManagerTheme';
+const UI_SCALE_KEY = 'presetManagerUiScale';
+const PROMPT_SCALE_KEY = 'presetManagerPromptScale';
+const PROMPT_PREVIEW_LINES_KEY = 'presetManagerPromptPreviewLines';
+const UI_PRESETS_KEY = 'presetManagerUiPresets';
 type WindowState = { top: number; left: number; width: number; height: number };
 type AppTheme = 'dark' | 'light';
+type UiPresetKey = 'compact' | 'standard' | 'large';
+type UiPresetConfig = { uiScale: number; promptScale: number; promptPreviewLines: number };
+type UiPresetMap = Record<UiPresetKey, UiPresetConfig>;
 let lastWindowState: WindowState | null = null;
 type WindowResizeDirection = 'top' | 'right' | 'bottom' | 'left' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 const MIN_WINDOW_WIDTH = 640;
 const MIN_WINDOW_HEIGHT = 420;
 
+const DEFAULT_UI_PRESETS: UiPresetMap = {
+  compact: { uiScale: 0.94, promptScale: 1, promptPreviewLines: 0 },
+  standard: { uiScale: 1, promptScale: 1.06, promptPreviewLines: 1 },
+  large: { uiScale: 1.06, promptScale: 1.3, promptPreviewLines: 2 },
+};
+
+const uiPresetOptions: { key: UiPresetKey; label: string }[] = [
+  { key: 'compact', label: '紧凑' },
+  { key: 'standard', label: '标准' },
+  { key: 'large', label: '放大' },
+];
+
 const startLeftWidth = ref(240);
 const startRightWidth = ref(280);
 const theme = ref<AppTheme>(readTheme());
+const showUiSettings = ref(false);
+const uiScale = ref(readUiScale());
+const promptScale = ref(readPromptScale());
+const promptPreviewLines = ref(readPromptPreviewLines());
+const uiPresets = ref<UiPresetMap>(readUiPresets());
+
+const uiVars = computed(() => {
+  const font = uiScale.value;
+  const prompt = promptScale.value;
+  return {
+    '--pm-font-size': `${13 * font}px`,
+    '--pm-small-font-size': `${12 * font}px`,
+    '--pm-title-font-size': `${13 * font}px`,
+    '--pm-prompt-font-size': `${13 * font * prompt}px`,
+    '--pm-prompt-preview-font-size': `${12 * font * Math.min(prompt, 1.26)}px`,
+    '--pm-prompt-row-min': `${42 * prompt}px`,
+    '--pm-prompt-pad-y': `${7 * prompt}px`,
+    '--pm-prompt-pad-x': `${10 * prompt}px`,
+    '--pm-prompt-icon-size': `${20 * prompt}px`,
+    '--pm-prompt-radius': `${8 + 2 * prompt}px`,
+    '--pm-prompt-list-gap': `${5 * prompt}px`,
+    '--pm-prompt-list-pad': `${8 * prompt}px`,
+    '--pm-prompt-preview-lines': String(promptPreviewLines.value),
+  };
+});
 
 const favoritedIds = computed(() => {
   const ids = new Set<string>();
@@ -121,6 +251,108 @@ const iframeEl = inject<HTMLIFrameElement>('iframeElement')!;
 
 function readTheme(): AppTheme {
   return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
+}
+
+function readUiScale() {
+  const value = Number(localStorage.getItem(UI_SCALE_KEY));
+  if (!Number.isFinite(value)) return 1;
+  return Math.max(0.9, Math.min(value, 1.16));
+}
+
+function setUiScale(value: number) {
+  uiScale.value = Math.max(0.9, Math.min(value, 1.16));
+  localStorage.setItem(UI_SCALE_KEY, String(uiScale.value));
+}
+
+function readPromptScale() {
+  const value = Number(localStorage.getItem(PROMPT_SCALE_KEY));
+  if (!Number.isFinite(value)) return 1.06;
+  return Math.max(1, Math.min(value, 1.42));
+}
+
+function setPromptScale(value: number) {
+  promptScale.value = Math.max(1, Math.min(value, 1.42));
+  localStorage.setItem(PROMPT_SCALE_KEY, String(promptScale.value));
+}
+
+function readPromptPreviewLines() {
+  const value = Number(localStorage.getItem(PROMPT_PREVIEW_LINES_KEY));
+  if (!Number.isFinite(value)) return 1;
+  return Math.max(0, Math.min(Math.round(value), 3));
+}
+
+function setPromptPreviewLines(value: number) {
+  promptPreviewLines.value = Math.max(0, Math.min(Math.round(value), 3));
+  localStorage.setItem(PROMPT_PREVIEW_LINES_KEY, String(promptPreviewLines.value));
+}
+
+function clampUiPreset(preset: Partial<UiPresetConfig> | undefined, fallback: UiPresetConfig): UiPresetConfig {
+  const nextUiScale = Number(preset?.uiScale);
+  const nextPromptScale = Number(preset?.promptScale);
+  const nextPreviewLines = Number(preset?.promptPreviewLines);
+  return {
+    uiScale: Math.max(0.9, Math.min(Number.isFinite(nextUiScale) ? nextUiScale : fallback.uiScale, 1.16)),
+    promptScale: Math.max(1, Math.min(Number.isFinite(nextPromptScale) ? nextPromptScale : fallback.promptScale, 1.42)),
+    promptPreviewLines: Math.max(0, Math.min(Math.round(Number.isFinite(nextPreviewLines) ? nextPreviewLines : fallback.promptPreviewLines), 3)),
+  };
+}
+
+function readUiPresets(): UiPresetMap {
+  try {
+    const saved = JSON.parse(localStorage.getItem(UI_PRESETS_KEY) || '{}') as Partial<Record<UiPresetKey, Partial<UiPresetConfig>>>;
+    return {
+      compact: clampUiPreset(saved.compact, DEFAULT_UI_PRESETS.compact),
+      standard: clampUiPreset(saved.standard, DEFAULT_UI_PRESETS.standard),
+      large: clampUiPreset(saved.large, DEFAULT_UI_PRESETS.large),
+    };
+  } catch {
+    return { ...DEFAULT_UI_PRESETS };
+  }
+}
+
+function saveUiPresets() {
+  localStorage.setItem(UI_PRESETS_KEY, JSON.stringify(uiPresets.value));
+}
+
+function applyUiPreset(key: UiPresetKey) {
+  const preset = uiPresets.value[key];
+  setUiScale(preset.uiScale);
+  setPromptScale(preset.promptScale);
+  setPromptPreviewLines(preset.promptPreviewLines);
+}
+
+function saveCurrentToUiPreset(key: UiPresetKey) {
+  uiPresets.value = {
+    ...uiPresets.value,
+    [key]: {
+      uiScale: uiScale.value,
+      promptScale: promptScale.value,
+      promptPreviewLines: promptPreviewLines.value,
+    },
+  };
+  saveUiPresets();
+  toastr.info('已保存当前 UI 比例', '', { timeOut: 1000 });
+}
+
+function resetUiSettingsDefaults() {
+  uiPresets.value = {
+    compact: { ...DEFAULT_UI_PRESETS.compact },
+    standard: { ...DEFAULT_UI_PRESETS.standard },
+    large: { ...DEFAULT_UI_PRESETS.large },
+  };
+  saveUiPresets();
+  applyUiPreset('standard');
+}
+
+function previewLabel(lines: number) {
+  return lines === 0 ? '无预览' : `${lines}行`;
+}
+
+function isCurrentUiPreset(key: UiPresetKey) {
+  const preset = uiPresets.value[key];
+  return Math.abs(uiScale.value - preset.uiScale) < 0.001
+    && Math.abs(promptScale.value - preset.promptScale) < 0.001
+    && promptPreviewLines.value === preset.promptPreviewLines;
 }
 
 function applyTheme(nextTheme: AppTheme) {
@@ -313,14 +545,18 @@ html, body {
 
 body[data-pm-theme="dark"],
 .theme-dark {
-  --pm-bg: #050505;
-  --pm-bg-soft: #0a0a0a;
-  --pm-bg-panel: #0f1117;
-  --pm-bg-sidebar: #111525;
-  --pm-bg-elevated: #171a23;
+  --pm-bg: #191a1d;
+  --pm-bg-soft: #202126;
+  --pm-bg-panel: #1c1d21;
+  --pm-bg-sidebar: #171c28;
+  --pm-bg-elevated: #24262c;
+  --pm-row-bg: rgba(255, 255, 255, 0.025);
+  --pm-row-hover: rgba(255, 255, 255, 0.065);
+  --pm-row-active: rgba(255, 255, 255, 0.085);
+  --pm-row-border: rgba(255, 255, 255, 0.075);
   --pm-bg-hover: rgba(255, 255, 255, 0.06);
   --pm-bg-active: rgba(255, 255, 255, 0.1);
-  --pm-border: rgba(255, 255, 255, 0.1);
+  --pm-border: rgba(255, 255, 255, 0.085);
   --pm-border-strong: rgba(255, 255, 255, 0.16);
   --pm-text: #f3f4f6;
   --pm-text-muted: #a5a7ad;
@@ -330,8 +566,14 @@ body[data-pm-theme="dark"],
   --pm-danger: #ff6b6b;
   --pm-success: #7dd87d;
   --pm-warning: #f4c96b;
-  --pm-shadow: 0 24px 70px rgba(0, 0, 0, 0.56);
-  --pm-input-bg: #0b0b0c;
+  --pm-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+  --pm-input-bg: #18191c;
+  --pm-sidebar-glow: rgba(126, 145, 214, 0.3);
+  --pm-sidebar-glow-soft: rgba(47, 67, 124, 0.36);
+  --pm-sidebar-shadow: rgba(5, 10, 26, 0.28);
+  --pm-divider: rgba(255, 255, 255, 0.07);
+  --pm-split-line: rgba(255, 255, 255, 0.1);
+  --pm-split-line-hover: rgba(255, 255, 255, 0.3);
 }
 
 body[data-pm-theme="light"],
@@ -341,6 +583,10 @@ body[data-pm-theme="light"],
   --pm-bg-panel: #ffffff;
   --pm-bg-sidebar: #f3f3ef;
   --pm-bg-elevated: #ffffff;
+  --pm-row-bg: rgba(0, 0, 0, 0.018);
+  --pm-row-hover: rgba(0, 0, 0, 0.048);
+  --pm-row-active: rgba(0, 0, 0, 0.065);
+  --pm-row-border: rgba(0, 0, 0, 0.075);
   --pm-bg-hover: rgba(0, 0, 0, 0.05);
   --pm-bg-active: rgba(0, 0, 0, 0.08);
   --pm-border: rgba(0, 0, 0, 0.12);
@@ -355,6 +601,12 @@ body[data-pm-theme="light"],
   --pm-warning: #9b6b00;
   --pm-shadow: 0 24px 70px rgba(0, 0, 0, 0.18);
   --pm-input-bg: #ffffff;
+  --pm-sidebar-glow: rgba(206, 213, 232, 0.7);
+  --pm-sidebar-glow-soft: rgba(235, 238, 244, 0.95);
+  --pm-sidebar-shadow: rgba(138, 148, 170, 0.16);
+  --pm-divider: rgba(0, 0, 0, 0.08);
+  --pm-split-line: rgba(0, 0, 0, 0.1);
+  --pm-split-line-hover: rgba(0, 0, 0, 0.28);
 }
 
 button,
@@ -415,6 +667,40 @@ button {
 
 .bg-slate-600 {
   background: var(--pm-border-strong) !important;
+}
+
+.app-root,
+.app-root input,
+.app-root select,
+.app-root textarea,
+.app-root button {
+  font-size: var(--pm-font-size, 13px);
+}
+
+.app-root .text-xs,
+.app-root .draft-name,
+.app-root .folder-name,
+.app-root .fav-item-name,
+.app-root .record-desc,
+.app-root .snap-name,
+.app-root .msg-content {
+  font-size: var(--pm-small-font-size, 12px) !important;
+}
+
+.app-root .prompt-name {
+  font-size: var(--pm-prompt-font-size, 15px) !important;
+}
+
+.app-root .prompt-preview {
+  font-size: var(--pm-prompt-preview-font-size, 13px) !important;
+}
+
+.app-root .title-text {
+  font-size: var(--pm-title-font-size, 13px) !important;
+}
+
+.app-root.hide-prompt-preview .prompt-preview {
+  display: none !important;
 }
 </style>
 
@@ -500,6 +786,31 @@ button {
   overflow: hidden;
   position: relative;
 }
+.sidebar-edge-handle {
+  margin-left: -1px;
+  opacity: 0.26;
+}
+.sidebar-edge-handle:hover,
+.sidebar-edge-handle.dragging {
+  opacity: 0.65;
+}
+.preset-workspace {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--pm-bg);
+}
+.preset-panels {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+  transition: padding-bottom 0.16s ease;
+}
 .center-area {
   display: flex;
   flex-direction: column;
@@ -537,5 +848,154 @@ button {
 .second-toggle.active {
   right: auto;
   position: relative;
+}
+.ui-settings-panel {
+  position: absolute;
+  top: 54px;
+  right: 18px;
+  z-index: 800;
+  width: 260px;
+  padding: 12px;
+  border: 1px solid var(--pm-border-strong);
+  border-radius: 14px;
+  background: var(--pm-bg-panel);
+  color: var(--pm-text);
+  box-shadow: var(--pm-shadow);
+}
+.settings-head,
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.settings-head {
+  margin-bottom: 12px;
+  font-weight: 650;
+}
+.settings-presets {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+.settings-preset-slot {
+  display: grid;
+  grid-template-columns: 1fr 30px;
+  gap: 6px;
+}
+.settings-preset-apply,
+.settings-reset-btn {
+  border: 1px solid var(--pm-border);
+  background: transparent;
+  color: var(--pm-text-muted);
+  cursor: pointer;
+}
+.settings-preset-apply {
+  min-width: 0;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  text-align: left;
+}
+.settings-preset-apply span {
+  color: var(--pm-text);
+  font-weight: 620;
+}
+.settings-preset-apply small {
+  overflow: hidden;
+  color: var(--pm-text-subtle);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-preset-save {
+  width: 30px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--pm-text-subtle);
+  cursor: pointer;
+}
+.settings-preset-apply:hover,
+.settings-preset-apply.active,
+.settings-preset-save:hover,
+.settings-reset-btn:hover {
+  border-color: var(--pm-border-strong);
+  background: var(--pm-bg-hover);
+  color: var(--pm-text);
+}
+.settings-reset-btn {
+  width: 100%;
+  height: 30px;
+  margin-bottom: 14px;
+  border-radius: 9px;
+}
+.settings-close {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pm-text-muted);
+  cursor: pointer;
+}
+.settings-close:hover {
+  border-color: var(--pm-border);
+  background: var(--pm-bg-hover);
+  color: var(--pm-text);
+}
+.settings-row {
+  color: var(--pm-text-muted);
+  font-size: 12px;
+}
+.settings-row-spaced {
+  margin-top: 14px;
+}
+.settings-value {
+  color: var(--pm-text);
+}
+.settings-range {
+  width: 100%;
+  margin: 10px 0 12px;
+  accent-color: var(--pm-accent);
+}
+.settings-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.settings-actions button {
+  height: 28px;
+  border: 1px solid var(--pm-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pm-text-muted);
+  cursor: pointer;
+}
+.settings-actions button:hover,
+.settings-actions button.active {
+  border-color: var(--pm-accent);
+  background: var(--pm-accent);
+  color: var(--pm-accent-text);
+}
+.settings-pop-enter-active,
+.settings-pop-leave-active {
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.settings-pop-enter-from,
+.settings-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 </style>

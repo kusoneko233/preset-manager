@@ -42,25 +42,26 @@ function confirmDelete(folder: FavFolderType) {
 
 <style scoped>
 .panel-title {
-  min-height: 42px;
-  border-bottom: 1px solid var(--pm-border);
+  min-height: 34px;
+  padding: 4px 2px 6px !important;
+  border-bottom: 0;
 }
 .add-btn {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1px solid var(--pm-border);
+  border: 1px solid transparent;
   background: transparent;
   color: var(--pm-text-muted);
   cursor: pointer;
   transition: all 0.12s;
 }
 .add-btn:hover {
-  background: var(--pm-accent);
-  color: var(--pm-accent-text);
-  border-color: var(--pm-accent);
+  background: var(--pm-bg-hover);
+  color: var(--pm-text);
+  border-color: var(--pm-border);
 }
 </style>

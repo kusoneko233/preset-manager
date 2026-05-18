@@ -52,42 +52,52 @@ function onMouseDown(e: MouseEvent) {
 <style scoped>
 .split-handle {
   flex-shrink: 0;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--pm-border);
-  transition: background 0.15s;
+  background: transparent;
   z-index: 10;
 }
+.split-handle::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+}
 .split-handle.vertical {
-  width: 5px;
+  width: 1px;
   cursor: col-resize;
 }
 .split-handle.horizontal {
-  height: 5px;
+  height: 1px;
   cursor: row-resize;
 }
-.split-handle:hover,
-.split-handle.dragging {
-  background: color-mix(in srgb, var(--pm-accent) 22%, var(--pm-border));
+.split-handle.vertical::before {
+  inset-block: 0;
+  left: -4px;
+  width: 9px;
+}
+.split-handle.horizontal::before {
+  inset-inline: 0;
+  top: -4px;
+  height: 9px;
 }
 .split-handle-bar {
+  position: absolute;
   border-radius: 999px;
-  background: var(--pm-text-subtle);
-  opacity: 0;
-  transition: background 0.15s;
+  background: var(--pm-split-line);
+  transition: background 0.12s, opacity 0.12s;
 }
 .split-handle.vertical .split-handle-bar {
   width: 1px;
-  height: 42px;
+  inset-block: 0;
 }
 .split-handle.horizontal .split-handle-bar {
   height: 1px;
-  width: 42px;
+  inset-inline: 0;
 }
 .split-handle:hover .split-handle-bar,
 .split-handle.dragging .split-handle-bar {
-  background: var(--pm-accent);
-  opacity: 0.8;
+  background: var(--pm-split-line-hover);
 }
 </style>

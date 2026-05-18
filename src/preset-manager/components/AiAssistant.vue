@@ -2,7 +2,7 @@
   <div v-if="ai.visible" class="ai-assistant" :class="[ai.mode, { snapped: !!ai.snappedEdge, [`snap-${ai.snappedEdge}`]: !!ai.snappedEdge }]">
     <!-- Drawer mode -->
     <template v-if="ai.mode === 'drawer'">
-      <div class="drawer-container" :style="{ height: `${ai.drawerHeight}px` }">
+      <div class="drawer-container" :class="{ compact: isDrawerCompact }" :style="{ height: `${ai.drawerHeight}px` }">
         <div class="drawer-handle" @mousedown.stop.prevent="onDrawerResize">
           <div class="handle-bar" />
         </div>
@@ -23,7 +23,7 @@
           </div>
         </div>
 
-        <AiConfig v-if="ai.showConfig" />
+        <AiConfig v-if="ai.showConfig && !isDrawerCompact" />
 
         <div class="messages-area" ref="messagesRef">
           <div v-if="!ai.messages.length" class="empty-ai text-slate-600 text-xs text-center py-4">
@@ -124,6 +124,7 @@ const messagesRef = ref<HTMLElement>();
 const detachedMsgRef = ref<HTMLElement>();
 const detachedRef = ref<HTMLElement>();
 const isHovering = ref(false);
+const isDrawerCompact = computed(() => ai.drawerHeight < 132);
 
 const detachedStyle = computed(() => {
   if (ai.snappedEdge && !isHovering.value) {
@@ -260,7 +261,7 @@ function onDrawerResize(e: MouseEvent) {
     startEvent: e,
     cursor: 'row-resize',
     onMove: ev => {
-      ai.drawerHeight = Math.max(100, Math.min(drawerStartH - (ev.screenY - drawerStartY), 500));
+      ai.drawerHeight = Math.max(88, Math.min(drawerStartH - (ev.screenY - drawerStartY), 500));
     },
   });
 }
@@ -287,9 +288,11 @@ const AiConfigComponent = {
   background: var(--pm-bg);
   border-top: 1px solid var(--pm-border);
   box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
 }
 .drawer-handle {
-  height: 10px;
+  height: 7px;
+  flex: 0 0 7px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -299,24 +302,25 @@ const AiConfigComponent = {
   background: var(--pm-text-muted);
 }
 .handle-bar {
-  width: 44px;
-  height: 3px;
+  width: 42px;
+  height: 1px;
   border-radius: 999px;
-  background: var(--pm-border-strong);
+  background: var(--pm-split-line);
   transition: background 0.12s;
 }
 .ai-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 38px;
-  padding: 7px 12px;
+  min-height: 32px;
+  padding: 4px 10px;
   border-bottom: 1px solid var(--pm-border);
   color: var(--pm-text);
+  flex: 0 0 auto;
 }
 .ai-btn {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -334,11 +338,12 @@ const AiConfigComponent = {
 }
 .messages-area {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 10px 12px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   background: var(--pm-bg);
 }
 .ai-message {
@@ -351,8 +356,8 @@ const AiConfigComponent = {
   align-self: flex-start;
 }
 .msg-content {
-  padding: 7px 11px;
-  border-radius: 12px;
+  padding: 6px 10px;
+  border-radius: 10px;
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -389,14 +394,15 @@ const AiConfigComponent = {
 .input-bar {
   display: flex;
   gap: 6px;
-  padding: 10px 12px 12px;
+  padding: 6px 10px 8px;
   border-top: 1px solid var(--pm-border);
   background: var(--pm-bg);
+  flex: 0 0 auto;
 }
 .ai-input {
   flex: 1;
-  height: 36px;
-  padding: 0 12px;
+  height: 32px;
+  padding: 0 11px;
   border-radius: 999px;
   border: 1px solid var(--pm-border);
   background: var(--pm-input-bg);
@@ -408,8 +414,8 @@ const AiConfigComponent = {
   border-color: var(--pm-border-strong);
 }
 .send-btn {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -434,6 +440,16 @@ const AiConfigComponent = {
   overflow: hidden;
   transition: opacity 0.15s ease;
   z-index: 200;
+}
+.drawer-container.compact .messages-area {
+  display: none;
+}
+.drawer-container.compact .ai-header {
+  min-height: 29px;
+  padding-block: 3px;
+}
+.drawer-container.compact .input-bar {
+  padding-top: 5px;
 }
 .detached-window .ai-header { cursor: move; }
 .snap-collapsed {

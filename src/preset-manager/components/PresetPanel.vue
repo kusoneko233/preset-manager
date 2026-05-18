@@ -26,8 +26,10 @@
         :drag-source="panelId"
         :drag-index="i"
         @zoom="zoomPrompt = prompt"
-        @edit="editingPrompt = prompt"
+        @edit="openEditor(prompt)"
+        @toggle-enabled="togglePromptEnabled(prompt)"
         @toggle-favorite="$emit('favorite', prompt)"
+        @delete="deletePrompt(prompt)"
       />
     </div>
 
@@ -37,8 +39,15 @@
       :is-favorited="zoomPrompt ? isFavorited(zoomPrompt) : false"
       :show-actions="!!zoomPrompt && !isPresetPlaceholderPrompt(zoomPrompt)"
       @close="zoomPrompt = null"
-      @edit="editingPrompt = zoomPrompt; zoomPrompt = null"
+      @edit="zoomPrompt && openEditor(zoomPrompt); zoomPrompt = null"
       @toggle-favorite="zoomPrompt && $emit('favorite', zoomPrompt)"
+    />
+
+    <PromptEditDialog
+      :visible="!!editingPrompt"
+      :prompt="editingPrompt ?? emptyPrompt"
+      @close="editingPrompt = null"
+      @save="savePromptEdits"
     />
   </div>
 </template>
@@ -46,6 +55,7 @@
 <script setup lang="ts">
 import PromptItem from './PromptItem.vue';
 import PromptDetailOverlay from './PromptDetailOverlay.vue';
+import PromptEditDialog from './PromptEditDialog.vue';
 import { useManagerStore } from '../stores/manager';
 import { useHistoryStore } from '../stores/history';
 
@@ -70,14 +80,23 @@ const emptyPrompt: PresetPrompt = { id: '', name: '', enabled: false, role: 'sys
 
 const presetNames = computed(() => store.presetNames);
 const prompts = ref<PresetPrompt[]>([]);
-const promptListKey = computed(() => `${props.panelId}:${selectedPreset.value}:${prompts.value.length}`);
+const promptListKey = computed(() => `${props.panelId}:${selectedPreset.value}:${prompts.value.length}:${prompts.value.map(p => `${p.id}:${p.enabled}`).join('|')}`);
 
 function syncPromptsFromStore() {
   prompts.value = props.panelId === 'main' ? [...store.mainPrompts] : [...store.secondPrompts];
 }
 
+function currentPresetName() {
+  return props.panelId === 'main' ? store.presetName : store.secondPresetName;
+}
+
 function isFavorited(prompt: PresetPrompt): boolean {
   return props.favoritedIds?.has(prompt.id) ?? false;
+}
+
+function openEditor(prompt: PresetPrompt) {
+  if (isPresetPlaceholderPrompt(prompt)) return;
+  editingPrompt.value = prompt;
 }
 
 function onPresetChange() {
@@ -88,7 +107,6 @@ function onPresetChange() {
 
   if (loaded) {
     syncPromptsFromStore();
-    console.log('[PresetManager] PresetPanel prompts after load:', props.panelId, prompts.value.length);
     history.createSnapshot(selectedPreset.value, undefined, true);
   }
 }
@@ -100,6 +118,33 @@ function onDragOver(e: DragEvent) {
 
 function onDragLeave() {
   isDropTarget.value = false;
+}
+
+function snapshotPreset(presetName: string) {
+  return klona(getPreset(presetName));
+}
+
+async function recordPresetChange(description: string, operation: () => Promise<void>) {
+  const presetName = currentPresetName();
+  if (!presetName) return false;
+
+  const before = snapshotPreset(presetName);
+  await operation();
+  const after = snapshotPreset(presetName);
+  history.recordOperation(presetName, before, after, description);
+  syncPromptsFromStore();
+  return true;
+}
+
+function normalizePrompt(prompt: PresetPrompt): PresetNormalPrompt {
+  return {
+    id: prompt.id,
+    name: prompt.name,
+    enabled: prompt.enabled ?? true,
+    position: (prompt as any).position ?? { type: 'relative' as const },
+    role: prompt.role,
+    content: (prompt as any).content ?? '',
+  };
 }
 
 async function onDrop(e: DragEvent) {
@@ -114,24 +159,9 @@ async function onDrop(e: DragEvent) {
 
     if (isPresetPlaceholderPrompt(prompt)) return;
 
-    const presetName = props.panelId === 'main' ? store.presetName : store.secondPresetName;
-    if (!presetName) return;
-
-    const before = klona(getPreset(presetName));
-
-    const normalPrompt: PresetNormalPrompt = {
-      id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      name: prompt.name,
-      enabled: prompt.enabled ?? true,
-      position: (prompt as any).position ?? { type: 'relative' as const },
-      role: prompt.role,
-      content: (prompt as any).content ?? '',
-    };
-
-    await store.insertPromptToPreset(normalPrompt, props.panelId);
-
-    const after = klona(getPreset(presetName));
-    history.recordOperation(presetName, before, after, `插入条目: ${prompt.name}`);
+    await recordPresetChange(`插入条目: ${prompt.name}`, async () => {
+      await store.insertPromptToPreset(normalizePrompt(prompt), props.panelId);
+    });
 
     toastr.success(`已插入 "${prompt.name}"`, '操作成功', { timeOut: 2000 });
   } catch (err) {
@@ -139,23 +169,63 @@ async function onDrop(e: DragEvent) {
   }
 }
 
+async function togglePromptEnabled(prompt: PresetPrompt) {
+  if (isPresetPlaceholderPrompt(prompt)) return;
+  const nextEnabled = !(prompt.enabled ?? true);
+  const ok = await recordPresetChange(`${nextEnabled ? '启用' : '禁用'}条目: ${prompt.name}`, async () => {
+    await store.updatePromptInPreset(prompt.id, { enabled: nextEnabled }, props.panelId);
+  });
+  if (ok) toastr.info(nextEnabled ? '条目已启用' : '条目已禁用', '', { timeOut: 1200 });
+}
+
+async function savePromptEdits(updates: Partial<PresetPrompt>) {
+  const prompt = editingPrompt.value;
+  if (!prompt || isPresetPlaceholderPrompt(prompt)) return;
+
+  const ok = await recordPresetChange(`编辑条目: ${prompt.name}`, async () => {
+    await store.updatePromptInPreset(prompt.id, updates, props.panelId);
+  });
+  if (ok) {
+    editingPrompt.value = null;
+    zoomPrompt.value = null;
+    toastr.success('条目已保存', '', { timeOut: 1400 });
+  }
+}
+
+async function deletePrompt(prompt: PresetPrompt) {
+  if (isPresetPlaceholderPrompt(prompt)) return;
+  if (!confirm(`确定删除条目 "${prompt.name}" 吗？可以通过撤销恢复。`)) return;
+
+  const ok = await recordPresetChange(`删除条目: ${prompt.name}`, async () => {
+    await store.removePromptFromPreset(prompt.id, props.panelId);
+  });
+  if (ok) {
+    if (editingPrompt.value?.id === prompt.id) editingPrompt.value = null;
+    if (zoomPrompt.value?.id === prompt.id) zoomPrompt.value = null;
+    toastr.info('条目已删除', '', { timeOut: 1400 });
+  }
+}
+
+watch(
+  () => props.panelId === 'main' ? store.preset : store.secondPreset,
+  () => syncPromptsFromStore(),
+  { deep: true },
+);
+
 onMounted(() => {
-  if (props.panelId === 'main') {
-    try {
-      const current = store.currentPresetName;
-      console.log('[PresetManager] PresetPanel mount, currentPresetName:', current);
-      if (current) {
-        selectedPreset.value = current;
-        const loaded = store.loadMainPreset(current);
-        if (loaded) {
-          syncPromptsFromStore();
-          console.log('[PresetManager] PresetPanel prompts after mount:', prompts.value.length);
-          history.createSnapshot(current, undefined, true);
-        }
+  if (props.panelId !== 'main') return;
+  try {
+    const current = store.currentPresetName;
+    if (current) {
+      selectedPreset.value = current;
+      const loaded = store.loadMainPreset(current);
+      if (loaded) {
+        syncPromptsFromStore();
+        history.createSnapshot(current, undefined, true);
       }
-    } catch (e) {
-      console.error('[PresetManager] PresetPanel mount error:', e);
     }
+  } catch (e) {
+    console.error('[PresetManager] PresetPanel mount error:', e);
   }
 });
 </script>

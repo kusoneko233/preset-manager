@@ -24,7 +24,16 @@
 
       <div class="flex items-center gap-2 flex-shrink-0">
         <span class="role-badge" :class="prompt.role">{{ prompt.role }}</span>
-        <span v-if="'enabled' in prompt" class="status-dot" :class="{ enabled: prompt.enabled }" />
+        <button
+          v-if="'enabled' in prompt"
+          class="status-toggle"
+          :class="{ enabled: prompt.enabled }"
+          :disabled="isPlaceholder"
+          :title="prompt.enabled ? '禁用条目' : '启用条目'"
+          @click.stop="!isPlaceholder && $emit('toggleEnabled')"
+        >
+          <span class="status-dot" />
+        </button>
         <i :class="['fas text-xs text-slate-500 transition-transform', expanded ? 'fa-chevron-up' : 'fa-chevron-down']" />
       </div>
     </div>
@@ -35,20 +44,33 @@
 
     <div v-if="expanded" class="prompt-body">
       <div v-if="prompt.content" class="content-preview">{{ prompt.content }}</div>
-      <div v-else class="text-slate-500 text-xs italic">[占位符 - 无内容]</div>
+      <div v-else class="text-slate-500 text-xs italic">[无内容]</div>
 
       <div class="prompt-actions">
-        <button class="action-btn" title="放大查看" @click="$emit('zoom')">
+        <button class="action-btn" title="放大查看" @click.stop="$emit('zoom')">
           <i class="fas fa-search-plus text-xs" />
           <span>放大</span>
         </button>
-        <button v-if="!isPlaceholder" class="action-btn" title="编辑" @click="$emit('edit')">
+        <button v-if="!isPlaceholder" class="action-btn" title="编辑" @click.stop="$emit('edit')">
           <i class="fas fa-edit text-xs" />
           <span>编辑</span>
         </button>
-        <button v-if="!isPlaceholder" class="action-btn" title="收藏" @click="$emit('toggleFavorite')">
+        <button
+          v-if="!isPlaceholder"
+          class="action-btn"
+          :title="prompt.enabled ? '禁用条目' : '启用条目'"
+          @click.stop="$emit('toggleEnabled')"
+        >
+          <i :class="['fas text-xs', prompt.enabled ? 'fa-toggle-on' : 'fa-toggle-off']" />
+          <span>{{ prompt.enabled ? '禁用' : '启用' }}</span>
+        </button>
+        <button v-if="!isPlaceholder" class="action-btn" title="收藏" @click.stop="$emit('toggleFavorite')">
           <i :class="['text-xs', isFavorited ? 'fas fa-star text-amber-400' : 'far fa-star']" />
           <span>{{ isFavorited ? '取消收藏' : '收藏' }}</span>
+        </button>
+        <button v-if="!isPlaceholder" class="action-btn danger" title="删除条目" @click.stop="$emit('delete')">
+          <i class="fas fa-trash text-xs" />
+          <span>删除</span>
         </button>
       </div>
     </div>
@@ -68,6 +90,8 @@ defineEmits<{
   zoom: [];
   edit: [];
   toggleFavorite: [];
+  toggleEnabled: [];
+  delete: [];
 }>();
 
 const expanded = ref(false);
@@ -193,13 +217,33 @@ defineExpose({ expanded });
   background: color-mix(in srgb, var(--pm-warning) 12%, transparent);
   color: var(--pm-warning);
 }
+.status-toggle {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pm-text-subtle);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.status-toggle:hover:not(:disabled) {
+  background: var(--pm-bg-hover);
+  border-color: var(--pm-border);
+}
+.status-toggle:disabled {
+  cursor: default;
+}
 .status-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--pm-text-subtle);
 }
-.status-dot.enabled {
+.status-toggle.enabled .status-dot {
   background: var(--pm-success);
 }
 .prompt-body {
@@ -223,6 +267,7 @@ defineExpose({ expanded });
 }
 .prompt-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: var(--pm-prompt-pad-y, 8px);
 }
@@ -243,5 +288,10 @@ defineExpose({ expanded });
   background: var(--pm-bg-hover);
   color: var(--pm-text);
   border-color: var(--pm-border-strong);
+}
+.action-btn.danger:hover {
+  color: var(--pm-danger);
+  border-color: color-mix(in srgb, var(--pm-danger) 42%, var(--pm-border));
+  background: color-mix(in srgb, var(--pm-danger) 10%, transparent);
 }
 </style>

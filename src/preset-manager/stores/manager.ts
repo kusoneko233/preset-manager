@@ -176,7 +176,12 @@ const managerStore = reactive<ManagerState & {
     if (!name) return;
 
     await updatePresetWith(name, preset => {
-      preset.prompts = preset.prompts.filter(p => p.id !== promptId);
+      if (Array.isArray(preset.prompts)) {
+        preset.prompts = preset.prompts.filter(p => p.id !== promptId);
+      }
+      if (Array.isArray(preset.prompts_unused)) {
+        preset.prompts_unused = preset.prompts_unused.filter(p => p.id !== promptId);
+      }
       return preset;
     });
 
@@ -189,7 +194,8 @@ const managerStore = reactive<ManagerState & {
     if (!name) return;
 
     await updatePresetWith(name, preset => {
-      const prompt = preset.prompts.find(p => p.id === promptId);
+      const prompt = preset.prompts?.find(p => p.id === promptId)
+        ?? preset.prompts_unused?.find(p => p.id === promptId);
       if (prompt) Object.assign(prompt, updates);
       return preset;
     });

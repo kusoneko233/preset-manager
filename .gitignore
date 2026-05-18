@@ -23,3 +23,4 @@ package.json.tmp
 /dist/*
 !/dist/preset-manager/
 !/.gitignore
+!/README.md

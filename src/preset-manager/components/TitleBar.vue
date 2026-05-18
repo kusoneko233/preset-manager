@@ -1,7 +1,7 @@
 <template>
   <div
     class="title-bar flex items-center px-3 py-2 select-none"
-    @mousedown.prevent="onDragStart"
+    @mousedown.stop.prevent="onDragStart"
   >
     <div class="flex items-center gap-2 flex-1 min-w-0">
       <i class="fas fa-sliders-h text-indigo-400 text-sm" />
@@ -50,6 +50,8 @@
 </template>
 
 <script setup lang="ts">
+import { startParentDrag } from '../utils/drag';
+
 defineProps<{
   isFullscreen: boolean;
   canUndo: boolean;
@@ -70,7 +72,7 @@ const parentDoc = inject<Document>('parentDocument')!;
 const iframeEl = inject<HTMLIFrameElement>('iframeElement')!;
 
 function onDragStart(e: MouseEvent) {
-  if ((e.target as HTMLElement).closest('button')) return;
+  if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
 
   const iframe = iframeEl;
   const style = iframe.style;
@@ -83,25 +85,25 @@ function onDragStart(e: MouseEvent) {
 
   const startX = e.screenX;
   const startY = e.screenY;
-  const startTop = parseInt(style.top) || 0;
-  const startLeft = parseInt(style.left) || 0;
+  const startTop = parseFloat(style.top) || 0;
+  const startLeft = parseFloat(style.left) || 0;
 
-  const onMove = (ev: MouseEvent) => {
-    style.top = `${startTop + (ev.screenY - startY)}px`;
-    style.left = `${startLeft + (ev.screenX - startX)}px`;
-  };
-
-  const onUp = () => {
-    parentDoc.removeEventListener('mousemove', onMove);
-    parentDoc.removeEventListener('mouseup', onUp);
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
-  };
-
-  parentDoc.addEventListener('mousemove', onMove);
-  parentDoc.addEventListener('mouseup', onUp);
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('mouseup', onUp);
+  startParentDrag(parentDoc, {
+    startEvent: e,
+    cursor: 'move',
+    onMove: ev => {
+      style.top = `${startTop + ev.screenY - startY}px`;
+      style.left = `${startLeft + ev.screenX - startX}px`;
+    },
+    onEnd: () => {
+      localStorage.setItem('presetManagerWindowState', JSON.stringify({
+        top: iframe.getBoundingClientRect().top,
+        left: iframe.getBoundingClientRect().left,
+        width: iframe.getBoundingClientRect().width,
+        height: iframe.getBoundingClientRect().height,
+      }));
+    },
+  });
 }
 </script>
 

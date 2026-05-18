@@ -2,16 +2,20 @@
   <div
     ref="handleRef"
     :class="['split-handle', direction, { dragging: isDragging }]"
-    @mousedown.prevent="onMouseDown"
+    @mousedown.stop.prevent="onMouseDown"
   >
     <div class="split-handle-bar" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { startParentDrag } from '../utils/drag';
+
 const props = defineProps<{
   direction: 'horizontal' | 'vertical';
 }>();
+
+const parentDoc = inject<Document>('parentDocument')!;
 
 const emit = defineEmits<{
   resize: [delta: number];
@@ -23,24 +27,25 @@ const handleRef = ref<HTMLElement>();
 const isDragging = ref(false);
 
 function onMouseDown(e: MouseEvent) {
+  if (e.button !== 0) return;
   isDragging.value = true;
   emit('dragStart');
-  const startPos = props.direction === 'vertical' ? e.clientX : e.clientY;
 
-  const onMove = (ev: MouseEvent) => {
-    const currentPos = props.direction === 'vertical' ? ev.clientX : ev.clientY;
-    emit('resize', currentPos - startPos);
-  };
+  const startX = e.screenX;
+  const startY = e.screenY;
 
-  const onUp = () => {
-    isDragging.value = false;
-    emit('dragEnd');
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
-  };
-
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('mouseup', onUp);
+  startParentDrag(parentDoc, {
+    startEvent: e,
+    cursor: props.direction === 'vertical' ? 'col-resize' : 'row-resize',
+    onMove: ev => {
+      const delta = props.direction === 'vertical' ? ev.screenX - startX : ev.screenY - startY;
+      emit('resize', delta);
+    },
+    onEnd: () => {
+      isDragging.value = false;
+      emit('dragEnd');
+    },
+  });
 }
 </script>
 

@@ -1,9 +1,5 @@
 <template>
   <div class="left-sidebar" :class="{ collapsed: isCollapsed }" :style="{ width: isCollapsed ? '32px' : `${width}px` }">
-    <button class="collapse-toggle" @click="isCollapsed = !isCollapsed">
-      <i :class="['fas text-xs', isCollapsed ? 'fa-chevron-right' : 'fa-chevron-left']" />
-    </button>
-
     <template v-if="!isCollapsed">
       <div class="sidebar-content">
         <div class="workbench-area" :style="{ height: `${topHeight}px` }">
@@ -17,6 +13,10 @@
         </div>
       </div>
     </template>
+
+    <button class="collapse-toggle" @click="isCollapsed = !isCollapsed">
+      <i :class="['fas text-xs', isCollapsed ? 'fa-chevron-right' : 'fa-chevron-left']" />
+    </button>
   </div>
 </template>
 
@@ -51,7 +51,6 @@ defineExpose({ isCollapsed });
   display: flex;
   background: rgba(15, 23, 42, 0.4);
   border-right: 1px solid rgba(51, 65, 85, 0.3);
-  transition: width 0.2s ease;
   overflow: hidden;
 }
 .left-sidebar.collapsed {
@@ -59,19 +58,19 @@ defineExpose({ isCollapsed });
 }
 .collapse-toggle {
   position: absolute;
-  top: 8px;
-  right: 4px;
-  width: 24px;
-  height: 24px;
+  top: 52px;
+  right: 10px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 4px;
   border: none;
-  background: rgba(30, 41, 59, 0.8);
+  background: rgba(30, 41, 59, 0.9);
   color: #64748b;
   cursor: pointer;
-  z-index: 5;
+  z-index: 30;
   transition: all 0.12s;
 }
 .collapse-toggle:hover {

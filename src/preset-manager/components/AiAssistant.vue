@@ -3,7 +3,7 @@
     <!-- Drawer mode -->
     <template v-if="ai.mode === 'drawer'">
       <div class="drawer-container" :style="{ height: `${ai.drawerHeight}px` }">
-        <div class="drawer-handle" @mousedown.prevent="onDrawerResize">
+        <div class="drawer-handle" @mousedown.stop.prevent="onDrawerResize">
           <div class="handle-bar" />
         </div>
         <div class="ai-header">
@@ -113,9 +113,11 @@
 import { useAiStore } from '../stores/ai';
 import { useManagerStore } from '../stores/manager';
 import AiConfig from './AiConfig.vue';
+import { startParentDrag } from '../utils/drag';
 
 const ai = useAiStore();
 const manager = useManagerStore();
+const parentDoc = inject<Document>('parentDocument')!;
 
 const inputText = ref('');
 const messagesRef = ref<HTMLElement>();
@@ -192,80 +194,75 @@ let lastMoveY = 0;
 let lastMoveTime = 0;
 
 function onDetachedDrag(e: MouseEvent) {
-  if ((e.target as HTMLElement).closest('button')) return;
+  if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
   ai.snapToEdge(null);
 
-  dragStartX = e.clientX;
-  dragStartY = e.clientY;
+  dragStartX = e.screenX;
+  dragStartY = e.screenY;
   dragStartPosX = ai.detachedPosition.x;
   dragStartPosY = ai.detachedPosition.y;
   dragStartTime = Date.now();
-  lastMoveX = e.clientX;
-  lastMoveY = e.clientY;
+  lastMoveX = e.screenX;
+  lastMoveY = e.screenY;
   lastMoveTime = Date.now();
 
-  const onMove = (ev: MouseEvent) => {
-    const now = Date.now();
-    const dt = Math.max(now - lastMoveTime, 1);
-    velocityX = (ev.clientX - lastMoveX) / dt;
-    velocityY = (ev.clientY - lastMoveY) / dt;
-    lastMoveX = ev.clientX;
-    lastMoveY = ev.clientY;
-    lastMoveTime = now;
+  startParentDrag(parentDoc, {
+    startEvent: e,
+    cursor: 'move',
+    onMove: ev => {
+      const now = Date.now();
+      const dt = Math.max(now - lastMoveTime, 1);
+      velocityX = (ev.screenX - lastMoveX) / dt;
+      velocityY = (ev.screenY - lastMoveY) / dt;
+      lastMoveX = ev.screenX;
+      lastMoveY = ev.screenY;
+      lastMoveTime = now;
 
-    ai.detachedPosition.x = dragStartPosX + (ev.clientX - dragStartX);
-    ai.detachedPosition.y = dragStartPosY + (ev.clientY - dragStartY);
-  };
+      ai.detachedPosition.x = dragStartPosX + (ev.screenX - dragStartX);
+      ai.detachedPosition.y = dragStartPosY + (ev.screenY - dragStartY);
+    },
+    onEnd: () => {
+      const speed = Math.sqrt(velocityX ** 2 + velocityY ** 2);
+      if (speed > 0.5) {
+        const el = document.documentElement;
+        const w = el.clientWidth;
+        const h = el.clientHeight;
+        const finalX = ai.detachedPosition.x + velocityX * 200;
+        const finalY = ai.detachedPosition.y + velocityY * 200;
 
-  const onUp = (ev: MouseEvent) => {
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
+        if (finalX < 0) ai.snapToEdge('left');
+        else if (finalX > w - 320) ai.snapToEdge('right');
+        else if (finalY < 0) ai.snapToEdge('top');
+        else if (finalY > h - 200) ai.snapToEdge('bottom');
+      }
 
-    const speed = Math.sqrt(velocityX ** 2 + velocityY ** 2);
-    if (speed > 0.5) {
+      const x = ai.detachedPosition.x;
+      const y = ai.detachedPosition.y;
       const el = document.documentElement;
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      const finalX = ai.detachedPosition.x + velocityX * 200;
-      const finalY = ai.detachedPosition.y + velocityY * 200;
-
-      if (finalX < 0) ai.snapToEdge('left');
-      else if (finalX > w - 320) ai.snapToEdge('right');
-      else if (finalY < 0) ai.snapToEdge('top');
-      else if (finalY > h - 200) ai.snapToEdge('bottom');
-    }
-
-    const x = ai.detachedPosition.x;
-    const y = ai.detachedPosition.y;
-    const el = document.documentElement;
-    if (x < 10) ai.snapToEdge('left');
-    else if (x > el.clientWidth - 340) ai.snapToEdge('right');
-    if (y < 10) ai.snapToEdge('top');
-    else if (y > el.clientHeight - 210) ai.snapToEdge('bottom');
-  };
-
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('mouseup', onUp);
+      if (x < 10) ai.snapToEdge('left');
+      else if (x > el.clientWidth - 340) ai.snapToEdge('right');
+      if (y < 10) ai.snapToEdge('top');
+      else if (y > el.clientHeight - 210) ai.snapToEdge('bottom');
+    },
+  });
 }
 
 let drawerStartY = 0;
 let drawerStartH = 0;
 
 function onDrawerResize(e: MouseEvent) {
-  drawerStartY = e.clientY;
+  if (e.button !== 0) return;
+
+  drawerStartY = e.screenY;
   drawerStartH = ai.drawerHeight;
 
-  const onMove = (ev: MouseEvent) => {
-    ai.drawerHeight = Math.max(100, Math.min(drawerStartH - (ev.clientY - drawerStartY), 500));
-  };
-
-  const onUp = () => {
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
-  };
-
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('mouseup', onUp);
+  startParentDrag(parentDoc, {
+    startEvent: e,
+    cursor: 'row-resize',
+    onMove: ev => {
+      ai.drawerHeight = Math.max(100, Math.min(drawerStartH - (ev.screenY - drawerStartY), 500));
+    },
+  });
 }
 </script>
 
@@ -421,7 +418,7 @@ const AiConfigComponent = {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.15s ease;
   z-index: 200;
 }
 .detached-window .ai-header { cursor: move; }

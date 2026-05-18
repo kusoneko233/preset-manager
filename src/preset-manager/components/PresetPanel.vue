@@ -12,7 +12,7 @@
       </select>
     </div>
 
-    <div class="prompt-list flex-1 overflow-y-auto" :class="{ 'drop-target': isDropTarget }">
+    <div :key="promptListKey" class="prompt-list flex-1 overflow-y-auto" :class="{ 'drop-target': isDropTarget }">
       <div v-if="!prompts.length" class="empty-state">
         <i class="fas fa-inbox text-2xl text-slate-600 mb-2" />
         <div class="text-slate-500 text-xs">{{ selectedPreset ? '预设为空' : '请选择预设' }}</div>
@@ -69,7 +69,12 @@ const isDropTarget = ref(false);
 const emptyPrompt: PresetPrompt = { id: '', name: '', enabled: false, role: 'system' };
 
 const presetNames = computed(() => store.presetNames);
-const prompts = computed(() => (props.panelId === 'main' ? store.mainPrompts : store.secondPrompts));
+const prompts = ref<PresetPrompt[]>([]);
+const promptListKey = computed(() => `${props.panelId}:${selectedPreset.value}:${prompts.value.length}`);
+
+function syncPromptsFromStore() {
+  prompts.value = props.panelId === 'main' ? [...store.mainPrompts] : [...store.secondPrompts];
+}
 
 function isFavorited(prompt: PresetPrompt): boolean {
   return props.favoritedIds?.has(prompt.id) ?? false;
@@ -77,11 +82,13 @@ function isFavorited(prompt: PresetPrompt): boolean {
 
 function onPresetChange() {
   if (!selectedPreset.value) return;
-  if (props.panelId === 'main') {
-    store.loadMainPreset(selectedPreset.value);
-    history.createSnapshot(selectedPreset.value, undefined, true);
-  } else {
-    store.loadSecondPreset(selectedPreset.value);
+  const loaded = props.panelId === 'main'
+    ? store.loadMainPreset(selectedPreset.value)
+    : store.loadSecondPreset(selectedPreset.value);
+
+  if (loaded) {
+    syncPromptsFromStore();
+    console.log('[PresetManager] PresetPanel prompts after load:', props.panelId, prompts.value.length);
     history.createSnapshot(selectedPreset.value, undefined, true);
   }
 }
@@ -139,8 +146,12 @@ onMounted(() => {
       console.log('[PresetManager] PresetPanel mount, currentPresetName:', current);
       if (current) {
         selectedPreset.value = current;
-        store.loadMainPreset(current);
-        history.createSnapshot(current, undefined, true);
+        const loaded = store.loadMainPreset(current);
+        if (loaded) {
+          syncPromptsFromStore();
+          console.log('[PresetManager] PresetPanel prompts after mount:', prompts.value.length);
+          history.createSnapshot(current, undefined, true);
+        }
       }
     } catch (e) {
       console.error('[PresetManager] PresetPanel mount error:', e);

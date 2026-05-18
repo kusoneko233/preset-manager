@@ -38,26 +38,42 @@ function createFloatingButton() {
     })
     .appendTo(window.parent.document.body);
 
-  ($btn as any).draggable({
-    containment: 'window',
-    scroll: false,
-    start() {
-      $btn.data('dragged', false);
-    },
-    drag() {
-      $btn.data('dragged', true);
-    },
-    stop() {
-      if (!$btn.data('dragged')) {
+  let isDragging = false;
+  let dragStartPos = { x: 0, y: 0 };
+  let btnStartPos = { x: 0, y: 0 };
+  const parentDoc = window.parent.document;
+
+  $btn.on('mousedown', (e: JQuery.Event) => {
+    const evt = (e as any).originalEvent as MouseEvent;
+    dragStartPos = { x: evt.clientX, y: evt.clientY };
+    const rect = $btn[0].getBoundingClientRect();
+    btnStartPos = { x: rect.left, y: rect.top };
+    isDragging = false;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const dx = ev.clientX - dragStartPos.x;
+      const dy = ev.clientY - dragStartPos.y;
+      if (!isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+        isDragging = true;
+        $btn.css({ transition: 'none' });
+      }
+      if (isDragging) {
+        $btn.css({ left: `${btnStartPos.x + dx}px`, top: `${btnStartPos.y + dy}px`, right: 'auto', bottom: 'auto' });
+      }
+    };
+
+    const onMouseUp = () => {
+      (parentDoc as any).removeEventListener('mousemove', onMouseMove);
+      (parentDoc as any).removeEventListener('mouseup', onMouseUp);
+      $btn.css({ transition: 'transform 0.15s ease, box-shadow 0.15s ease' });
+      if (!isDragging) {
         togglePanel();
       }
-    },
-  });
+      isDragging = false;
+    };
 
-  $btn.on('click', () => {
-    if (!$btn.data('dragged')) {
-      togglePanel();
-    }
+    (parentDoc as any).addEventListener('mousemove', onMouseMove);
+    (parentDoc as any).addEventListener('mouseup', onMouseUp);
   });
 
   return $btn;
@@ -100,7 +116,7 @@ function togglePanel() {
     mountEl.id = 'app';
     iframeDoc.body.appendChild(mountEl);
 
-    app = createApp(App).use(createPinia());
+    app = createApp(App);
     app.provide('parentDocument', window.parent.document);
     app.provide('iframeElement', $iframe![0]);
     app.mount(mountEl);

@@ -24,6 +24,30 @@ interface ManagerState {
 
 const STORAGE_KEY = 'preset_manager';
 
+function tryGetPreset(name: string): Preset | null {
+  try {
+    return getPreset(name);
+  } catch (e) {
+    console.warn('[PresetManager] preset name is not loadable:', name, e);
+    return null;
+  }
+}
+
+function getLoadablePresetNames(): string[] {
+  return getPresetNames().filter(name => !!tryGetPreset(name));
+}
+
+function clonePreset(preset: Preset): Preset {
+  return JSON.parse(JSON.stringify(preset));
+}
+
+function getDisplayPrompts(preset: Preset | null): PresetPrompt[] {
+  if (!preset) return [];
+  const prompts = Array.isArray(preset.prompts) ? preset.prompts : [];
+  const unusedPrompts = Array.isArray(preset.prompts_unused) ? preset.prompts_unused : [];
+  return prompts.length ? prompts : unusedPrompts;
+}
+
 function loadFavorites(): FavoriteFolder[] {
   try {
     const vars = getVariables({ type: 'script' });
@@ -47,195 +71,216 @@ function saveFavorites(favorites: FavoriteFolder[]) {
   }
 }
 
-export const useManagerStore = defineStore('manager', {
-  state: (): ManagerState => ({
-    presetName: '',
-    preset: null,
-    secondPresetName: '',
-    secondPreset: null,
-    favorites: loadFavorites(),
-    drafts: [],
-  }),
+const managerStore = reactive<ManagerState & {
+  readonly presetNames: string[];
+  readonly currentPresetName: string;
+  readonly mainPrompts: PresetPrompt[];
+  readonly secondPrompts: PresetPrompt[];
+  loadMainPreset(name: string): boolean;
+  loadSecondPreset(name: string): boolean;
+  refreshMainPreset(): void;
+  refreshSecondPreset(): void;
+  insertPromptToPreset(prompt: PresetNormalPrompt, targetPreset: 'main' | 'second', index?: number): Promise<void>;
+  removePromptFromPreset(promptId: string, targetPreset: 'main' | 'second'): Promise<void>;
+  updatePromptInPreset(promptId: string, updates: Partial<PresetPrompt>, targetPreset: 'main' | 'second'): Promise<void>;
+  addFavoriteFolder(name?: string): void;
+  removeFavoriteFolder(folderId: string): void;
+  renameFavoriteFolder(folderId: string, name: string): void;
+  toggleFavoriteFolder(folderId: string): void;
+  addToFavorites(folderId: string, prompt: PresetNormalPrompt): void;
+  removeFromFavorites(folderId: string, index: number): void;
+  moveFavoriteItem(fromFolderId: string, fromIndex: number, toFolderId: string, toIndex: number): void;
+  addDraft(): void;
+  removeDraft(id: string): void;
+  updateDraft(id: string, updates: Partial<DraftPrompt>): void;
+  draftToPrompt(draft: DraftPrompt): PresetNormalPrompt;
+}>({
+  presetName: '',
+  preset: null,
+  secondPresetName: '',
+  secondPreset: null,
+  favorites: loadFavorites(),
+  drafts: [],
 
-  getters: {
-    presetNames(): string[] {
-      return getPresetNames();
-    },
-    currentPresetName(): string {
-      return getLoadedPresetName();
-    },
-    mainPrompts(): PresetPrompt[] {
-      return this.preset?.prompts ?? [];
-    },
-    secondPrompts(): PresetPrompt[] {
-      return this.secondPreset?.prompts ?? [];
-    },
+  get presetNames(): string[] {
+    return getLoadablePresetNames();
+  },
+  get currentPresetName(): string {
+    return getLoadedPresetName();
+  },
+  get mainPrompts(): PresetPrompt[] {
+    return getDisplayPrompts(this.preset);
+  },
+  get secondPrompts(): PresetPrompt[] {
+    return getDisplayPrompts(this.secondPreset);
   },
 
-  actions: {
-    loadMainPreset(name: string) {
-      this.presetName = name;
-      try {
-        const p = getPreset(name);
-        this.preset = JSON.parse(JSON.stringify(p));
-        toastr.info(`已加载预设，共 ${this.preset?.prompts?.length ?? 0} 个条目`, '', { timeOut: 2000 });
-      } catch (e) {
-        console.error('[PresetManager] loadMainPreset failed:', name, e);
-        toastr.error(`加载预设失败: ${e}`, '', { timeOut: 5000 });
-        this.preset = null;
-      }
-    },
+  loadMainPreset(name: string): boolean {
+    this.presetName = name;
+    const p = tryGetPreset(name);
+    if (!p) {
+      toastr.error(`加载预设失败: 预设不存在或不可读取`, '', { timeOut: 5000 });
+      this.preset = null;
+      return false;
+    }
 
-    loadSecondPreset(name: string) {
-      this.secondPresetName = name;
-      try {
-        const p = getPreset(name);
-        this.secondPreset = JSON.parse(JSON.stringify(p));
-      } catch (e) {
-        console.error('[PresetManager] loadSecondPreset failed:', name, e);
-        toastr.error(`加载第二预设失败: ${e}`, '', { timeOut: 5000 });
-        this.secondPreset = null;
-      }
-    },
+    const prompts = getDisplayPrompts(p);
+    console.log('[PresetManager] loaded main preset:', name, 'display:', prompts.length, 'prompts:', p.prompts?.length ?? 0, 'unused:', p.prompts_unused?.length ?? 0);
+    this.preset = clonePreset(p);
+    toastr.info(`已加载预设，共 ${prompts.length} 个条目`, '', { timeOut: 2000 });
+    return true;
+  },
 
-    refreshMainPreset() {
-      if (this.presetName) this.loadMainPreset(this.presetName);
-    },
+  loadSecondPreset(name: string): boolean {
+    this.secondPresetName = name;
+    const p = tryGetPreset(name);
+    if (!p) {
+      toastr.error(`加载第二预设失败: 预设不存在或不可读取`, '', { timeOut: 5000 });
+      this.secondPreset = null;
+      return false;
+    }
 
-    refreshSecondPreset() {
-      if (this.secondPresetName) this.loadSecondPreset(this.secondPresetName);
-    },
+    this.secondPreset = clonePreset(p);
+    return true;
+  },
 
-    async insertPromptToPreset(prompt: PresetNormalPrompt, targetPreset: 'main' | 'second', index?: number) {
-      const name = targetPreset === 'main' ? this.presetName : this.secondPresetName;
-      if (!name) return;
+  refreshMainPreset() {
+    if (this.presetName) this.loadMainPreset(this.presetName);
+  },
 
-      const newPrompt: PresetNormalPrompt = {
-        ...klona(prompt),
-        id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      };
+  refreshSecondPreset() {
+    if (this.secondPresetName) this.loadSecondPreset(this.secondPresetName);
+  },
 
-      await updatePresetWith(name, preset => {
-        const idx = index ?? preset.prompts.length;
-        preset.prompts.splice(idx, 0, newPrompt);
-        return preset;
-      });
+  async insertPromptToPreset(prompt: PresetNormalPrompt, targetPreset: 'main' | 'second', index?: number) {
+    const name = targetPreset === 'main' ? this.presetName : this.secondPresetName;
+    if (!name) return;
 
-      if (targetPreset === 'main') this.refreshMainPreset();
-      else this.refreshSecondPreset();
-    },
+    const newPrompt: PresetNormalPrompt = {
+      ...klona(prompt),
+      id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    };
 
-    async removePromptFromPreset(promptId: string, targetPreset: 'main' | 'second') {
-      const name = targetPreset === 'main' ? this.presetName : this.secondPresetName;
-      if (!name) return;
+    await updatePresetWith(name, preset => {
+      const idx = index ?? preset.prompts.length;
+      preset.prompts.splice(idx, 0, newPrompt);
+      return preset;
+    });
 
-      await updatePresetWith(name, preset => {
-        preset.prompts = preset.prompts.filter(p => p.id !== promptId);
-        return preset;
-      });
+    if (targetPreset === 'main') this.refreshMainPreset();
+    else this.refreshSecondPreset();
+  },
 
-      if (targetPreset === 'main') this.refreshMainPreset();
-      else this.refreshSecondPreset();
-    },
+  async removePromptFromPreset(promptId: string, targetPreset: 'main' | 'second') {
+    const name = targetPreset === 'main' ? this.presetName : this.secondPresetName;
+    if (!name) return;
 
-    async updatePromptInPreset(
-      promptId: string,
-      updates: Partial<PresetPrompt>,
-      targetPreset: 'main' | 'second',
-    ) {
-      const name = targetPreset === 'main' ? this.presetName : this.secondPresetName;
-      if (!name) return;
+    await updatePresetWith(name, preset => {
+      preset.prompts = preset.prompts.filter(p => p.id !== promptId);
+      return preset;
+    });
 
-      await updatePresetWith(name, preset => {
-        const prompt = preset.prompts.find(p => p.id === promptId);
-        if (prompt) Object.assign(prompt, updates);
-        return preset;
-      });
+    if (targetPreset === 'main') this.refreshMainPreset();
+    else this.refreshSecondPreset();
+  },
 
-      if (targetPreset === 'main') this.refreshMainPreset();
-      else this.refreshSecondPreset();
-    },
+  async updatePromptInPreset(promptId: string, updates: Partial<PresetPrompt>, targetPreset: 'main' | 'second') {
+    const name = targetPreset === 'main' ? this.presetName : this.secondPresetName;
+    if (!name) return;
 
-    // Favorites
-    addFavoriteFolder(name?: string) {
-      this.favorites.push({
-        id: `fav_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        name: name ?? `收藏夹 ${this.favorites.length + 1}`,
-        collapsed: false,
-        items: [],
-      });
-      saveFavorites(this.favorites);
-    },
+    await updatePresetWith(name, preset => {
+      const prompt = preset.prompts.find(p => p.id === promptId);
+      if (prompt) Object.assign(prompt, updates);
+      return preset;
+    });
 
-    removeFavoriteFolder(folderId: string) {
-      this.favorites = this.favorites.filter(f => f.id !== folderId);
-      saveFavorites(this.favorites);
-    },
+    if (targetPreset === 'main') this.refreshMainPreset();
+    else this.refreshSecondPreset();
+  },
 
-    renameFavoriteFolder(folderId: string, name: string) {
-      const folder = this.favorites.find(f => f.id === folderId);
-      if (folder) folder.name = name;
-      saveFavorites(this.favorites);
-    },
+  addFavoriteFolder(name?: string) {
+    const folder: FavoriteFolder = {
+      id: `fav_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      name: name ?? `收藏夹 ${this.favorites.length + 1}`,
+      collapsed: false,
+      items: [],
+    };
+    this.favorites.push(folder);
+    saveFavorites(this.favorites);
+    toastr.success(`已创建收藏夹 "${folder.name}"`, '', { timeOut: 1500 });
+  },
 
-    toggleFavoriteFolder(folderId: string) {
-      const folder = this.favorites.find(f => f.id === folderId);
-      if (folder) folder.collapsed = !folder.collapsed;
-      saveFavorites(this.favorites);
-    },
+  removeFavoriteFolder(folderId: string) {
+    this.favorites = this.favorites.filter(f => f.id !== folderId);
+    saveFavorites(this.favorites);
+  },
 
-    addToFavorites(folderId: string, prompt: PresetNormalPrompt) {
-      const folder = this.favorites.find(f => f.id === folderId);
-      if (!folder) return;
-      folder.items.push(klona(prompt));
-      saveFavorites(this.favorites);
-    },
+  renameFavoriteFolder(folderId: string, name: string) {
+    const folder = this.favorites.find(f => f.id === folderId);
+    if (folder) folder.name = name;
+    saveFavorites(this.favorites);
+  },
 
-    removeFromFavorites(folderId: string, index: number) {
-      const folder = this.favorites.find(f => f.id === folderId);
-      if (!folder) return;
-      folder.items.splice(index, 1);
-      saveFavorites(this.favorites);
-    },
+  toggleFavoriteFolder(folderId: string) {
+    const folder = this.favorites.find(f => f.id === folderId);
+    if (folder) folder.collapsed = !folder.collapsed;
+    saveFavorites(this.favorites);
+  },
 
-    moveFavoriteItem(fromFolderId: string, fromIndex: number, toFolderId: string, toIndex: number) {
-      const fromFolder = this.favorites.find(f => f.id === fromFolderId);
-      const toFolder = this.favorites.find(f => f.id === toFolderId);
-      if (!fromFolder || !toFolder) return;
-      const [item] = fromFolder.items.splice(fromIndex, 1);
-      toFolder.items.splice(toIndex, 0, item);
-      saveFavorites(this.favorites);
-    },
+  addToFavorites(folderId: string, prompt: PresetNormalPrompt) {
+    const folder = this.favorites.find(f => f.id === folderId);
+    if (!folder) return;
+    folder.items.push(klona(prompt));
+    saveFavorites(this.favorites);
+  },
 
-    // Drafts
-    addDraft() {
-      this.drafts.push({
-        id: `draft_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        name: '',
-        role: 'system',
-        content: '',
-        collapsed: true,
-      });
-    },
+  removeFromFavorites(folderId: string, index: number) {
+    const folder = this.favorites.find(f => f.id === folderId);
+    if (!folder) return;
+    folder.items.splice(index, 1);
+    saveFavorites(this.favorites);
+  },
 
-    removeDraft(id: string) {
-      this.drafts = this.drafts.filter(d => d.id !== id);
-    },
+  moveFavoriteItem(fromFolderId: string, fromIndex: number, toFolderId: string, toIndex: number) {
+    const fromFolder = this.favorites.find(f => f.id === fromFolderId);
+    const toFolder = this.favorites.find(f => f.id === toFolderId);
+    if (!fromFolder || !toFolder) return;
+    const [item] = fromFolder.items.splice(fromIndex, 1);
+    toFolder.items.splice(toIndex, 0, item);
+    saveFavorites(this.favorites);
+  },
 
-    updateDraft(id: string, updates: Partial<DraftPrompt>) {
-      const draft = this.drafts.find(d => d.id === id);
-      if (draft) Object.assign(draft, updates);
-    },
+  addDraft() {
+    this.drafts.push({
+      id: `draft_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      name: '',
+      role: 'system',
+      content: '',
+      collapsed: true,
+    });
+  },
 
-    draftToPrompt(draft: DraftPrompt): PresetNormalPrompt {
-      return {
-        id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        name: draft.name || 'Untitled',
-        enabled: true,
-        position: { type: 'relative' },
-        role: draft.role,
-        content: draft.content,
-      };
-    },
+  removeDraft(id: string) {
+    this.drafts = this.drafts.filter(d => d.id !== id);
+  },
+
+  updateDraft(id: string, updates: Partial<DraftPrompt>) {
+    const draft = this.drafts.find(d => d.id === id);
+    if (draft) Object.assign(draft, updates);
+  },
+
+  draftToPrompt(draft: DraftPrompt): PresetNormalPrompt {
+    return {
+      id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      name: draft.name || 'Untitled',
+      enabled: true,
+      position: { type: 'relative' },
+      role: draft.role,
+      content: draft.content,
+    };
   },
 });
+
+export function useManagerStore() {
+  return managerStore;
+}

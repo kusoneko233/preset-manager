@@ -30,6 +30,7 @@
       </template>
 
       <button
+        v-if="!ai.visible"
         class="second-toggle"
         :class="{ active: showSecondPreset }"
         :title="showSecondPreset ? '收起第二预设' : '展开第二预设'"
@@ -41,6 +42,13 @@
 
     <AiAssistant />
     <HistoryPanel :visible="showHistory" @close="showHistory = false" />
+
+    <template v-if="!isFullscreen">
+      <div class="window-resize-handle resize-top-left" @mousedown.stop.prevent="onWindowResizeStart($event, 'top-left')" />
+      <div class="window-resize-handle resize-top-right" @mousedown.stop.prevent="onWindowResizeStart($event, 'top-right')" />
+      <div class="window-resize-handle resize-bottom-left" @mousedown.stop.prevent="onWindowResizeStart($event, 'bottom-left')" />
+      <div class="window-resize-handle resize-bottom-right" @mousedown.stop.prevent="onWindowResizeStart($event, 'bottom-right')" />
+    </template>
   </div>
 </template>
 
@@ -54,6 +62,7 @@ import HistoryPanel from './components/HistoryPanel.vue';
 import { useManagerStore } from './stores/manager';
 import { useHistoryStore } from './stores/history';
 import { useAiStore } from './stores/ai';
+import { startParentDrag } from './utils/drag';
 
 const manager = useManagerStore();
 const history = useHistoryStore();
@@ -65,6 +74,13 @@ const showSecondPreset = ref(false);
 const leftWidth = ref(240);
 const rightWidth = ref(280);
 const leftSidebarRef = ref<any>();
+
+const WINDOW_STATE_KEY = 'presetManagerWindowState';
+type WindowState = { top: number; left: number; width: number; height: number };
+let lastWindowState: WindowState | null = null;
+type WindowResizeDirection = 'top' | 'right' | 'bottom' | 'left' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+const MIN_WINDOW_WIDTH = 640;
+const MIN_WINDOW_HEIGHT = 420;
 
 const startLeftWidth = ref(240);
 const startRightWidth = ref(280);
@@ -98,10 +114,44 @@ function onRightSplitResize(delta: number) {
 const parentDoc = inject<Document>('parentDocument')!;
 const iframeEl = inject<HTMLIFrameElement>('iframeElement')!;
 
-function toggleFullscreen() {
-  isFullscreen.value = !isFullscreen.value;
+function readWindowState(): WindowState | null {
+  try {
+    const raw = localStorage.getItem(WINDOW_STATE_KEY);
+    if (!raw) return null;
+    const state = JSON.parse(raw) as WindowState;
+    if (!state.width || !state.height) return null;
+    return state;
+  } catch {
+    return null;
+  }
+}
+
+function saveWindowState() {
+  if (isFullscreen.value) return;
+  const rect = iframeEl.getBoundingClientRect();
+  lastWindowState = { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+  localStorage.setItem(WINDOW_STATE_KEY, JSON.stringify(lastWindowState));
+}
+
+function applyWindowState(state: WindowState) {
   const style = iframeEl.style;
-  if (isFullscreen.value) {
+  style.transform = '';
+  style.right = '';
+  style.bottom = '';
+  style.top = `${Math.max(0, state.top)}px`;
+  style.left = `${Math.max(0, state.left)}px`;
+  style.width = `${Math.max(MIN_WINDOW_WIDTH, state.width)}px`;
+  style.height = `${Math.max(MIN_WINDOW_HEIGHT, state.height)}px`;
+  style.maxWidth = 'none';
+  style.maxHeight = 'none';
+  style.borderRadius = '12px';
+}
+
+function toggleFullscreen() {
+  const style = iframeEl.style;
+  if (!isFullscreen.value) {
+    saveWindowState();
+    isFullscreen.value = true;
     style.top = '0';
     style.left = '0';
     style.right = '0';
@@ -113,17 +163,60 @@ function toggleFullscreen() {
     style.transform = '';
     style.borderRadius = '0';
   } else {
-    style.top = '50%';
-    style.left = '50%';
-    style.right = '';
-    style.bottom = '';
-    style.width = '900px';
-    style.height = '600px';
-    style.maxWidth = '95vw';
-    style.maxHeight = '90vh';
-    style.transform = 'translate(-50%, -50%)';
-    style.borderRadius = '12px';
+    isFullscreen.value = false;
+    applyWindowState(lastWindowState ?? readWindowState() ?? { top: 80, left: 120, width: 900, height: 600 });
   }
+}
+
+function onWindowResizeStart(e: MouseEvent, direction: WindowResizeDirection) {
+  if (e.button !== 0) return;
+
+  const rect = iframeEl.getBoundingClientRect();
+  const startX = e.screenX;
+  const startY = e.screenY;
+  const startLeft = rect.left;
+  const startTop = rect.top;
+  const startW = rect.width;
+  const startH = rect.height;
+  const style = iframeEl.style;
+  const cursor = direction.includes('top') && direction.includes('left') || direction.includes('bottom') && direction.includes('right')
+    ? 'nwse-resize'
+    : direction.includes('top') && direction.includes('right') || direction.includes('bottom') && direction.includes('left')
+      ? 'nesw-resize'
+      : direction === 'left' || direction === 'right'
+        ? 'ew-resize'
+        : 'ns-resize';
+
+  startParentDrag(parentDoc, {
+    startEvent: e,
+    cursor,
+    onMove: ev => {
+      const dx = ev.screenX - startX;
+      const dy = ev.screenY - startY;
+      let nextLeft = startLeft;
+      let nextTop = startTop;
+      let nextW = startW;
+      let nextH = startH;
+
+      if (direction.includes('right')) nextW = Math.max(MIN_WINDOW_WIDTH, startW + dx);
+      if (direction.includes('bottom')) nextH = Math.max(MIN_WINDOW_HEIGHT, startH + dy);
+      if (direction.includes('left')) {
+        nextW = Math.max(MIN_WINDOW_WIDTH, startW - dx);
+        nextLeft = startLeft + startW - nextW;
+      }
+      if (direction.includes('top')) {
+        nextH = Math.max(MIN_WINDOW_HEIGHT, startH - dy);
+        nextTop = startTop + startH - nextH;
+      }
+
+      style.transform = '';
+      style.left = `${nextLeft}px`;
+      style.top = `${nextTop}px`;
+      style.width = `${nextW}px`;
+      style.height = `${nextH}px`;
+    },
+    onEnd: saveWindowState,
+  });
 }
 
 function closePanel() {
@@ -172,6 +265,9 @@ function onFavorite(prompt: PresetPrompt) {
 }
 
 onMounted(() => {
+  const savedState = readWindowState();
+  if (savedState) applyWindowState(savedState);
+
   document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
       e.preventDefault();
@@ -208,6 +304,65 @@ html, body {
 }
 .app-root.fullscreen {
   border-radius: 0;
+}
+.window-resize-handle {
+  position: absolute;
+  z-index: 200;
+}
+.resize-top {
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 8px;
+  cursor: ns-resize;
+}
+.resize-right {
+  top: 12px;
+  right: 0;
+  width: 8px;
+  bottom: 12px;
+  cursor: ew-resize;
+}
+.resize-bottom {
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 8px;
+  cursor: ns-resize;
+}
+.resize-left {
+  top: 12px;
+  left: 0;
+  width: 8px;
+  bottom: 12px;
+  cursor: ew-resize;
+}
+.resize-top-left,
+.resize-top-right,
+.resize-bottom-left,
+.resize-bottom-right {
+  width: 16px;
+  height: 16px;
+}
+.resize-top-left {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+.resize-top-right {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+.resize-bottom-left {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+.resize-bottom-right {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
 }
 .main-body {
   flex: 1;

@@ -86,6 +86,7 @@ function onDragStart(e: DragEvent, draft: DraftPrompt) {
 <style scoped>
 .panel-title {
   border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+  padding-right: 40px;
 }
 .add-btn {
   width: 24px;

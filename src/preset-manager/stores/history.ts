@@ -1,7 +1,11 @@
-export interface OperationRecord {
+export interface OperationChange {
   presetName: string;
   before: Preset;
   after: Preset;
+}
+
+export interface OperationRecord extends OperationChange {
+  changes: OperationChange[];
   description: string;
   timestamp: number;
 }
@@ -56,10 +60,38 @@ const historyStore = reactive({
   },
 
   recordOperation(presetName: string, before: Preset, after: Preset, description: string) {
-    this.undoStack.push({
+    const change = {
       presetName,
       before: klona(before),
       after: klona(after),
+    };
+
+    this.undoStack.push({
+      ...change,
+      changes: [change],
+      description,
+      timestamp: Date.now(),
+    });
+
+    if (this.undoStack.length > MAX_UNDO) {
+      this.undoStack.shift();
+    }
+
+    this.redoStack = [];
+  },
+
+  recordMultiOperation(description: string, changes: OperationChange[]) {
+    const normalized = changes.map(change => ({
+      presetName: change.presetName,
+      before: klona(change.before),
+      after: klona(change.after),
+    }));
+    const first = normalized[0];
+    if (!first) return;
+
+    this.undoStack.push({
+      ...first,
+      changes: normalized,
       description,
       timestamp: Date.now(),
     });
@@ -76,7 +108,9 @@ const historyStore = reactive({
     if (!record) return null;
 
     this.redoStack.push(record);
-    await replacePreset(record.presetName, klona(record.before));
+    for (const change of record.changes ?? [record]) {
+      await replacePreset(change.presetName, klona(change.before));
+    }
     return record;
   },
 
@@ -89,7 +123,9 @@ const historyStore = reactive({
       this.undoStack.shift();
     }
 
-    await replacePreset(record.presetName, klona(record.after));
+    for (const change of record.changes ?? [record]) {
+      await replacePreset(change.presetName, klona(change.after));
+    }
     return record;
   },
 
@@ -98,9 +134,18 @@ const historyStore = reactive({
     if (!record) return null;
 
     try {
-      const currentPreset = getPreset(record.presetName);
-      await replacePreset(record.presetName, klona(record.after));
-      this.recordOperation(record.presetName, currentPreset, record.after, `回到历史: ${record.description}`);
+      const changes = record.changes ?? [record];
+      const currentChanges = changes.map(change => ({
+        presetName: change.presetName,
+        before: klona(getPreset(change.presetName)),
+        after: klona(change.after),
+      }));
+
+      for (const change of changes) {
+        await replacePreset(change.presetName, klona(change.after));
+      }
+
+      this.recordMultiOperation(`回到历史: ${record.description}`, currentChanges);
       return record;
     } catch (e) {
       console.error('[PresetManager] restoreOperation failed:', record.presetName, e);

@@ -20,6 +20,7 @@
         <i v-else class="fas fa-grip-lines text-slate-600 text-xs flex-shrink-0" />
 
         <span class="prompt-name">{{ prompt.name }}</span>
+        <span v-if="relationLabel" class="relation-badge">{{ relationLabel }}</span>
       </div>
 
       <div class="flex items-center gap-2 flex-shrink-0">
@@ -68,6 +69,14 @@
           <i :class="['text-xs', isFavorited ? 'fas fa-star text-amber-400' : 'far fa-star']" />
           <span>{{ isFavorited ? '取消收藏' : '收藏' }}</span>
         </button>
+        <button v-if="canTransfer" class="action-btn transfer" :title="`复制到${transferTargetLabel}`" @click.stop="$emit('copyToOther')">
+          <i class="fas fa-copy text-xs" />
+          <span>复制到{{ transferTargetLabel }}</span>
+        </button>
+        <button v-if="canTransfer" class="action-btn transfer" :title="`迁移到${transferTargetLabel}`" @click.stop="$emit('moveToOther')">
+          <i class="fas fa-arrow-right-arrow-left text-xs" />
+          <span>迁移到{{ transferTargetLabel }}</span>
+        </button>
         <button v-if="!isPlaceholder" class="action-btn danger" title="删除条目" @click.stop="$emit('delete')">
           <i class="fas fa-trash text-xs" />
           <span>删除</span>
@@ -84,6 +93,9 @@ const props = defineProps<{
   dragType?: string;
   dragSource?: string;
   dragIndex?: number;
+  relationLabel?: string;
+  canTransfer?: boolean;
+  transferTargetLabel?: string;
 }>();
 
 defineEmits<{
@@ -92,6 +104,8 @@ defineEmits<{
   toggleFavorite: [];
   toggleEnabled: [];
   delete: [];
+  copyToOther: [];
+  moveToOther: [];
 }>();
 
 const expanded = ref(false);
@@ -187,6 +201,16 @@ defineExpose({ expanded });
   word-break: break-all;
   font-weight: 540;
   line-height: 1.35;
+}
+.relation-badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--pm-border);
+  border-radius: 6px;
+  color: var(--pm-text-subtle);
+  font-size: 10px;
+  line-height: 1.5;
+  background: color-mix(in srgb, var(--pm-bg-elevated) 48%, transparent);
 }
 .star-btn {
   width: var(--pm-prompt-icon-size, 22px);
@@ -317,5 +341,10 @@ defineExpose({ expanded });
   color: var(--pm-danger);
   border-color: color-mix(in srgb, var(--pm-danger) 42%, var(--pm-border));
   background: color-mix(in srgb, var(--pm-danger) 10%, transparent);
+}
+.action-btn.transfer:hover {
+  color: var(--pm-text);
+  border-color: color-mix(in srgb, var(--pm-accent) 38%, var(--pm-border));
+  background: color-mix(in srgb, var(--pm-accent) 10%, transparent);
 }
 </style>

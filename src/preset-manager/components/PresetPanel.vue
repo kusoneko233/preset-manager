@@ -44,10 +44,15 @@
           :drag-type="'preset-prompt'"
           :drag-source="panelId"
           :drag-index="i"
+          :relation-label="relationLabel(prompt)"
+          :can-transfer="canTransferToOther"
+          :transfer-target-label="otherPanelLabel"
           @zoom="zoomPrompt = prompt"
           @edit="openEditor(prompt)"
           @toggle-enabled="togglePromptEnabled(prompt)"
           @toggle-favorite="$emit('favorite', prompt)"
+          @copy-to-other="copyPromptToOther(prompt)"
+          @move-to-other="movePromptToOther(prompt)"
           @delete="deletePrompt(prompt)"
         />
       </div>
@@ -86,6 +91,7 @@ import PromptDetailOverlay from './PromptDetailOverlay.vue';
 import PromptEditDialog from './PromptEditDialog.vue';
 import { useManagerStore } from '../stores/manager';
 import { useHistoryStore } from '../stores/history';
+import { getPromptRelation, getPromptRelationLabel, type PromptRelation } from '../utils/promptRelations';
 
 const props = defineProps<{
   panelId: 'main' | 'second';
@@ -118,6 +124,26 @@ function syncPromptsFromStore() {
 
 function currentPresetName() {
   return props.panelId === 'main' ? store.presetName : store.secondPresetName;
+}
+
+function otherPanelId(): 'main' | 'second' {
+  return props.panelId === 'main' ? 'second' : 'main';
+}
+
+function otherPresetName() {
+  return props.panelId === 'main' ? store.secondPresetName : store.presetName;
+}
+
+const otherPrompts = computed(() => props.panelId === 'main' ? store.secondPrompts : store.mainPrompts);
+const canTransferToOther = computed(() => !!currentPresetName() && !!otherPresetName());
+const otherPanelLabel = computed(() => props.panelId === 'main' ? '第二预设' : '主预设');
+
+function relationOf(prompt: PresetPrompt): PromptRelation {
+  return getPromptRelation(prompt, otherPrompts.value);
+}
+
+function relationLabel(prompt: PresetPrompt) {
+  return getPromptRelationLabel(relationOf(prompt));
 }
 
 function isFavorited(prompt: PresetPrompt): boolean {
@@ -181,6 +207,20 @@ async function recordPresetChange(description: string, operation: () => Promise<
   return true;
 }
 
+async function recordTargetPresetChange(targetPanel: 'main' | 'second', description: string, operation: () => Promise<boolean | void>) {
+  const presetName = targetPanel === 'main' ? store.presetName : store.secondPresetName;
+  if (!presetName) return false;
+
+  const before = snapshotPreset(presetName);
+  const result = await operation();
+  if (result === false) return false;
+
+  const after = snapshotPreset(presetName);
+  history.recordOperation(presetName, before, after, description);
+  syncPromptsFromStore();
+  return true;
+}
+
 function normalizePrompt(prompt: PresetPrompt): PresetNormalPrompt {
   return {
     id: prompt.id,
@@ -217,6 +257,14 @@ function resetDropState() {
   isDropTarget.value = false;
   dropIndex.value = null;
   isSortingDrop.value = false;
+}
+
+function confirmRelation(prompt: PresetPrompt, actionLabel: string) {
+  const relation = relationOf(prompt);
+  if (relation === 'none') return true;
+
+  const label = getPromptRelationLabel(relation);
+  return confirm(`${otherPanelLabel.value}中已有${label}条目 "${prompt.name}"，仍要${actionLabel}吗？`);
 }
 
 function resolveDropIndex(e: DragEvent, index: number) {
@@ -279,6 +327,44 @@ async function togglePromptEnabled(prompt: PresetPrompt) {
     await store.updatePromptInPreset(prompt.id, { enabled: nextEnabled }, props.panelId);
   });
   if (ok) toastr.info(nextEnabled ? '条目已启用' : '条目已禁用', '', { timeOut: 1200 });
+}
+
+async function copyPromptToOther(prompt: PresetPrompt) {
+  if (isPresetPlaceholderPrompt(prompt) || !canTransferToOther.value) return;
+  if (!confirmRelation(prompt, `复制到${otherPanelLabel.value}`)) return;
+
+  const targetPanel = otherPanelId();
+  const ok = await recordTargetPresetChange(targetPanel, `从${props.panelId === 'main' ? '主预设' : '第二预设'}复制条目: ${prompt.name}`, async () => {
+    await store.insertPromptToPreset(normalizePrompt(prompt), targetPanel);
+  });
+
+  if (ok) toastr.success(`已复制 "${prompt.name}" 到${otherPanelLabel.value}`, '', { timeOut: 1600 });
+}
+
+async function movePromptToOther(prompt: PresetPrompt) {
+  if (isPresetPlaceholderPrompt(prompt) || !canTransferToOther.value) return;
+  if (!confirmRelation(prompt, `迁移到${otherPanelLabel.value}`)) return;
+  if (!confirm(`确定将 "${prompt.name}" 迁移到${otherPanelLabel.value}吗？原预设中的该条目会被移除。`)) return;
+
+  const sourceName = currentPresetName();
+  const targetPanel = otherPanelId();
+  const targetName = otherPresetName();
+  if (!sourceName || !targetName) return;
+
+  const sourceBefore = snapshotPreset(sourceName);
+  const targetBefore = snapshotPreset(targetName);
+
+  await store.insertPromptToPreset(normalizePrompt(prompt), targetPanel);
+  await store.removePromptFromPreset(prompt.id, props.panelId);
+
+  const sourceAfter = snapshotPreset(sourceName);
+  const targetAfter = snapshotPreset(targetName);
+  history.recordMultiOperation(`迁移条目到${otherPanelLabel.value}: ${prompt.name}`, [
+    { presetName: targetName, before: targetBefore, after: targetAfter },
+    { presetName: sourceName, before: sourceBefore, after: sourceAfter },
+  ]);
+  syncPromptsFromStore();
+  toastr.success(`已迁移 "${prompt.name}" 到${otherPanelLabel.value}`, '', { timeOut: 1600 });
 }
 
 async function savePromptEdits(updates: Partial<PresetPrompt>) {

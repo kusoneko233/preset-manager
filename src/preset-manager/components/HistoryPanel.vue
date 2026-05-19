@@ -29,7 +29,7 @@
                 <div v-for="item in operationItems" :key="`${item.record.timestamp}:${item.index}`" class="record-item">
                   <div class="record-main">
                     <span class="record-desc">{{ item.record.description }}</span>
-                    <span class="record-meta">{{ item.record.presetName }} · {{ formatDateTime(item.record.timestamp) }}</span>
+                    <span class="record-meta">{{ recordPresetLabel(item.record) }} · {{ formatDateTime(item.record.timestamp) }}</span>
                   </div>
                   <button class="icon-btn" title="回到此处" @click="restoreOperation(item.index, item.record.description)">
                     <i class="fas fa-undo" />
@@ -81,6 +81,7 @@
 
 <script setup lang="ts">
 import type { Snapshot } from '../stores/history';
+import type { OperationRecord } from '../stores/history';
 import { useHistoryStore } from '../stores/history';
 import { useManagerStore } from '../stores/manager';
 
@@ -99,6 +100,12 @@ function formatDateTime(ts: number) {
   const hours = String(d.getHours()).padStart(2, '0');
   const minutes = String(d.getMinutes()).padStart(2, '0');
   return `${month}-${day} ${hours}:${minutes}`;
+}
+
+function recordPresetLabel(record: OperationRecord) {
+  const changes = record.changes ?? [record];
+  if (changes.length <= 1) return record.presetName;
+  return `${changes.length} 个预设`;
 }
 
 function refreshPresets() {

@@ -1,6 +1,6 @@
 <template>
   <div
-    class="title-bar flex items-center px-3 py-2 select-none"
+    class="title-bar flex items-center select-none"
     @mousedown.stop.prevent="onDragStart"
   >
     <div class="title-left flex items-center gap-2 flex-1 min-w-0">
@@ -125,21 +125,22 @@ function onDragStart(e: MouseEvent) {
 
 <style scoped>
 .title-bar {
-  height: 46px;
-  background: var(--pm-bg);
-  border-bottom: 1px solid var(--pm-border);
+  height: 40px;
+  padding: 0 10px;
+  background: color-mix(in srgb, var(--pm-bg-soft) 38%, var(--pm-bg));
+  border-bottom: 1px solid var(--pm-divider);
   cursor: move;
 }
 .brand-mark {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--pm-border);
-  border-radius: 8px;
+  border-radius: 7px;
   color: var(--pm-text);
-  background: var(--pm-bg-elevated);
+  background: color-mix(in srgb, var(--pm-bg-elevated) 72%, transparent);
 }
 .title-text {
   font-size: 13px;
@@ -148,13 +149,13 @@ function onDragStart(e: MouseEvent) {
 }
 .title-separator {
   width: 1px;
-  height: 18px;
-  margin: 0 6px;
-  background: var(--pm-border);
+  height: 16px;
+  margin: 0 4px;
+  background: var(--pm-divider);
 }
 .title-btn {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -163,7 +164,7 @@ function onDragStart(e: MouseEvent) {
   background: transparent;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: all 0.12s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .title-btn:hover:not(:disabled) {
   background: var(--pm-bg-hover);
@@ -175,8 +176,8 @@ function onDragStart(e: MouseEvent) {
   cursor: not-allowed;
 }
 .title-btn.active {
-  color: var(--pm-accent-text);
-  background: var(--pm-accent);
-  border-color: var(--pm-accent);
+  color: var(--pm-text);
+  background: var(--pm-bg-active);
+  border-color: var(--pm-border-strong);
 }
 </style>

@@ -54,7 +54,8 @@ const aiStore = reactive({
   isGenerating: false,
   showConfig: false,
   mode: 'drawer' as 'drawer' | 'detached',
-  drawerHeight: 200,
+  drawerHeight: 220,
+  drawerExpanded: false,
   detachedPosition: { x: 100, y: 100 },
   snappedEdge: null as 'top' | 'bottom' | 'left' | 'right' | null,
   visible: true,
@@ -69,6 +70,10 @@ const aiStore = reactive({
 
   setMode(mode: 'drawer' | 'detached') {
     this.mode = mode;
+  },
+
+  setDrawerExpanded(expanded: boolean) {
+    this.drawerExpanded = expanded;
   },
 
   snapToEdge(edge: 'top' | 'bottom' | 'left' | 'right' | null) {

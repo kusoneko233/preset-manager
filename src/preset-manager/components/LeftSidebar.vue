@@ -50,8 +50,8 @@ defineExpose({ isCollapsed });
   position: relative;
   display: flex;
   background:
-    radial-gradient(360px 250px at -70px -60px, var(--pm-sidebar-glow) 0%, transparent 68%),
-    radial-gradient(300px 520px at -120px 44%, var(--pm-sidebar-glow-soft) 0%, transparent 72%),
+    radial-gradient(420px 300px at -105px -78px, var(--pm-sidebar-glow) 0%, transparent 70%),
+    radial-gradient(310px 560px at -125px 44%, var(--pm-sidebar-glow-soft) 0%, transparent 74%),
     linear-gradient(180deg, transparent 0%, var(--pm-sidebar-shadow) 100%),
     var(--pm-bg-sidebar);
   border-right: 0;
@@ -63,17 +63,17 @@ defineExpose({ isCollapsed });
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.08), transparent 38%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 28%);
-  opacity: 0.2;
+    linear-gradient(90deg, rgba(255, 255, 255, 0.075), transparent 44%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 36%);
+  opacity: 0.24;
 }
 .left-sidebar::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(90deg, transparent calc(100% - 42px), rgba(0, 0, 0, 0.1));
-  opacity: 0.34;
+  background: linear-gradient(90deg, transparent calc(100% - 48px), rgba(0, 0, 0, 0.12));
+  opacity: 0.26;
 }
 .left-sidebar.collapsed {
   min-width: 32px;
@@ -81,15 +81,16 @@ defineExpose({ isCollapsed });
 .collapse-toggle {
   position: absolute;
   top: 50%;
-  right: 8px;
-  width: 26px;
-  height: 46px;
+  right: 2px;
+  width: 22px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  border: 1px solid var(--pm-border);
-  background: var(--pm-bg-elevated);
+  border-radius: 8px 0 0 8px;
+  border: 1px solid transparent;
+  border-right: 0;
+  background: color-mix(in srgb, var(--pm-bg-elevated) 46%, transparent);
   color: var(--pm-text-subtle);
   cursor: pointer;
   z-index: 30;
@@ -99,12 +100,13 @@ defineExpose({ isCollapsed });
 .collapse-toggle:hover {
   color: var(--pm-text);
   background: var(--pm-bg-hover);
+  border-color: var(--pm-border);
 }
 .left-sidebar.collapsed .collapse-toggle {
   top: 50%;
-  right: 3px;
-  width: 26px;
-  height: 46px;
+  right: 4px;
+  width: 24px;
+  height: 42px;
   transform: translateY(-50%);
 }
 .sidebar-content {
@@ -115,7 +117,7 @@ defineExpose({ isCollapsed });
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
-  padding: 8px 10px 10px;
+  padding: 8px 9px 10px;
 }
 .workbench-area {
   min-height: 80px;
@@ -123,9 +125,9 @@ defineExpose({ isCollapsed });
   background: transparent;
 }
 .sidebar-section-handle {
-  height: 14px;
+  height: 12px;
   opacity: 0;
-  margin: 2px 0;
+  margin: 1px 0;
   transition: opacity 0.12s ease;
 }
 .sidebar-section-handle:hover,

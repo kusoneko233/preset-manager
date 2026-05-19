@@ -1,59 +1,75 @@
 <template>
   <div v-if="ai.visible" class="ai-assistant" :class="[ai.mode, { snapped: !!ai.snappedEdge, [`snap-${ai.snappedEdge}`]: !!ai.snappedEdge }]">
-    <!-- Drawer mode -->
     <template v-if="ai.mode === 'drawer'">
-      <div class="drawer-container" :class="{ compact: isDrawerCompact }" :style="{ height: `${ai.drawerHeight}px` }">
-        <div class="drawer-handle" @mousedown.stop.prevent="onDrawerResize">
-          <div class="handle-bar" />
-        </div>
-        <div class="ai-header">
-          <span class="text-xs font-medium text-slate-300">
-            <i class="fas fa-robot mr-1 text-indigo-400" /> AI 助手
-          </span>
-          <div class="flex items-center gap-1">
-            <button class="ai-btn" title="脱出为独立窗口" @click="detach">
-              <i class="fas fa-external-link-alt text-xs" />
-            </button>
-            <button class="ai-btn" title="设置" @click="ai.showConfig = !ai.showConfig">
-              <i class="fas fa-cog text-xs" />
-            </button>
-            <button class="ai-btn" title="关闭" @click="ai.toggleVisible()">
-              <i class="fas fa-times text-xs" />
-            </button>
+      <div class="drawer-container" :class="{ expanded: ai.drawerExpanded }" :style="drawerStyle">
+        <template v-if="ai.drawerExpanded">
+          <div class="drawer-handle" @mousedown.stop.prevent="onDrawerResize">
+            <div class="handle-bar" />
           </div>
-        </div>
-
-        <AiConfig v-if="ai.showConfig && !isDrawerCompact" />
-
-        <div class="messages-area" ref="messagesRef">
-          <div v-if="!ai.messages.length" class="empty-ai text-slate-600 text-xs text-center py-4">
-            描述你的需求，AI 将帮你分析和优化预设
-          </div>
-          <div v-for="msg in ai.messages" :key="msg.id" class="ai-message" :class="msg.role">
-            <div class="msg-content">{{ msg.content }}</div>
-          </div>
-          <div v-if="ai.isGenerating" class="ai-message assistant">
-            <div class="msg-content typing">
-              <span class="dot" /><span class="dot" /><span class="dot" />
+          <div class="ai-header">
+            <button class="ai-title" title="收起 AI 助手" @click="collapseDrawer">
+              <i class="fas fa-sparkles text-xs" />
+              <span>AI 助手</span>
+              <i class="fas fa-chevron-down text-xs" />
+            </button>
+            <div class="ai-actions">
+              <button class="ai-btn" title="脱出为独立窗口" @click="detach">
+                <i class="fas fa-external-link-alt text-xs" />
+              </button>
+              <button class="ai-btn" title="设置" @click="ai.showConfig = !ai.showConfig">
+                <i class="fas fa-cog text-xs" />
+              </button>
+              <button class="ai-btn" title="关闭" @click="ai.toggleVisible()">
+                <i class="fas fa-times text-xs" />
+              </button>
             </div>
           </div>
-        </div>
 
-        <div class="input-bar">
+          <AiConfig v-if="ai.showConfig && !isDrawerCompact" />
+
+          <div class="messages-area" ref="messagesRef">
+            <div v-if="!ai.messages.length" class="empty-ai text-slate-600 text-xs">
+              描述你的需求，AI 将帮你分析和优化预设
+            </div>
+            <div v-for="msg in ai.messages" :key="msg.id" class="ai-message" :class="msg.role">
+              <div class="msg-content">{{ msg.content }}</div>
+            </div>
+            <div v-if="ai.isGenerating" class="ai-message assistant">
+              <div class="msg-content typing">
+                <span class="dot" /><span class="dot" /><span class="dot" />
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <div class="input-dock">
+          <button class="dock-toggle" :title="ai.drawerExpanded ? '收起 AI 助手' : '展开 AI 助手'" @click="toggleDrawer">
+            <i :class="['fas text-xs', ai.drawerExpanded ? 'fa-chevron-down' : 'fa-sparkles']" />
+          </button>
           <input
             v-model="inputText"
             class="ai-input"
-            placeholder="输入消息..."
+            placeholder="询问 AI 助手..."
+            @focus="expandDrawer"
             @keydown.enter="send"
           />
+          <button class="ai-btn dock-config" title="设置" @click="ai.showConfig = !ai.showConfig; expandDrawer()">
+            <i class="fas fa-cog text-xs" />
+          </button>
           <button class="send-btn" :disabled="!inputText.trim() || ai.isGenerating" @click="send">
             <i class="fas fa-paper-plane text-xs" />
           </button>
+          <button class="ai-btn dock-close" title="关闭" @click="ai.toggleVisible()">
+            <i class="fas fa-times text-xs" />
+          </button>
+        </div>
+
+        <div v-if="ai.showConfig && !ai.drawerExpanded" class="capsule-config">
+          <AiConfig />
         </div>
       </div>
     </template>
 
-    <!-- Detached mode -->
     <template v-if="ai.mode === 'detached'">
       <div
         ref="detachedRef"
@@ -64,12 +80,15 @@
         @mouseleave="isHovering = false"
       >
         <div class="ai-header" @mousedown.prevent="onDetachedDrag">
-          <span class="text-xs font-medium text-slate-300">
-            <i class="fas fa-robot mr-1 text-indigo-400" /> AI
+          <span class="detached-title">
+            <i class="fas fa-sparkles text-xs" /> AI
           </span>
-          <div class="flex items-center gap-1">
+          <div class="ai-actions">
             <button class="ai-btn" title="收回到底部" @click="dock">
               <i class="fas fa-compress-arrows-alt text-xs" />
+            </button>
+            <button class="ai-btn" title="设置" @click="ai.showConfig = !ai.showConfig">
+              <i class="fas fa-cog text-xs" />
             </button>
             <button class="ai-btn" title="关闭" @click="ai.toggleVisible()">
               <i class="fas fa-times text-xs" />
@@ -80,7 +99,7 @@
         <AiConfig v-if="ai.showConfig" />
 
         <div class="messages-area" ref="detachedMsgRef">
-          <div v-if="!ai.messages.length" class="empty-ai text-slate-600 text-xs text-center py-3">
+          <div v-if="!ai.messages.length" class="empty-ai text-slate-600 text-xs">
             输入消息开始对话
           </div>
           <div v-for="msg in ai.messages" :key="msg.id" class="ai-message" :class="msg.role">
@@ -93,7 +112,7 @@
           </div>
         </div>
 
-        <div class="input-bar">
+        <div class="input-dock detached-input">
           <input
             v-model="inputText"
             class="ai-input"
@@ -124,7 +143,10 @@ const messagesRef = ref<HTMLElement>();
 const detachedMsgRef = ref<HTMLElement>();
 const detachedRef = ref<HTMLElement>();
 const isHovering = ref(false);
-const isDrawerCompact = computed(() => ai.drawerHeight < 132);
+const isDrawerCompact = computed(() => ai.drawerHeight < 148);
+const drawerStyle = computed(() => ({
+  height: ai.drawerExpanded ? `${ai.drawerHeight}px` : '46px',
+}));
 
 const detachedStyle = computed(() => {
   if (ai.snappedEdge && !isHovering.value) {
@@ -166,6 +188,7 @@ function send() {
     });
   }
   ai.sendMessage(inputText.value, context);
+  expandDrawer();
   inputText.value = '';
   nextTick(() => {
     messagesRef.value?.scrollTo(0, messagesRef.value.scrollHeight);
@@ -175,12 +198,26 @@ function send() {
 
 function detach() {
   ai.setMode('detached');
+  ai.setDrawerExpanded(true);
   ai.snapToEdge(null);
 }
 
 function dock() {
   ai.setMode('drawer');
+  ai.setDrawerExpanded(true);
   ai.snapToEdge(null);
+}
+
+function expandDrawer() {
+  ai.setDrawerExpanded(true);
+}
+
+function collapseDrawer() {
+  ai.setDrawerExpanded(false);
+}
+
+function toggleDrawer() {
+  ai.setDrawerExpanded(!ai.drawerExpanded);
 }
 
 let dragStartX = 0;
@@ -261,7 +298,7 @@ function onDrawerResize(e: MouseEvent) {
     startEvent: e,
     cursor: 'row-resize',
     onMove: ev => {
-      ai.drawerHeight = Math.max(88, Math.min(drawerStartH - (ev.screenY - drawerStartY), 500));
+      ai.drawerHeight = Math.max(150, Math.min(drawerStartH - (ev.screenY - drawerStartY), 520));
     },
   });
 }
@@ -278,21 +315,29 @@ const AiConfigComponent = {
 .ai-assistant.drawer {
   position: absolute;
   bottom: 0;
-  left: 0;
-  right: 0;
+  left: 12px;
+  right: 12px;
   z-index: 100;
+  pointer-events: none;
 }
 .drawer-container {
   display: flex;
   flex-direction: column;
-  background: var(--pm-bg);
-  border-top: 1px solid var(--pm-border);
-  box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.2);
+  background: transparent;
+  overflow: visible;
+  pointer-events: auto;
+}
+.drawer-container.expanded {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--pm-bg-soft) 22%, transparent), transparent 120px),
+    var(--pm-ai-surface);
+  border-top: 1px solid var(--pm-divider);
+  box-shadow: 0 -18px 46px rgba(0, 0, 0, 0.14);
   overflow: hidden;
 }
 .drawer-handle {
-  height: 7px;
-  flex: 0 0 7px;
+  height: 9px;
+  flex: 0 0 9px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -302,7 +347,7 @@ const AiConfigComponent = {
   background: var(--pm-text-muted);
 }
 .handle-bar {
-  width: 42px;
+  width: 46px;
   height: 1px;
   border-radius: 999px;
   background: var(--pm-split-line);
@@ -312,15 +357,37 @@ const AiConfigComponent = {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 32px;
-  padding: 4px 10px;
-  border-bottom: 1px solid var(--pm-border);
+  min-height: 34px;
+  padding: 3px 12px 5px;
+  border-bottom: 1px solid var(--pm-divider);
   color: var(--pm-text);
   flex: 0 0 auto;
 }
+.ai-title,
+.detached-title {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  color: var(--pm-text);
+  font-weight: 620;
+}
+.ai-title {
+  cursor: pointer;
+}
+.ai-title i:last-child {
+  color: var(--pm-text-subtle);
+}
+.ai-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
 .ai-btn {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -329,7 +396,7 @@ const AiConfigComponent = {
   background: transparent;
   color: var(--pm-text-subtle);
   cursor: pointer;
-  transition: all 0.12s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .ai-btn:hover {
   color: var(--pm-text);
@@ -340,11 +407,11 @@ const AiConfigComponent = {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px 10px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  background: var(--pm-bg);
+  gap: 7px;
+  background: transparent;
 }
 .ai-message {
   max-width: 85%;
@@ -356,8 +423,8 @@ const AiConfigComponent = {
   align-self: flex-start;
 }
 .msg-content {
-  padding: 6px 10px;
-  border-radius: 10px;
+  padding: 7px 10px;
+  border-radius: 9px;
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -370,7 +437,7 @@ const AiConfigComponent = {
   color: var(--pm-accent-text);
 }
 .ai-message.assistant .msg-content {
-  background: var(--pm-bg-elevated);
+  background: color-mix(in srgb, var(--pm-bg-elevated) 76%, transparent);
   color: var(--pm-text);
 }
 .typing {
@@ -391,27 +458,56 @@ const AiConfigComponent = {
   0%, 80%, 100% { transform: translateY(0); }
   40% { transform: translateY(-6px); }
 }
-.input-bar {
+.input-dock {
   display: flex;
+  align-items: center;
   gap: 6px;
-  padding: 6px 10px 8px;
-  border-top: 1px solid var(--pm-border);
-  background: var(--pm-bg);
+  min-height: 46px;
+  padding: 6px 8px 8px;
+  border-top: 1px solid transparent;
+  background: transparent;
   flex: 0 0 auto;
+}
+.drawer-container.expanded .input-dock {
+  border-top-color: var(--pm-divider);
+  background: color-mix(in srgb, var(--pm-bg) 40%, transparent);
+}
+.drawer-container:not(.expanded) .input-dock {
+  max-width: min(760px, calc(100vw - 80px));
+  margin: 0 auto;
+  border: 1px solid var(--pm-border);
+  border-radius: 999px;
+  background: var(--pm-ai-capsule);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+}
+.dock-toggle {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--pm-bg-hover);
+  color: var(--pm-text);
+  cursor: pointer;
 }
 .ai-input {
   flex: 1;
   height: 32px;
-  padding: 0 11px;
+  min-width: 0;
+  padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid var(--pm-border);
-  background: var(--pm-input-bg);
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--pm-text);
   font-size: 12px;
   outline: none;
 }
 .ai-input:focus {
-  border-color: var(--pm-border-strong);
+  background: color-mix(in srgb, var(--pm-input-bg) 68%, transparent);
+  border-color: var(--pm-border);
 }
 .send-btn {
   width: 32px;
@@ -430,9 +526,20 @@ const AiConfigComponent = {
   transform: translateY(-1px);
 }
 .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.capsule-config {
+  position: absolute;
+  right: 0;
+  bottom: 54px;
+  width: min(360px, 80vw);
+  overflow: hidden;
+  border: 1px solid var(--pm-border);
+  border-radius: 12px;
+  background: var(--pm-bg-panel);
+  box-shadow: var(--pm-shadow);
+}
 .detached-window {
-  background: var(--pm-bg);
-  border: 1px solid var(--pm-border-strong);
+  background: var(--pm-ai-surface);
+  border: 1px solid var(--pm-border);
   border-radius: 12px;
   box-shadow: var(--pm-shadow);
   display: flex;
@@ -448,7 +555,7 @@ const AiConfigComponent = {
   min-height: 29px;
   padding-block: 3px;
 }
-.drawer-container.compact .input-bar {
+.drawer-container.compact .input-dock {
   padding-top: 5px;
 }
 .detached-window .ai-header { cursor: move; }
@@ -462,7 +569,7 @@ const AiConfigComponent = {
   opacity: 1;
 }
 .snap-collapsed .messages-area,
-.snap-collapsed .input-bar,
+.snap-collapsed .input-dock,
 .snap-collapsed .ai-header span {
   display: none;
 }
@@ -471,6 +578,13 @@ const AiConfigComponent = {
   padding: 4px;
 }
 .empty-ai {
-  padding: 16px;
+  align-self: center;
+  margin: auto 0;
+  padding: 18px;
+  color: var(--pm-text-subtle);
+}
+.detached-input {
+  border-top-color: var(--pm-divider);
+  background: color-mix(in srgb, var(--pm-bg) 45%, transparent);
 }
 </style>

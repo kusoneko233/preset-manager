@@ -6,10 +6,17 @@
     @drop.prevent="onDrop"
   >
     <div class="panel-header">
-      <select v-model="selectedPreset" class="preset-select" @change="onPresetChange">
-        <option value="" disabled>选择预设...</option>
-        <option v-for="name in presetNames" :key="name" :value="name">{{ name }}</option>
-      </select>
+      <div class="preset-path">
+        <span class="panel-kicker">{{ panelId === 'main' ? '当前预设' : '第二预设' }}</span>
+        <div class="preset-select-wrap">
+          <select v-model="selectedPreset" class="preset-select" @change="onPresetChange">
+            <option value="" disabled>选择预设...</option>
+            <option v-for="name in presetNames" :key="name" :value="name">{{ name }}</option>
+          </select>
+          <i class="fas fa-chevron-down text-xs" />
+        </div>
+      </div>
+      <span class="prompt-count">{{ prompts.length }} 条</span>
     </div>
 
     <div
@@ -328,42 +335,78 @@ onMounted(() => {
 
 <style scoped>
 .panel-header {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--pm-border);
-  background: var(--pm-bg);
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 14px 6px;
+  border-bottom: 1px solid var(--pm-divider);
+  background: color-mix(in srgb, var(--pm-bg-soft) 32%, transparent);
+}
+.preset-path {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.panel-kicker {
+  flex-shrink: 0;
+  color: var(--pm-text-subtle);
+  font-size: 11px;
+}
+.preset-select-wrap {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+.preset-select-wrap i {
+  position: absolute;
+  right: 2px;
+  color: var(--pm-text-subtle);
+  pointer-events: none;
 }
 .preset-select {
-  width: 100%;
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--pm-border);
-  background: var(--pm-input-bg);
+  width: min(420px, 52vw);
+  min-width: 160px;
+  height: 28px;
+  padding: 0 20px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--pm-text);
   font-size: 13px;
+  font-weight: 620;
   outline: none;
   cursor: pointer;
+  appearance: none;
 }
 .preset-select:focus {
-  border-color: var(--pm-border-strong);
+  color: var(--pm-accent);
 }
 .preset-select option {
   background: var(--pm-bg-elevated);
   color: var(--pm-text);
 }
+.prompt-count {
+  flex-shrink: 0;
+  color: var(--pm-text-subtle);
+  font-size: 11px;
+}
 .prompt-list {
-  padding: var(--pm-prompt-list-pad, 8px);
+  padding: 4px 10px 10px;
   display: flex;
   flex-direction: column;
-  gap: var(--pm-prompt-list-gap, 6px);
+  gap: 0;
   transition: background 0.15s;
-  background: var(--pm-bg);
+  background: transparent;
 }
 .prompt-list.drop-target {
   background: color-mix(in srgb, var(--pm-accent) 6%, var(--pm-bg));
-  outline: 2px dashed var(--pm-border-strong);
+  outline: 1px dashed var(--pm-border-strong);
   outline-offset: -2px;
-  border-radius: 8px;
+  border-radius: 10px;
 }
 .prompt-list.sorting {
   outline-style: solid;
@@ -378,7 +421,7 @@ onMounted(() => {
   position: absolute;
   left: 8px;
   right: 8px;
-  top: calc(-0.5 * var(--pm-prompt-list-gap, 6px));
+  top: -1px;
   height: 2px;
   border-radius: 999px;
   background: var(--pm-accent);

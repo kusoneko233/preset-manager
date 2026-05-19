@@ -1,7 +1,7 @@
 <template>
   <div
     class="prompt-item"
-    :class="{ expanded, dragging: isDragging, 'is-placeholder': isPlaceholder }"
+    :class="{ expanded, dragging: isDragging, disabled: !prompt.enabled, 'is-placeholder': isPlaceholder }"
     :draggable="!isPlaceholder"
     @dragstart="onDragStart"
     @dragend="onDragEnd"
@@ -130,41 +130,63 @@ defineExpose({ expanded });
 
 <style scoped>
 .prompt-item {
-  border: 1px solid var(--pm-row-border);
-  border-radius: var(--pm-prompt-radius, 10px);
+  position: relative;
+  border: 1px solid transparent;
+  border-bottom-color: var(--pm-row-border);
+  border-radius: 0;
   background: var(--pm-row-bg);
-  transition: all 0.15s;
+  transition: background 0.12s, border-color 0.12s, opacity 0.12s;
   cursor: grab;
 }
+.prompt-item::before {
+  content: '';
+  position: absolute;
+  inset: 3px auto 3px 0;
+  width: 2px;
+  border-radius: 999px;
+  background: transparent;
+  transition: background 0.12s;
+}
 .prompt-item:hover {
-  border-color: var(--pm-border);
+  border-color: transparent;
+  border-bottom-color: var(--pm-row-border);
   background: var(--pm-row-hover);
 }
 .prompt-item.expanded {
-  border-color: var(--pm-border-strong);
+  border-color: var(--pm-border);
+  border-radius: 8px;
   background: var(--pm-row-active);
+  margin: 4px 0;
+}
+.prompt-item.expanded::before {
+  background: var(--pm-accent);
 }
 .prompt-item.dragging {
   opacity: 0.5;
   cursor: grabbing;
 }
+.prompt-item.disabled {
+  opacity: 0.68;
+}
 .prompt-item.is-placeholder {
   cursor: default;
-  border-style: dashed;
+  border: 1px dashed var(--pm-row-border);
+  border-radius: 8px;
   opacity: 0.7;
 }
 .prompt-header {
   display: flex;
   align-items: center;
   min-height: var(--pm-prompt-row-min, 44px);
-  padding: var(--pm-prompt-pad-y, 8px) var(--pm-prompt-pad-x, 10px);
+  padding: var(--pm-prompt-pad-y, 8px) calc(var(--pm-prompt-pad-x, 10px) + 1px);
   cursor: pointer;
   gap: 8px;
 }
 .prompt-name {
   color: var(--pm-text);
   word-break: break-all;
-  font-weight: 560;
+  font-weight: 540;
+  line-height: 1.35;
 }
 .star-btn {
   width: var(--pm-prompt-icon-size, 22px);
@@ -172,7 +194,7 @@ defineExpose({ expanded });
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 6px;
   border: none;
   background: transparent;
   color: var(--pm-text-subtle);
@@ -199,14 +221,16 @@ defineExpose({ expanded });
 }
 .role-badge {
   font-size: calc(var(--pm-prompt-preview-font-size, 13px) * 0.8);
-  padding: 2px 8px;
-  border-radius: 999px;
+  min-width: 58px;
+  padding: 2px 7px;
+  border-radius: 6px;
   font-weight: 500;
+  text-align: center;
   text-transform: uppercase;
   border: 1px solid var(--pm-border);
 }
 .role-badge.system {
-  background: var(--pm-bg-elevated);
+  background: color-mix(in srgb, var(--pm-bg-elevated) 68%, transparent);
   color: var(--pm-text);
 }
 .role-badge.user {
@@ -248,7 +272,7 @@ defineExpose({ expanded });
 }
 .prompt-body {
   padding: 0 var(--pm-prompt-pad-x, 10px) var(--pm-prompt-pad-y, 8px);
-  border-top: 1px solid var(--pm-border);
+  border-top: 1px solid var(--pm-divider);
   margin-top: 0;
   padding-top: var(--pm-prompt-pad-y, 8px);
 }
@@ -261,7 +285,7 @@ defineExpose({ expanded });
   white-space: pre-wrap;
   word-break: break-all;
   background: var(--pm-input-bg);
-  border: 1px solid var(--pm-border);
+  border: 1px solid var(--pm-divider);
   border-radius: 8px;
   padding: var(--pm-prompt-pad-y, 8px);
 }
@@ -276,7 +300,7 @@ defineExpose({ expanded });
   align-items: center;
   gap: 4px;
   padding: 5px 10px;
-  border-radius: 999px;
+  border-radius: 7px;
   border: 1px solid var(--pm-border);
   background: transparent;
   color: var(--pm-text-muted);

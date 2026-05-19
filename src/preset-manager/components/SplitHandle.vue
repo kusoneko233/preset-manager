@@ -74,19 +74,20 @@ function onMouseDown(e: MouseEvent) {
 }
 .split-handle.vertical::before {
   inset-block: 0;
-  left: -4px;
-  width: 9px;
+  left: -6px;
+  width: 13px;
 }
 .split-handle.horizontal::before {
   inset-inline: 0;
-  top: -4px;
-  height: 9px;
+  top: -6px;
+  height: 13px;
 }
 .split-handle-bar {
   position: absolute;
   border-radius: 999px;
   background: var(--pm-split-line);
-  transition: background 0.12s, opacity 0.12s;
+  opacity: 0.85;
+  transition: background 0.12s, opacity 0.12s, box-shadow 0.12s;
 }
 .split-handle.vertical .split-handle-bar {
   width: 1px;
@@ -99,5 +100,7 @@ function onMouseDown(e: MouseEvent) {
 .split-handle:hover .split-handle-bar,
 .split-handle.dragging .split-handle-bar {
   background: var(--pm-split-line-hover);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pm-split-line-hover) 32%, transparent);
+  opacity: 1;
 }
 </style>

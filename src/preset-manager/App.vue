@@ -28,7 +28,7 @@
       <div class="preset-workspace" :class="{ 'with-ai-drawer': ai.visible && ai.mode === 'drawer' }">
         <div
           class="preset-panels"
-          :style="{ paddingBottom: ai.visible && ai.mode === 'drawer' ? `${ai.drawerHeight}px` : '0px' }"
+          :style="{ paddingBottom: aiWorkspaceBottomPad }"
         >
           <div class="center-area" style="flex: 1; min-width: 200px">
             <PresetPanel panel-id="main" :favorited-ids="favoritedIds" @favorite="onFavorite" />
@@ -218,6 +218,11 @@ const uiVars = computed(() => {
     '--pm-prompt-list-pad': `${8 * prompt}px`,
     '--pm-prompt-preview-lines': String(promptPreviewLines.value),
   };
+});
+
+const aiWorkspaceBottomPad = computed(() => {
+  if (!ai.visible || ai.mode !== 'drawer') return '0px';
+  return ai.drawerExpanded ? `${ai.drawerHeight}px` : '58px';
 });
 
 const favoritedIds = computed(() => {
@@ -545,68 +550,72 @@ html, body {
 
 body[data-pm-theme="dark"],
 .theme-dark {
-  --pm-bg: #191a1d;
-  --pm-bg-soft: #202126;
-  --pm-bg-panel: #1c1d21;
-  --pm-bg-sidebar: #171c28;
-  --pm-bg-elevated: #24262c;
-  --pm-row-bg: rgba(255, 255, 255, 0.025);
-  --pm-row-hover: rgba(255, 255, 255, 0.065);
-  --pm-row-active: rgba(255, 255, 255, 0.085);
+  --pm-bg: #202126;
+  --pm-bg-soft: #24262d;
+  --pm-bg-panel: #22242a;
+  --pm-bg-sidebar: #1b2230;
+  --pm-bg-elevated: #292c34;
+  --pm-row-bg: transparent;
+  --pm-row-hover: rgba(255, 255, 255, 0.048);
+  --pm-row-active: rgba(255, 255, 255, 0.07);
   --pm-row-border: rgba(255, 255, 255, 0.075);
-  --pm-bg-hover: rgba(255, 255, 255, 0.06);
-  --pm-bg-active: rgba(255, 255, 255, 0.1);
-  --pm-border: rgba(255, 255, 255, 0.085);
-  --pm-border-strong: rgba(255, 255, 255, 0.16);
-  --pm-text: #f3f4f6;
-  --pm-text-muted: #a5a7ad;
-  --pm-text-subtle: #6f7380;
-  --pm-accent: #f7f7f5;
-  --pm-accent-text: #070707;
-  --pm-danger: #ff6b6b;
-  --pm-success: #7dd87d;
-  --pm-warning: #f4c96b;
-  --pm-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
-  --pm-input-bg: #18191c;
-  --pm-sidebar-glow: rgba(126, 145, 214, 0.3);
-  --pm-sidebar-glow-soft: rgba(47, 67, 124, 0.36);
-  --pm-sidebar-shadow: rgba(5, 10, 26, 0.28);
-  --pm-divider: rgba(255, 255, 255, 0.07);
-  --pm-split-line: rgba(255, 255, 255, 0.1);
-  --pm-split-line-hover: rgba(255, 255, 255, 0.3);
+  --pm-bg-hover: rgba(255, 255, 255, 0.055);
+  --pm-bg-active: rgba(255, 255, 255, 0.085);
+  --pm-border: rgba(255, 255, 255, 0.078);
+  --pm-border-strong: rgba(255, 255, 255, 0.13);
+  --pm-text: #f1f2f4;
+  --pm-text-muted: #aaaeb7;
+  --pm-text-subtle: #777d89;
+  --pm-accent: #f4f1e8;
+  --pm-accent-text: #171717;
+  --pm-danger: #ff7676;
+  --pm-success: #80d794;
+  --pm-warning: #e8bf6a;
+  --pm-shadow: 0 24px 68px rgba(0, 0, 0, 0.34);
+  --pm-input-bg: #1d1f25;
+  --pm-sidebar-glow: rgba(117, 144, 218, 0.25);
+  --pm-sidebar-glow-soft: rgba(54, 76, 130, 0.28);
+  --pm-sidebar-shadow: rgba(8, 13, 25, 0.23);
+  --pm-divider: rgba(255, 255, 255, 0.06);
+  --pm-split-line: rgba(255, 255, 255, 0.075);
+  --pm-split-line-hover: rgba(244, 241, 232, 0.42);
+  --pm-ai-surface: rgba(32, 33, 38, 0.96);
+  --pm-ai-capsule: rgba(29, 31, 37, 0.96);
 }
 
 body[data-pm-theme="light"],
 .theme-light {
-  --pm-bg: #f7f7f4;
+  --pm-bg: #f6f6f2;
   --pm-bg-soft: #ffffff;
-  --pm-bg-panel: #ffffff;
-  --pm-bg-sidebar: #f3f3ef;
+  --pm-bg-panel: #fbfbf8;
+  --pm-bg-sidebar: #eef1f7;
   --pm-bg-elevated: #ffffff;
-  --pm-row-bg: rgba(0, 0, 0, 0.018);
-  --pm-row-hover: rgba(0, 0, 0, 0.048);
-  --pm-row-active: rgba(0, 0, 0, 0.065);
-  --pm-row-border: rgba(0, 0, 0, 0.075);
-  --pm-bg-hover: rgba(0, 0, 0, 0.05);
-  --pm-bg-active: rgba(0, 0, 0, 0.08);
-  --pm-border: rgba(0, 0, 0, 0.12);
-  --pm-border-strong: rgba(0, 0, 0, 0.18);
-  --pm-text: #111111;
-  --pm-text-muted: #5f6368;
-  --pm-text-subtle: #8d908b;
-  --pm-accent: #111111;
+  --pm-row-bg: transparent;
+  --pm-row-hover: rgba(20, 24, 31, 0.045);
+  --pm-row-active: rgba(20, 24, 31, 0.068);
+  --pm-row-border: rgba(20, 24, 31, 0.08);
+  --pm-bg-hover: rgba(20, 24, 31, 0.052);
+  --pm-bg-active: rgba(20, 24, 31, 0.08);
+  --pm-border: rgba(20, 24, 31, 0.105);
+  --pm-border-strong: rgba(20, 24, 31, 0.17);
+  --pm-text: #16181d;
+  --pm-text-muted: #5d636e;
+  --pm-text-subtle: #8a9099;
+  --pm-accent: #1d1e22;
   --pm-accent-text: #ffffff;
   --pm-danger: #c74444;
   --pm-success: #197a36;
   --pm-warning: #9b6b00;
-  --pm-shadow: 0 24px 70px rgba(0, 0, 0, 0.18);
+  --pm-shadow: 0 24px 70px rgba(24, 31, 44, 0.16);
   --pm-input-bg: #ffffff;
-  --pm-sidebar-glow: rgba(206, 213, 232, 0.7);
-  --pm-sidebar-glow-soft: rgba(235, 238, 244, 0.95);
-  --pm-sidebar-shadow: rgba(138, 148, 170, 0.16);
+  --pm-sidebar-glow: rgba(174, 191, 230, 0.62);
+  --pm-sidebar-glow-soft: rgba(226, 233, 246, 0.92);
+  --pm-sidebar-shadow: rgba(126, 143, 174, 0.16);
   --pm-divider: rgba(0, 0, 0, 0.08);
-  --pm-split-line: rgba(0, 0, 0, 0.1);
-  --pm-split-line-hover: rgba(0, 0, 0, 0.28);
+  --pm-split-line: rgba(20, 24, 31, 0.095);
+  --pm-split-line-hover: rgba(20, 24, 31, 0.34);
+  --pm-ai-surface: rgba(250, 250, 247, 0.97);
+  --pm-ai-capsule: rgba(255, 255, 255, 0.98);
 }
 
 button,
@@ -713,8 +722,8 @@ button {
   color: var(--pm-text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   overflow: hidden;
-  border: 1px solid var(--pm-border-strong);
-  border-radius: 12px;
+  border: 1px solid var(--pm-border);
+  border-radius: 14px;
   box-shadow: var(--pm-shadow);
 }
 .app-root.fullscreen {
@@ -785,14 +794,15 @@ button {
   display: flex;
   overflow: hidden;
   position: relative;
+  background: var(--pm-bg);
 }
 .sidebar-edge-handle {
   margin-left: -1px;
-  opacity: 0.26;
+  opacity: 0.22;
 }
 .sidebar-edge-handle:hover,
 .sidebar-edge-handle.dragging {
-  opacity: 0.65;
+  opacity: 0.58;
 }
 .preset-workspace {
   position: relative;
@@ -801,7 +811,9 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--pm-bg);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--pm-bg-soft) 30%, transparent), transparent 140px),
+    var(--pm-bg);
 }
 .preset-panels {
   position: relative;
@@ -809,7 +821,7 @@ button {
   min-height: 0;
   display: flex;
   overflow: hidden;
-  transition: padding-bottom 0.16s ease;
+  transition: padding-bottom 0.14s ease;
 }
 .center-area {
   display: flex;
@@ -820,22 +832,22 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-left: 1px solid var(--pm-border);
+  background: color-mix(in srgb, var(--pm-bg-soft) 18%, transparent);
 }
 .second-toggle {
   position: absolute;
   right: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 24px;
-  height: 48px;
+  width: 22px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--pm-bg-elevated);
+  background: color-mix(in srgb, var(--pm-bg-elevated) 86%, transparent);
   border: 1px solid var(--pm-border);
   border-right: none;
-  border-radius: 8px 0 0 8px;
+  border-radius: 7px 0 0 7px;
   color: var(--pm-text-subtle);
   cursor: pointer;
   z-index: 20;
@@ -848,6 +860,8 @@ button {
 .second-toggle.active {
   right: auto;
   position: relative;
+  align-self: center;
+  margin-left: -1px;
 }
 .ui-settings-panel {
   position: absolute;

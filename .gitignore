@@ -24,3 +24,4 @@ package.json.tmp
 !/dist/preset-manager/
 !/.gitignore
 !/README.md
+!/codex-ui-ai-drawer-plan.md

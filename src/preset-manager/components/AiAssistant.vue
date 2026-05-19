@@ -5,14 +5,14 @@
     :class="[ai.mode, { snapped: !!ai.snappedEdge, [`snap-${ai.snappedEdge}`]: !!ai.snappedEdge }]"
   >
     <template v-if="ai.mode === 'drawer'">
-      <div class="drawer-shell" :class="{ expanded: ai.drawerExpanded }">
-        <div class="drawer-container" :class="{ expanded: ai.drawerExpanded, compact: isDrawerCompact }" :style="drawerStyle">
+      <div class="overlay-shell" :class="{ expanded: ai.drawerExpanded }">
+        <div class="overlay-panel" :class="{ expanded: ai.drawerExpanded, compact: isDrawerCompact }" :style="drawerStyle">
           <template v-if="ai.drawerExpanded">
             <div class="drawer-handle" @mousedown.stop.prevent="onDrawerResize">
               <div class="handle-bar" />
             </div>
 
-            <div class="ai-header">
+            <div class="overlay-topline">
               <button class="ai-title" title="收起 AI 助手" @click="collapseDrawer">
                 <i class="fas fa-sparkles text-xs" />
                 <span>AI 助手</span>
@@ -35,7 +35,7 @@
 
             <div ref="messagesRef" class="messages-area">
               <div v-if="!ai.messages.length" class="empty-ai text-slate-600 text-xs">
-                描述你的需求，AI 会帮你分析和优化预设。
+                描述你想调整的预设结构、条目顺序或提示词问题。
               </div>
               <div v-for="msg in ai.messages" :key="msg.id" class="ai-message" :class="msg.role">
                 <div class="msg-content">{{ msg.content }}</div>
@@ -55,7 +55,7 @@
             <input
               v-model="inputText"
               class="ai-input"
-              placeholder="向 AI 助手描述你想调整的预设..."
+              placeholder="Ask Codex anything"
               @focus="expandDrawer"
               @keydown.enter="send"
             />
@@ -63,7 +63,7 @@
               <i class="fas fa-cog text-xs" />
             </button>
             <button class="send-btn" :disabled="!inputText.trim() || ai.isGenerating" @click="send">
-              <i class="fas fa-paper-plane text-xs" />
+              <i class="fas fa-arrow-up text-xs" />
             </button>
             <button class="ai-btn dock-close" title="关闭" @click="ai.toggleVisible()">
               <i class="fas fa-times text-xs" />
@@ -127,7 +127,7 @@
             @keydown.enter="send"
           />
           <button class="send-btn" :disabled="!inputText.trim() || ai.isGenerating" @click="send">
-            <i class="fas fa-paper-plane text-xs" />
+            <i class="fas fa-arrow-up text-xs" />
           </button>
         </div>
       </div>
@@ -152,7 +152,7 @@ const detachedRef = ref<HTMLElement>();
 const isHovering = ref(false);
 const isDrawerCompact = computed(() => ai.drawerHeight < 148);
 const drawerStyle = computed(() => ({
-  height: ai.drawerExpanded ? `${ai.drawerHeight}px` : '46px',
+  height: ai.drawerExpanded ? `${ai.drawerHeight}px` : 'auto',
 }));
 
 const detachedStyle = computed(() => {
@@ -307,7 +307,7 @@ function onDrawerResize(e: MouseEvent) {
     startEvent: e,
     cursor: 'row-resize',
     onMove: ev => {
-      ai.drawerHeight = Math.max(150, Math.min(drawerStartH - (ev.screenY - drawerStartY), 520));
+      ai.drawerHeight = Math.max(210, Math.min(drawerStartH - (ev.screenY - drawerStartY), 560));
     },
   });
 }
@@ -316,39 +316,39 @@ function onDrawerResize(e: MouseEvent) {
 <style scoped>
 .ai-assistant.drawer {
   position: absolute;
-  bottom: 10px;
-  left: 0;
-  right: 0;
+  inset: 0;
   z-index: 100;
-  display: flex;
-  justify-content: center;
-  padding-inline: 18px;
   pointer-events: none;
 }
-.drawer-shell {
-  width: min(820px, calc(100vw - 96px));
+.overlay-shell {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  width: min(560px, calc(100% - 72px));
+  transform: translateX(-50%);
   pointer-events: none;
+  transition: width 0.2s cubic-bezier(0, 0, 0.2, 1), transform 0.2s cubic-bezier(0, 0, 0.2, 1);
 }
-.drawer-shell.expanded {
-  width: min(860px, calc(100vw - 110px));
+.overlay-shell.expanded {
+  width: min(720px, calc(100% - 104px));
 }
-.drawer-container {
+.overlay-panel {
   display: flex;
   flex-direction: column;
-  background: transparent;
   overflow: visible;
+  border: 1px solid color-mix(in srgb, var(--pm-border-strong) 75%, transparent);
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--pm-ai-capsule) 82%, transparent);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
   pointer-events: auto;
+  backdrop-filter: blur(24px);
 }
-.drawer-container.expanded {
+.overlay-panel.expanded {
   background:
-    radial-gradient(circle at 20% 0%, color-mix(in srgb, var(--pm-accent) 11%, transparent), transparent 36%),
-    linear-gradient(180deg, color-mix(in srgb, var(--pm-bg-soft) 35%, transparent), transparent 140px),
-    var(--pm-ai-surface);
-  border: 1px solid var(--pm-border-strong);
-  border-radius: 16px;
-  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.28);
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--pm-accent) 8%, transparent), transparent 34%),
+    color-mix(in srgb, var(--pm-ai-surface) 88%, transparent);
+  border-radius: 24px;
   overflow: hidden;
-  backdrop-filter: blur(18px);
 }
 .drawer-handle {
   height: 9px;
@@ -358,23 +358,23 @@ function onDrawerResize(e: MouseEvent) {
   justify-content: center;
   cursor: row-resize;
 }
-.drawer-handle:hover .handle-bar {
-  background: var(--pm-text-muted);
-}
 .handle-bar {
-  width: 46px;
+  width: 48px;
   height: 1px;
   border-radius: 999px;
   background: var(--pm-split-line);
   transition: background 0.12s;
 }
+.drawer-handle:hover .handle-bar {
+  background: var(--pm-text-muted);
+}
+.overlay-topline,
 .ai-header {
+  min-height: 30px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 32px;
-  padding: 4px 10px 3px;
-  border-bottom: 0;
+  padding: 2px 10px 4px;
   color: var(--pm-text);
   flex: 0 0 auto;
 }
@@ -401,8 +401,8 @@ function onDrawerResize(e: MouseEvent) {
   gap: 2px;
 }
 .ai-btn {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -422,7 +422,7 @@ function onDrawerResize(e: MouseEvent) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px 12px 10px;
+  padding: 6px 14px 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -439,7 +439,7 @@ function onDrawerResize(e: MouseEvent) {
 }
 .msg-content {
   padding: 8px 11px;
-  border-radius: 12px;
+  border-radius: 13px;
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -452,7 +452,7 @@ function onDrawerResize(e: MouseEvent) {
   color: var(--pm-accent-text);
 }
 .ai-message.assistant .msg-content {
-  background: color-mix(in srgb, var(--pm-bg-elevated) 66%, transparent);
+  background: color-mix(in srgb, var(--pm-bg-elevated) 62%, transparent);
   color: var(--pm-text);
 }
 .typing {
@@ -476,60 +476,50 @@ function onDrawerResize(e: MouseEvent) {
 .input-dock {
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-height: 46px;
-  padding: 6px 8px 8px;
-  border-top: 1px solid transparent;
+  gap: 8px;
+  min-height: 58px;
+  padding: 10px 12px;
   background: transparent;
   flex: 0 0 auto;
 }
-.drawer-container.expanded .input-dock {
-  margin: 0 8px 8px;
+.overlay-panel.expanded .input-dock {
+  min-height: 56px;
+  margin: 0 10px 10px;
+  padding: 8px 10px;
   border: 1px solid var(--pm-border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--pm-bg) 64%, transparent);
-}
-.drawer-container:not(.expanded) .input-dock {
-  max-width: 100%;
-  margin: 0 auto;
-  border: 1px solid var(--pm-border);
-  border-radius: 999px;
-  background: var(--pm-ai-capsule);
-  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--pm-bg) 62%, transparent);
 }
 .dock-toggle {
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
   border: 1px solid transparent;
-  background: var(--pm-bg-hover);
+  background: color-mix(in srgb, var(--pm-bg-hover) 72%, transparent);
   color: var(--pm-text);
   cursor: pointer;
 }
 .ai-input {
   flex: 1;
-  height: 32px;
+  height: 36px;
   min-width: 0;
-  padding: 0 10px;
-  border-radius: 999px;
+  padding: 0 4px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--pm-text);
-  font-size: 12px;
+  font-size: 13px;
   outline: none;
 }
-.ai-input:focus {
-  background: color-mix(in srgb, var(--pm-input-bg) 68%, transparent);
-  border-color: var(--pm-border);
+.ai-input::placeholder {
+  color: var(--pm-text-subtle);
 }
 .send-btn {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -538,20 +528,23 @@ function onDrawerResize(e: MouseEvent) {
   background: var(--pm-accent);
   color: var(--pm-accent-text);
   cursor: pointer;
-  transition: all 0.12s;
+  transition: transform 0.12s, opacity 0.12s;
 }
 .send-btn:hover:not(:disabled) {
   transform: translateY(-1px);
 }
-.send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.send-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
 .capsule-config {
   position: absolute;
   right: 0;
-  bottom: 54px;
+  bottom: 70px;
   width: min(360px, 80vw);
   overflow: hidden;
   border: 1px solid var(--pm-border);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--pm-bg-panel);
   box-shadow: var(--pm-shadow);
 }
@@ -566,14 +559,14 @@ function onDrawerResize(e: MouseEvent) {
   transition: opacity 0.15s ease;
   z-index: 200;
 }
-.drawer-container.compact .messages-area {
+.overlay-panel.compact .messages-area {
   display: none;
 }
-.drawer-container.compact .ai-header {
+.overlay-panel.compact .overlay-topline {
   min-height: 29px;
   padding-block: 3px;
 }
-.drawer-container.compact .input-dock {
+.overlay-panel.compact .input-dock {
   padding-top: 5px;
 }
 .detached-window .ai-header { cursor: move; }
@@ -607,12 +600,10 @@ function onDrawerResize(e: MouseEvent) {
 }
 
 @media (max-width: 700px) {
-  .ai-assistant.drawer {
-    padding-inline: 10px;
-  }
-  .drawer-shell,
-  .drawer-shell.expanded {
-    width: calc(100vw - 28px);
+  .overlay-shell,
+  .overlay-shell.expanded {
+    width: calc(100% - 24px);
+    bottom: 14px;
   }
   .dock-close,
   .dock-config {

@@ -20,16 +20,19 @@
       @close="closePanel"
     />
 
+    <SplitHandle
+      class="sidebar-edge-handle"
+      direction="vertical"
+      :style="sidebarSplitHandleStyle"
+      @drag-start="onLeftDragStart"
+      @resize="onLeftSplitResize"
+    />
+
     <div class="main-body">
       <LeftSidebar ref="leftSidebarRef" :width="leftWidth" />
 
-      <SplitHandle class="sidebar-edge-handle" direction="vertical" @drag-start="onLeftDragStart" @resize="onLeftSplitResize" />
-
-      <div ref="presetWorkspaceRef" class="preset-workspace" :class="{ 'with-ai-drawer': ai.visible && ai.mode === 'drawer' }">
-        <div
-          class="preset-panels"
-          :style="{ paddingBottom: aiWorkspaceBottomPad }"
-        >
+      <div ref="presetWorkspaceRef" class="preset-workspace">
+        <div class="preset-panels">
           <div class="center-area" style="flex: 1; min-width: 200px">
             <PresetPanel panel-id="main" :favorited-ids="favoritedIds" @favorite="onFavorite" />
           </div>
@@ -222,10 +225,13 @@ const uiVars = computed(() => {
   };
 });
 
-const aiWorkspaceBottomPad = computed(() => {
-  if (!ai.visible || ai.mode !== 'drawer') return '0px';
-  return ai.drawerExpanded ? `${ai.drawerHeight + 24}px` : '68px';
-});
+const sidebarSplitHandleStyle = computed(() => ({
+  position: 'absolute',
+  top: '0',
+  bottom: '0',
+  left: `${leftSidebarRef.value?.isCollapsed ? 32 : leftWidth.value}px`,
+  zIndex: 220,
+}));
 
 const favoritedIds = computed(() => {
   const ids = new Set<string>();
@@ -736,6 +742,7 @@ button {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  position: relative;
   background: var(--pm-bg);
   color: var(--pm-text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -815,12 +822,16 @@ button {
   background: var(--pm-bg);
 }
 .sidebar-edge-handle {
-  margin-left: -1px;
-  opacity: 0.22;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 220;
+  opacity: 0.3;
+  transform: translateX(-1px);
 }
 .sidebar-edge-handle:hover,
 .sidebar-edge-handle.dragging {
-  opacity: 0.58;
+  opacity: 0.72;
 }
 .preset-workspace {
   position: relative;
@@ -839,7 +850,6 @@ button {
   min-height: 0;
   display: flex;
   overflow: hidden;
-  transition: padding-bottom 0.14s ease;
 }
 .center-area {
   display: flex;

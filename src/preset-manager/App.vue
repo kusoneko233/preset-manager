@@ -25,7 +25,7 @@
 
       <SplitHandle class="sidebar-edge-handle" direction="vertical" @drag-start="onLeftDragStart" @resize="onLeftSplitResize" />
 
-      <div class="preset-workspace" :class="{ 'with-ai-drawer': ai.visible && ai.mode === 'drawer' }">
+      <div ref="presetWorkspaceRef" class="preset-workspace" :class="{ 'with-ai-drawer': ai.visible && ai.mode === 'drawer' }">
         <div
           class="preset-panels"
           :style="{ paddingBottom: aiWorkspaceBottomPad }"
@@ -151,6 +151,7 @@ import { useManagerStore } from './stores/manager';
 import { useHistoryStore } from './stores/history';
 import { useAiStore } from './stores/ai';
 import { startParentDrag } from './utils/drag';
+import { clampSecondPresetWidth, getSecondPresetBounds } from './utils/panelLayout';
 
 const manager = useManagerStore();
 const history = useHistoryStore();
@@ -162,6 +163,7 @@ const showSecondPreset = ref(false);
 const leftWidth = ref(240);
 const rightWidth = ref(280);
 const leftSidebarRef = ref<any>();
+const presetWorkspaceRef = ref<HTMLElement>();
 
 const WINDOW_STATE_KEY = 'presetManagerWindowState';
 const THEME_KEY = 'presetManagerTheme';
@@ -222,7 +224,7 @@ const uiVars = computed(() => {
 
 const aiWorkspaceBottomPad = computed(() => {
   if (!ai.visible || ai.mode !== 'drawer') return '0px';
-  return ai.drawerExpanded ? `${ai.drawerHeight}px` : '58px';
+  return ai.drawerExpanded ? `${ai.drawerHeight + 24}px` : '68px';
 });
 
 const favoritedIds = computed(() => {
@@ -244,12 +246,28 @@ function onLeftSplitResize(delta: number) {
 }
 
 function onRightDragStart() {
+  ensureSecondPresetWidth();
   startRightWidth.value = rightWidth.value;
 }
 
 function onRightSplitResize(delta: number) {
-  rightWidth.value = Math.max(160, Math.min(startRightWidth.value - delta, 500));
+  rightWidth.value = clampSecondPresetWidth(startRightWidth.value - delta, getPresetWorkspaceWidth());
 }
+
+function getPresetWorkspaceWidth() {
+  return presetWorkspaceRef.value?.clientWidth ?? iframeEl?.getBoundingClientRect().width ?? 900;
+}
+
+function ensureSecondPresetWidth() {
+  rightWidth.value = clampSecondPresetWidth(rightWidth.value, getPresetWorkspaceWidth());
+}
+
+watch(showSecondPreset, visible => {
+  if (!visible) return;
+  nextTick(() => {
+    rightWidth.value = getSecondPresetBounds(getPresetWorkspaceWidth()).center;
+  });
+});
 
 const parentDoc = inject<Document>('parentDocument')!;
 const iframeEl = inject<HTMLIFrameElement>('iframeElement')!;

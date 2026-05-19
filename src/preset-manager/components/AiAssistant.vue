@@ -1,71 +1,78 @@
 <template>
-  <div v-if="ai.visible" class="ai-assistant" :class="[ai.mode, { snapped: !!ai.snappedEdge, [`snap-${ai.snappedEdge}`]: !!ai.snappedEdge }]">
+  <div
+    v-if="ai.visible"
+    class="ai-assistant"
+    :class="[ai.mode, { snapped: !!ai.snappedEdge, [`snap-${ai.snappedEdge}`]: !!ai.snappedEdge }]"
+  >
     <template v-if="ai.mode === 'drawer'">
-      <div class="drawer-container" :class="{ expanded: ai.drawerExpanded }" :style="drawerStyle">
-        <template v-if="ai.drawerExpanded">
-          <div class="drawer-handle" @mousedown.stop.prevent="onDrawerResize">
-            <div class="handle-bar" />
-          </div>
-          <div class="ai-header">
-            <button class="ai-title" title="收起 AI 助手" @click="collapseDrawer">
-              <i class="fas fa-sparkles text-xs" />
-              <span>AI 助手</span>
-              <i class="fas fa-chevron-down text-xs" />
-            </button>
-            <div class="ai-actions">
-              <button class="ai-btn" title="脱出为独立窗口" @click="detach">
-                <i class="fas fa-external-link-alt text-xs" />
-              </button>
-              <button class="ai-btn" title="设置" @click="ai.showConfig = !ai.showConfig">
-                <i class="fas fa-cog text-xs" />
-              </button>
-              <button class="ai-btn" title="关闭" @click="ai.toggleVisible()">
-                <i class="fas fa-times text-xs" />
-              </button>
+      <div class="drawer-shell" :class="{ expanded: ai.drawerExpanded }">
+        <div class="drawer-container" :class="{ expanded: ai.drawerExpanded, compact: isDrawerCompact }" :style="drawerStyle">
+          <template v-if="ai.drawerExpanded">
+            <div class="drawer-handle" @mousedown.stop.prevent="onDrawerResize">
+              <div class="handle-bar" />
             </div>
-          </div>
 
-          <AiConfig v-if="ai.showConfig && !isDrawerCompact" />
-
-          <div class="messages-area" ref="messagesRef">
-            <div v-if="!ai.messages.length" class="empty-ai text-slate-600 text-xs">
-              描述你的需求，AI 将帮你分析和优化预设
-            </div>
-            <div v-for="msg in ai.messages" :key="msg.id" class="ai-message" :class="msg.role">
-              <div class="msg-content">{{ msg.content }}</div>
-            </div>
-            <div v-if="ai.isGenerating" class="ai-message assistant">
-              <div class="msg-content typing">
-                <span class="dot" /><span class="dot" /><span class="dot" />
+            <div class="ai-header">
+              <button class="ai-title" title="收起 AI 助手" @click="collapseDrawer">
+                <i class="fas fa-sparkles text-xs" />
+                <span>AI 助手</span>
+                <i class="fas fa-chevron-down text-xs" />
+              </button>
+              <div class="ai-actions">
+                <button class="ai-btn" title="脱出为独立窗口" @click="detach">
+                  <i class="fas fa-external-link-alt text-xs" />
+                </button>
+                <button class="ai-btn" title="设置" @click="ai.showConfig = !ai.showConfig">
+                  <i class="fas fa-cog text-xs" />
+                </button>
+                <button class="ai-btn" title="关闭" @click="ai.toggleVisible()">
+                  <i class="fas fa-times text-xs" />
+                </button>
               </div>
             </div>
+
+            <AiConfig v-if="ai.showConfig && !isDrawerCompact" />
+
+            <div ref="messagesRef" class="messages-area">
+              <div v-if="!ai.messages.length" class="empty-ai text-slate-600 text-xs">
+                描述你的需求，AI 会帮你分析和优化预设。
+              </div>
+              <div v-for="msg in ai.messages" :key="msg.id" class="ai-message" :class="msg.role">
+                <div class="msg-content">{{ msg.content }}</div>
+              </div>
+              <div v-if="ai.isGenerating" class="ai-message assistant">
+                <div class="msg-content typing">
+                  <span class="dot" /><span class="dot" /><span class="dot" />
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <div class="input-dock">
+            <button class="dock-toggle" :title="ai.drawerExpanded ? '收起 AI 助手' : '展开 AI 助手'" @click="toggleDrawer">
+              <i :class="['fas text-xs', ai.drawerExpanded ? 'fa-chevron-down' : 'fa-sparkles']" />
+            </button>
+            <input
+              v-model="inputText"
+              class="ai-input"
+              placeholder="向 AI 助手描述你想调整的预设..."
+              @focus="expandDrawer"
+              @keydown.enter="send"
+            />
+            <button class="ai-btn dock-config" title="设置" @click="ai.showConfig = !ai.showConfig; expandDrawer()">
+              <i class="fas fa-cog text-xs" />
+            </button>
+            <button class="send-btn" :disabled="!inputText.trim() || ai.isGenerating" @click="send">
+              <i class="fas fa-paper-plane text-xs" />
+            </button>
+            <button class="ai-btn dock-close" title="关闭" @click="ai.toggleVisible()">
+              <i class="fas fa-times text-xs" />
+            </button>
           </div>
-        </template>
 
-        <div class="input-dock">
-          <button class="dock-toggle" :title="ai.drawerExpanded ? '收起 AI 助手' : '展开 AI 助手'" @click="toggleDrawer">
-            <i :class="['fas text-xs', ai.drawerExpanded ? 'fa-chevron-down' : 'fa-sparkles']" />
-          </button>
-          <input
-            v-model="inputText"
-            class="ai-input"
-            placeholder="询问 AI 助手..."
-            @focus="expandDrawer"
-            @keydown.enter="send"
-          />
-          <button class="ai-btn dock-config" title="设置" @click="ai.showConfig = !ai.showConfig; expandDrawer()">
-            <i class="fas fa-cog text-xs" />
-          </button>
-          <button class="send-btn" :disabled="!inputText.trim() || ai.isGenerating" @click="send">
-            <i class="fas fa-paper-plane text-xs" />
-          </button>
-          <button class="ai-btn dock-close" title="关闭" @click="ai.toggleVisible()">
-            <i class="fas fa-times text-xs" />
-          </button>
-        </div>
-
-        <div v-if="ai.showConfig && !ai.drawerExpanded" class="capsule-config">
-          <AiConfig />
+          <div v-if="ai.showConfig && !ai.drawerExpanded" class="capsule-config">
+            <AiConfig />
+          </div>
         </div>
       </div>
     </template>
@@ -98,9 +105,9 @@
 
         <AiConfig v-if="ai.showConfig" />
 
-        <div class="messages-area" ref="detachedMsgRef">
+        <div ref="detachedMsgRef" class="messages-area">
           <div v-if="!ai.messages.length" class="empty-ai text-slate-600 text-xs">
-            输入消息开始对话
+            输入消息开始对话。
           </div>
           <div v-for="msg in ai.messages" :key="msg.id" class="ai-message" :class="msg.role">
             <div class="msg-content">{{ msg.content }}</div>
@@ -159,6 +166,7 @@ const detachedStyle = computed(() => {
     }
     return styles;
   }
+
   if (ai.snappedEdge && isHovering.value) {
     const styles: Record<string, string> = { position: 'fixed' };
     switch (ai.snappedEdge) {
@@ -169,6 +177,7 @@ const detachedStyle = computed(() => {
     }
     return styles;
   }
+
   return {
     position: 'fixed',
     left: `${ai.detachedPosition.x}px`,
@@ -180,6 +189,7 @@ const detachedStyle = computed(() => {
 
 function send() {
   if (!inputText.value.trim()) return;
+
   let context = '';
   if (manager.preset) {
     context = `预设名: ${manager.presetName}\n条目数: ${manager.preset.prompts.length}\n条目列表:\n`;
@@ -187,6 +197,7 @@ function send() {
       context += `${i + 1}. [${p.role}] ${p.name} (${p.enabled ? '启用' : '禁用'})\n`;
     });
   }
+
   ai.sendMessage(inputText.value, context);
   expandDrawer();
   inputText.value = '';
@@ -224,7 +235,6 @@ let dragStartX = 0;
 let dragStartY = 0;
 let dragStartPosX = 0;
 let dragStartPosY = 0;
-let dragStartTime = 0;
 let velocityX = 0;
 let velocityY = 0;
 let lastMoveX = 0;
@@ -239,7 +249,6 @@ function onDetachedDrag(e: MouseEvent) {
   dragStartY = e.screenY;
   dragStartPosX = ai.detachedPosition.x;
   dragStartPosY = ai.detachedPosition.y;
-  dragStartTime = Date.now();
   lastMoveX = e.screenX;
   lastMoveY = e.screenY;
   lastMoveTime = Date.now();
@@ -304,21 +313,24 @@ function onDrawerResize(e: MouseEvent) {
 }
 </script>
 
-<script lang="ts">
-const AiConfigComponent = {
-  name: 'AiConfig',
-  template: '',
-};
-</script>
-
 <style scoped>
 .ai-assistant.drawer {
   position: absolute;
-  bottom: 0;
-  left: 12px;
-  right: 12px;
+  bottom: 10px;
+  left: 0;
+  right: 0;
   z-index: 100;
+  display: flex;
+  justify-content: center;
+  padding-inline: 18px;
   pointer-events: none;
+}
+.drawer-shell {
+  width: min(820px, calc(100vw - 96px));
+  pointer-events: none;
+}
+.drawer-shell.expanded {
+  width: min(860px, calc(100vw - 110px));
 }
 .drawer-container {
   display: flex;
@@ -329,11 +341,14 @@ const AiConfigComponent = {
 }
 .drawer-container.expanded {
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--pm-bg-soft) 22%, transparent), transparent 120px),
+    radial-gradient(circle at 20% 0%, color-mix(in srgb, var(--pm-accent) 11%, transparent), transparent 36%),
+    linear-gradient(180deg, color-mix(in srgb, var(--pm-bg-soft) 35%, transparent), transparent 140px),
     var(--pm-ai-surface);
-  border-top: 1px solid var(--pm-divider);
-  box-shadow: 0 -18px 46px rgba(0, 0, 0, 0.14);
+  border: 1px solid var(--pm-border-strong);
+  border-radius: 16px;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.28);
   overflow: hidden;
+  backdrop-filter: blur(18px);
 }
 .drawer-handle {
   height: 9px;
@@ -357,9 +372,9 @@ const AiConfigComponent = {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 34px;
-  padding: 3px 12px 5px;
-  border-bottom: 1px solid var(--pm-divider);
+  min-height: 32px;
+  padding: 4px 10px 3px;
+  border-bottom: 0;
   color: var(--pm-text);
   flex: 0 0 auto;
 }
@@ -372,7 +387,7 @@ const AiConfigComponent = {
   border: 0;
   background: transparent;
   color: var(--pm-text);
-  font-weight: 620;
+  font-weight: 600;
 }
 .ai-title {
   cursor: pointer;
@@ -407,14 +422,14 @@ const AiConfigComponent = {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 10px 12px;
+  padding: 8px 12px 10px;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
   background: transparent;
 }
 .ai-message {
-  max-width: 85%;
+  max-width: 88%;
 }
 .ai-message.user {
   align-self: flex-end;
@@ -423,8 +438,8 @@ const AiConfigComponent = {
   align-self: flex-start;
 }
 .msg-content {
-  padding: 7px 10px;
-  border-radius: 9px;
+  padding: 8px 11px;
+  border-radius: 12px;
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -437,7 +452,7 @@ const AiConfigComponent = {
   color: var(--pm-accent-text);
 }
 .ai-message.assistant .msg-content {
-  background: color-mix(in srgb, var(--pm-bg-elevated) 76%, transparent);
+  background: color-mix(in srgb, var(--pm-bg-elevated) 66%, transparent);
   color: var(--pm-text);
 }
 .typing {
@@ -469,16 +484,19 @@ const AiConfigComponent = {
   flex: 0 0 auto;
 }
 .drawer-container.expanded .input-dock {
-  border-top-color: var(--pm-divider);
-  background: color-mix(in srgb, var(--pm-bg) 40%, transparent);
+  margin: 0 8px 8px;
+  border: 1px solid var(--pm-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pm-bg) 64%, transparent);
 }
 .drawer-container:not(.expanded) .input-dock {
-  max-width: min(760px, calc(100vw - 80px));
+  max-width: 100%;
   margin: 0 auto;
   border: 1px solid var(--pm-border);
   border-radius: 999px;
   background: var(--pm-ai-capsule);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(16px);
 }
 .dock-toggle {
   width: 30px;
@@ -586,5 +604,19 @@ const AiConfigComponent = {
 .detached-input {
   border-top-color: var(--pm-divider);
   background: color-mix(in srgb, var(--pm-bg) 45%, transparent);
+}
+
+@media (max-width: 700px) {
+  .ai-assistant.drawer {
+    padding-inline: 10px;
+  }
+  .drawer-shell,
+  .drawer-shell.expanded {
+    width: calc(100vw - 28px);
+  }
+  .dock-close,
+  .dock-config {
+    display: none;
+  }
 }
 </style>

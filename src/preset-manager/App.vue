@@ -9,6 +9,7 @@
       :can-undo="history.canUndo"
       :can-redo="history.canRedo"
       :ai-visible="ai.visible"
+      :annotation-visible="showAnnotation"
       :theme="theme"
       @undo="doUndo"
       @redo="doRedo"
@@ -16,6 +17,7 @@
       @toggle-ai="ai.toggleVisible()"
       @toggle-theme="toggleTheme"
       @toggle-ui-settings="showUiSettings = !showUiSettings"
+      @toggle-annotation="showAnnotation = !showAnnotation"
       @toggle-fullscreen="toggleFullscreen"
       @close="closePanel"
     />
@@ -59,6 +61,8 @@
     </div>
 
     <HistoryPanel :visible="showHistory" @close="showHistory = false" />
+
+    <AnnotationOverlay v-if="showAnnotation" @close="showAnnotation = false" />
 
     <Transition name="settings-pop">
       <div v-if="showUiSettings" class="ui-settings-panel">
@@ -150,6 +154,7 @@ import SplitHandle from './components/SplitHandle.vue';
 import PresetPanel from './components/PresetPanel.vue';
 import AiAssistant from './components/AiAssistant.vue';
 import HistoryPanel from './components/HistoryPanel.vue';
+import AnnotationOverlay from './components/AnnotationOverlay.vue';
 import { useManagerStore } from './stores/manager';
 import { useHistoryStore } from './stores/history';
 import { useAiStore } from './stores/ai';
@@ -162,6 +167,7 @@ const ai = useAiStore();
 
 const isFullscreen = ref(false);
 const showHistory = ref(false);
+const showAnnotation = ref(false);
 const showSecondPreset = ref(false);
 const leftWidth = ref(240);
 const rightWidth = ref(280);

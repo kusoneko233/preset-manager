@@ -49,6 +49,14 @@
       <button class="title-btn" title="界面设置" @click="$emit('toggleUiSettings')">
         <i class="fas fa-font text-xs" />
       </button>
+      <button
+        class="title-btn"
+        :class="{ active: annotationVisible }"
+        title="UI 批注模式"
+        @click="$emit('toggleAnnotation')"
+      >
+        <i class="fas fa-highlighter text-xs" />
+      </button>
 
       <div class="title-separator" />
 
@@ -70,6 +78,7 @@ defineProps<{
   canUndo: boolean;
   canRedo: boolean;
   aiVisible: boolean;
+  annotationVisible: boolean;
   theme: 'dark' | 'light';
 }>();
 
@@ -80,6 +89,7 @@ defineEmits<{
   toggleAi: [];
   toggleTheme: [];
   toggleUiSettings: [];
+  toggleAnnotation: [];
   toggleFullscreen: [];
   close: [];
 }>();

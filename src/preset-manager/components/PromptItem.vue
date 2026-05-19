@@ -109,7 +109,7 @@ function onDragStart(e: DragEvent) {
     return;
   }
   isDragging.value = true;
-  e.dataTransfer!.effectAllowed = 'copy';
+  e.dataTransfer!.effectAllowed = props.dragType === 'preset-prompt' ? 'copyMove' : 'copy';
   e.dataTransfer!.setData(
     'application/json',
     JSON.stringify({

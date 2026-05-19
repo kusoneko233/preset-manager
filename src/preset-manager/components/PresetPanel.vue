@@ -12,24 +12,45 @@
       </select>
     </div>
 
-    <div :key="promptListKey" class="prompt-list flex-1 overflow-y-auto" :class="{ 'drop-target': isDropTarget }">
+    <div
+      :key="promptListKey"
+      class="prompt-list flex-1 overflow-y-auto"
+      :class="{ 'drop-target': isDropTarget, sorting: isSortingDrop }"
+      @dragover.prevent="onListDragOver"
+    >
       <div v-if="!prompts.length" class="empty-state">
         <i class="fas fa-inbox text-2xl text-slate-600 mb-2" />
         <div class="text-slate-500 text-xs">{{ selectedPreset ? '预设为空' : '请选择预设' }}</div>
       </div>
-      <PromptItem
+
+      <div
         v-for="(prompt, i) in prompts"
         :key="prompt.id"
-        :prompt="prompt"
-        :is-favorited="isFavorited(prompt)"
-        :drag-type="'preset-prompt'"
-        :drag-source="panelId"
-        :drag-index="i"
-        @zoom="zoomPrompt = prompt"
-        @edit="openEditor(prompt)"
-        @toggle-enabled="togglePromptEnabled(prompt)"
-        @toggle-favorite="$emit('favorite', prompt)"
-        @delete="deletePrompt(prompt)"
+        class="prompt-drop-slot"
+        :class="{ 'drop-before': dropIndex === i }"
+        @dragover.prevent.stop="onPromptDragOver($event, i)"
+        @drop.prevent.stop="onPromptDrop($event, i)"
+      >
+        <PromptItem
+          :prompt="prompt"
+          :is-favorited="isFavorited(prompt)"
+          :drag-type="'preset-prompt'"
+          :drag-source="panelId"
+          :drag-index="i"
+          @zoom="zoomPrompt = prompt"
+          @edit="openEditor(prompt)"
+          @toggle-enabled="togglePromptEnabled(prompt)"
+          @toggle-favorite="$emit('favorite', prompt)"
+          @delete="deletePrompt(prompt)"
+        />
+      </div>
+
+      <div
+        v-if="prompts.length"
+        class="prompt-drop-tail"
+        :class="{ 'drop-before': dropIndex === prompts.length }"
+        @dragover.prevent.stop="onPromptDragOver($event, prompts.length)"
+        @drop.prevent.stop="onPromptDrop($event, prompts.length)"
       />
     </div>
 
@@ -75,6 +96,8 @@ const selectedPreset = ref('');
 const zoomPrompt = ref<PresetPrompt | null>(null);
 const editingPrompt = ref<PresetPrompt | null>(null);
 const isDropTarget = ref(false);
+const dropIndex = ref<number | null>(null);
+const isSortingDrop = ref(false);
 
 const emptyPrompt: PresetPrompt = { id: '', name: '', enabled: false, role: 'system' };
 
@@ -112,24 +135,39 @@ function onPresetChange() {
 }
 
 function onDragOver(e: DragEvent) {
-  e.dataTransfer!.dropEffect = 'copy';
+  const data = getDragData(e);
+  const sorting = isSamePanelPresetDrag(data);
+  e.dataTransfer!.dropEffect = sorting ? 'move' : 'copy';
   isDropTarget.value = true;
+  isSortingDrop.value = sorting;
 }
 
-function onDragLeave() {
-  isDropTarget.value = false;
+function onDragLeave(e: DragEvent) {
+  const current = e.currentTarget;
+  const next = e.relatedTarget;
+  if (current instanceof Node && next instanceof Node && current.contains(next)) return;
+  resetDropState();
+}
+
+function onListDragOver(e: DragEvent) {
+  onDragOver(e);
+  if (e.target === e.currentTarget) {
+    dropIndex.value = prompts.value.length;
+  }
 }
 
 function snapshotPreset(presetName: string) {
   return klona(getPreset(presetName));
 }
 
-async function recordPresetChange(description: string, operation: () => Promise<void>) {
+async function recordPresetChange(description: string, operation: () => Promise<boolean | void>) {
   const presetName = currentPresetName();
   if (!presetName) return false;
 
   const before = snapshotPreset(presetName);
-  await operation();
+  const result = await operation();
+  if (result === false) return false;
+
   const after = snapshotPreset(presetName);
   history.recordOperation(presetName, before, after, description);
   syncPromptsFromStore();
@@ -147,8 +185,57 @@ function normalizePrompt(prompt: PresetPrompt): PresetNormalPrompt {
   };
 }
 
-async function onDrop(e: DragEvent) {
+function getDragData(e: DragEvent) {
+  const raw = e.dataTransfer?.getData('application/json');
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as {
+      type?: string;
+      source?: string;
+      index?: number;
+      prompt?: PresetPrompt;
+    };
+  } catch {
+    return null;
+  }
+}
+
+function isSamePanelPresetDrag(data: { type?: string; source?: string; index?: number } | null) {
+  return data?.type === 'preset-prompt'
+    && data.source === props.panelId
+    && typeof data.index === 'number';
+}
+
+function resetDropState() {
   isDropTarget.value = false;
+  dropIndex.value = null;
+  isSortingDrop.value = false;
+}
+
+function resolveDropIndex(e: DragEvent, index: number) {
+  const target = e.currentTarget;
+  if (!(target instanceof HTMLElement) || index >= prompts.value.length) return index;
+
+  const rect = target.getBoundingClientRect();
+  const isAfter = e.clientY > rect.top + rect.height / 2;
+  return isAfter ? index + 1 : index;
+}
+
+function onPromptDragOver(e: DragEvent, index: number) {
+  onDragOver(e);
+  dropIndex.value = resolveDropIndex(e, index);
+}
+
+async function onPromptDrop(e: DragEvent, index: number) {
+  await handleDrop(e, resolveDropIndex(e, index));
+}
+
+async function onDrop(e: DragEvent) {
+  await handleDrop(e, prompts.value.length);
+}
+
+async function handleDrop(e: DragEvent, index: number) {
+  resetDropState();
   const raw = e.dataTransfer?.getData('application/json');
   if (!raw) return;
 
@@ -159,8 +246,17 @@ async function onDrop(e: DragEvent) {
 
     if (isPresetPlaceholderPrompt(prompt)) return;
 
+    if (isSamePanelPresetDrag(data)) {
+      const moved = await recordPresetChange(`调整顺序: ${prompt.name}`, async () => {
+        return store.reorderPromptInPreset(props.panelId, data.index, index);
+      });
+
+      if (moved) toastr.success(`已调整 "${prompt.name}" 的顺序`, '', { timeOut: 1400 });
+      return;
+    }
+
     await recordPresetChange(`插入条目: ${prompt.name}`, async () => {
-      await store.insertPromptToPreset(normalizePrompt(prompt), props.panelId);
+      await store.insertPromptToPreset(normalizePrompt(prompt), props.panelId, index);
     });
 
     toastr.success(`已插入 "${prompt.name}"`, '操作成功', { timeOut: 2000 });
@@ -268,6 +364,33 @@ onMounted(() => {
   outline: 2px dashed var(--pm-border-strong);
   outline-offset: -2px;
   border-radius: 8px;
+}
+.prompt-list.sorting {
+  outline-style: solid;
+}
+.prompt-drop-slot,
+.prompt-drop-tail {
+  position: relative;
+}
+.prompt-drop-slot.drop-before::before,
+.prompt-drop-tail.drop-before::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: calc(-0.5 * var(--pm-prompt-list-gap, 6px));
+  height: 2px;
+  border-radius: 999px;
+  background: var(--pm-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pm-accent) 14%, transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+.prompt-drop-tail {
+  min-height: 2px;
+}
+.prompt-drop-tail.drop-before::before {
+  top: 0;
 }
 .empty-state {
   display: flex;

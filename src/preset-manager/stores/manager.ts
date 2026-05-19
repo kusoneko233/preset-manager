@@ -48,6 +48,14 @@ function getDisplayPrompts(preset: Preset | null): PresetPrompt[] {
   return prompts.length ? prompts : unusedPrompts;
 }
 
+function getMutableDisplayPrompts(preset: Preset): PresetPrompt[] {
+  const mutable = preset as Preset & { prompts: PresetPrompt[]; prompts_unused?: PresetPrompt[] };
+  if (!Array.isArray(mutable.prompts)) mutable.prompts = [];
+  if (mutable.prompts.length) return mutable.prompts;
+  if (Array.isArray(mutable.prompts_unused) && mutable.prompts_unused.length) return mutable.prompts_unused;
+  return mutable.prompts;
+}
+
 function loadFavorites(): FavoriteFolder[] {
   try {
     const vars = getVariables({ type: 'script' });
@@ -81,6 +89,7 @@ const managerStore = reactive<ManagerState & {
   refreshMainPreset(): void;
   refreshSecondPreset(): void;
   insertPromptToPreset(prompt: PresetNormalPrompt, targetPreset: 'main' | 'second', index?: number): Promise<void>;
+  reorderPromptInPreset(targetPreset: 'main' | 'second', fromIndex: number, toIndex: number): Promise<boolean>;
   removePromptFromPreset(promptId: string, targetPreset: 'main' | 'second'): Promise<void>;
   updatePromptInPreset(promptId: string, updates: Partial<PresetPrompt>, targetPreset: 'main' | 'second'): Promise<void>;
   addFavoriteFolder(name?: string): void;
@@ -119,7 +128,7 @@ const managerStore = reactive<ManagerState & {
     this.presetName = name;
     const p = tryGetPreset(name);
     if (!p) {
-      toastr.error(`加载预设失败: 预设不存在或不可读取`, '', { timeOut: 5000 });
+      toastr.error('加载预设失败: 预设不存在或不可读取', '', { timeOut: 5000 });
       this.preset = null;
       return false;
     }
@@ -135,7 +144,7 @@ const managerStore = reactive<ManagerState & {
     this.secondPresetName = name;
     const p = tryGetPreset(name);
     if (!p) {
-      toastr.error(`加载第二预设失败: 预设不存在或不可读取`, '', { timeOut: 5000 });
+      toastr.error('加载第二预设失败: 预设不存在或不可读取', '', { timeOut: 5000 });
       this.secondPreset = null;
       return false;
     }
@@ -162,13 +171,41 @@ const managerStore = reactive<ManagerState & {
     };
 
     await updatePresetWith(name, preset => {
-      const idx = index ?? preset.prompts.length;
-      preset.prompts.splice(idx, 0, newPrompt);
+      const prompts = getMutableDisplayPrompts(preset);
+      const idx = Math.max(0, Math.min(index ?? prompts.length, prompts.length));
+      prompts.splice(idx, 0, newPrompt);
       return preset;
     });
 
     if (targetPreset === 'main') this.refreshMainPreset();
     else this.refreshSecondPreset();
+  },
+
+  async reorderPromptInPreset(targetPreset: 'main' | 'second', fromIndex: number, toIndex: number) {
+    const name = targetPreset === 'main' ? this.presetName : this.secondPresetName;
+    if (!name) return false;
+
+    let moved = false;
+    await updatePresetWith(name, preset => {
+      const prompts = getMutableDisplayPrompts(preset);
+      if (fromIndex < 0 || fromIndex >= prompts.length) return preset;
+
+      const boundedTarget = Math.max(0, Math.min(toIndex, prompts.length));
+      const insertIndex = boundedTarget > fromIndex ? boundedTarget - 1 : boundedTarget;
+      if (insertIndex === fromIndex) return preset;
+
+      const [prompt] = prompts.splice(fromIndex, 1);
+      prompts.splice(insertIndex, 0, prompt);
+      moved = true;
+      return preset;
+    });
+
+    if (moved) {
+      if (targetPreset === 'main') this.refreshMainPreset();
+      else this.refreshSecondPreset();
+    }
+
+    return moved;
   },
 
   async removePromptFromPreset(promptId: string, targetPreset: 'main' | 'second') {

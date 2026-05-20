@@ -13,11 +13,11 @@ function expectEqual<T>(actual: T, expected: T) {
 
 expectEqual(CODEX_REFERENCE_METRICS.window.width, 1375);
 expectEqual(CODEX_REFERENCE_METRICS.window.height, 875);
-expectEqual(CODEX_REFERENCE_METRICS.sidebar.width, 320);
+expectEqual(CODEX_REFERENCE_METRICS.sidebar.width, 255);
 expectEqual(CODEX_REFERENCE_METRICS.titleBar.height, 52);
-expectEqual(CODEX_REFERENCE_METRICS.aiDock.width, 800);
-expectEqual(CODEX_REFERENCE_METRICS.aiDock.minHeight, 112);
-expectEqual(CODEX_REFERENCE_METRICS.aiDock.maxHeight, 124);
-expectEqual(getCodexMainWidth(), 1055);
+expectEqual(CODEX_REFERENCE_METRICS.aiDock.width, 634);
+expectEqual(CODEX_REFERENCE_METRICS.aiDock.minHeight, 93);
+expectEqual(CODEX_REFERENCE_METRICS.aiDock.maxHeight, 93);
+expectEqual(getCodexMainWidth(), 1120);
 
 console.info('designMetrics tests passed');

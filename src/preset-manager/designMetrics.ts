@@ -4,19 +4,19 @@ export const CODEX_REFERENCE_METRICS = {
     height: 875,
   },
   sidebar: {
-    width: 320,
-    minWidth: 248,
-    maxWidth: 420,
+    width: 255,
+    minWidth: 220,
+    maxWidth: 360,
   },
   titleBar: {
     height: 52,
   },
   aiDock: {
-    width: 800,
-    minHeight: 112,
-    maxHeight: 124,
+    width: 634,
+    minHeight: 93,
+    maxHeight: 93,
     bottom: 26,
-    sideGap: 136,
+    sideGap: 96,
   },
 } as const;
 

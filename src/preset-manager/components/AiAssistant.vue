@@ -320,13 +320,13 @@ function onDrawerResize(e: MouseEvent) {
   position: absolute;
   left: 50%;
   bottom: var(--pm-ai-dock-bottom, 26px);
-  width: min(var(--pm-ai-dock-width, 800px), calc(100% - var(--pm-ai-dock-side-gap, 136px)));
+  width: min(var(--pm-ai-dock-width, 634px), calc(100% - var(--pm-ai-dock-side-gap, 96px)));
   transform: translateX(-50%);
   pointer-events: none;
   transition: width 0.2s cubic-bezier(0, 0, 0.2, 1), transform 0.2s cubic-bezier(0, 0, 0.2, 1);
 }
 .overlay-shell.expanded {
-  width: min(var(--pm-ai-dock-width, 800px), calc(100% - var(--pm-ai-dock-side-gap, 136px)));
+  width: min(var(--pm-ai-dock-width, 634px), calc(100% - var(--pm-ai-dock-side-gap, 96px)));
 }
 .overlay-panel {
   display: flex;
@@ -505,9 +505,9 @@ function onDrawerResize(e: MouseEvent) {
 .input-dock {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-height: var(--pm-ai-dock-min-height, 112px);
-  padding: 13px 15px;
+  gap: 7px;
+  min-height: var(--pm-ai-dock-min-height, 93px);
+  padding: 10px 14px;
   background: transparent;
   flex: 0 0 auto;
 }
@@ -518,21 +518,21 @@ function onDrawerResize(e: MouseEvent) {
   align-items: center;
 }
 .input-row {
-  gap: 12px;
-  min-height: 42px;
+  gap: 10px;
+  min-height: 35px;
   align-items: flex-start;
 }
 .input-tool-row {
-  gap: 10px;
-  min-height: 38px;
+  gap: 8px;
+  min-height: 30px;
   padding: 0;
 }
 .overlay-panel.expanded .input-dock {
-  min-height: var(--pm-ai-dock-min-height, 112px);
+  min-height: var(--pm-ai-dock-min-height, 93px);
   margin: 0;
-  padding: 13px 15px;
+  padding: 10px 14px;
   border: 1px solid color-mix(in srgb, var(--pm-border) 64%, transparent);
-  border-radius: 22px;
+  border-radius: 20px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent),
     color-mix(in srgb, var(--pm-ai-capsule) 50%, transparent);
@@ -546,7 +546,7 @@ function onDrawerResize(e: MouseEvent) {
 .tool-pill,
 .model-pill {
   min-width: 0;
-  height: 32px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -561,8 +561,8 @@ function onDrawerResize(e: MouseEvent) {
   cursor: pointer;
 }
 .tool-pill.icon-only {
-  width: 32px;
-  flex: 0 0 32px;
+  width: 30px;
+  flex: 0 0 30px;
   justify-content: center;
   padding: 0;
 }
@@ -590,7 +590,7 @@ function onDrawerResize(e: MouseEvent) {
 }
 .ai-input {
   flex: 1;
-  height: 34px;
+  height: 32px;
   min-width: 0;
   padding: 0;
   border: 1px solid transparent;
@@ -603,8 +603,8 @@ function onDrawerResize(e: MouseEvent) {
   color: var(--pm-text-subtle);
 }
 .send-btn {
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   margin-left: auto;
   display: flex;
   align-items: center;

@@ -1,4 +1,4 @@
-export type AnnotationKind = 'pen' | 'arrow' | 'rect' | 'pin' | 'text';
+export type AnnotationKind = 'pen' | 'arrow' | 'rect' | 'pin' | 'text' | 'ruler';
 export type AnnotationTool = AnnotationKind | 'eraser';
 export type AnnotationColorName = 'red' | 'green' | 'blue';
 
@@ -31,6 +31,7 @@ export interface AnnotationItem {
   colorLabel?: string;
   textColor?: string;
   note?: string;
+  fontSize?: number;
 }
 
 export interface AnnotationSize {
@@ -93,7 +94,17 @@ function formatAnnotationItem(item: AnnotationItem) {
 
   if (item.kind === 'text') {
     const point = item.points[0] ?? { x: 0, y: 0 };
-    return `${item.label}. [text] x=${Math.round(point.x)}, y=${Math.round(point.y)}${color}${note}`;
+    const fontSize = item.fontSize ? ` font=${Math.round(item.fontSize)}px` : '';
+    return `${item.label}. [text] x=${Math.round(point.x)}, y=${Math.round(point.y)}${fontSize}${color}${note}`;
+  }
+
+  if (item.kind === 'ruler') {
+    const first = item.points[0] ?? { x: 0, y: 0 };
+    const last = item.points[item.points.length - 1] ?? first;
+    const dx = Math.round(last.x - first.x);
+    const dy = Math.round(last.y - first.y);
+    const length = Math.round(Math.hypot(dx, dy));
+    return `${item.label}. [ruler] from=(${Math.round(first.x)}, ${Math.round(first.y)}), to=(${Math.round(last.x)}, ${Math.round(last.y)}), length=${length}px, dx=${dx}px, dy=${dy}px${color}${note}`;
   }
 
   if (item.kind === 'rect') {

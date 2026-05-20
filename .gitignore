@@ -28,6 +28,7 @@ package.json.tmp
 !/second-preset-transfer-plan.md
 !/docs/
 /docs/*
+!/docs/roadmap.md
 !/docs/archive/
 /docs/archive/*
 !/docs/archive/README.md

@@ -29,6 +29,14 @@
           <span :style="{ background: colorOption.value }" />
         </button>
         <div class="anno-separator" />
+        <button class="anno-btn text-size-btn" title="文字变小" @click="changeTextSize(-2)">
+          <span>A-</span>
+        </button>
+        <span class="text-size-label" :title="`当前文字大小 ${currentTextSize}px`">{{ currentTextSize }}</span>
+        <button class="anno-btn text-size-btn" title="文字变大" @click="changeTextSize(2)">
+          <span>A+</span>
+        </button>
+        <div class="anno-separator" />
         <button class="anno-btn" title="复制批注信息" @click="copyAnnotations">
           <i class="fas fa-copy text-xs" />
         </button>
@@ -68,10 +76,18 @@
         <polyline v-if="item.kind === 'pen'" class="anno-stroke" :style="getStrokeStyle(item)" :points="toPolyline(item.points)" />
         <line v-else-if="item.kind === 'arrow'" class="anno-stroke anno-arrow" :style="getStrokeStyle(item)" v-bind="toLineAttrs(item.points)" :marker-end="getMarkerUrl(item)" />
         <rect v-else-if="item.kind === 'rect'" class="anno-rect" :style="getStrokeStyle(item)" v-bind="toRectAttrs(item.points)" />
+        <g v-else-if="item.kind === 'ruler'" class="anno-ruler">
+          <line class="anno-stroke anno-ruler-line" :style="getStrokeStyle(item)" v-bind="toLineAttrs(item.points)" />
+          <circle v-bind="toRulerStartPoint(item.points)" r="4" :fill="item.color" />
+          <circle v-bind="toRulerEndPoint(item.points)" r="4" :fill="item.color" />
+          <text class="anno-ruler-label" v-bind="toRulerLabelPoint(item.points)" :fill="item.color">
+            {{ getRulerLabel(item.points) }}
+          </text>
+        </g>
         <g v-else-if="item.kind === 'text'" class="anno-text" @pointerdown.stop="onTextPointerDown($event, item)">
           <rect class="anno-text-hit" v-bind="toTextBoxAttrs(item.points)" />
           <foreignObject class="anno-text-foreign" v-bind="toTextBoxAttrs(item.points)">
-            <div xmlns="http://www.w3.org/1999/xhtml" class="anno-text-content" :style="{ color: item.color }">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="anno-text-content" :style="{ color: item.color, fontSize: `${item.fontSize ?? DEFAULT_TEXT_SIZE}px` }">
               {{ item.note }}
             </div>
           </foreignObject>
@@ -86,6 +102,14 @@
         <polyline v-if="draft.kind === 'pen'" class="anno-stroke draft" :style="getStrokeStyle(draft)" :points="toPolyline(draft.points)" />
         <line v-else-if="draft.kind === 'arrow'" class="anno-stroke anno-arrow draft" :style="getStrokeStyle(draft)" v-bind="toLineAttrs(draft.points)" :marker-end="getMarkerUrl(draft)" />
         <rect v-else-if="draft.kind === 'rect'" class="anno-rect draft" :style="getStrokeStyle(draft)" v-bind="toRectAttrs(draft.points)" />
+        <g v-else-if="draft.kind === 'ruler'" class="anno-ruler draft">
+          <line class="anno-stroke anno-ruler-line" :style="getStrokeStyle(draft)" v-bind="toLineAttrs(draft.points)" />
+          <circle v-bind="toRulerStartPoint(draft.points)" r="4" :fill="draft.color" />
+          <circle v-bind="toRulerEndPoint(draft.points)" r="4" :fill="draft.color" />
+          <text class="anno-ruler-label" v-bind="toRulerLabelPoint(draft.points)" :fill="draft.color">
+            {{ getRulerLabel(draft.points) }}
+          </text>
+        </g>
         <rect v-else-if="draft.kind === 'text'" class="anno-text-box draft" :style="getStrokeStyle(draft)" v-bind="toRectAttrs(draft.points)" />
       </g>
     </svg>
@@ -131,13 +155,19 @@ const textDraft = ref<{
   color?: string;
   colorLabel?: string;
   textColor?: string;
+  fontSize?: number;
 } | null>(null);
 let isRestoring = false;
 let textDragState: { item: AnnotationItem; startPoint: AnnotationPoint; startItemPoints: AnnotationPoint[] } | null = null;
+const DEFAULT_TEXT_SIZE = 22;
+const MIN_TEXT_SIZE = 14;
+const MAX_TEXT_SIZE = 34;
+const currentTextSize = ref(DEFAULT_TEXT_SIZE);
 
 const toolOptions: { kind: AnnotationTool; icon: string; title: string }[] = [
   { kind: 'pen', icon: 'fa-pencil-alt', title: '画线' },
   { kind: 'arrow', icon: 'fa-location-arrow', title: '箭头' },
+  { kind: 'ruler', icon: 'fa-ruler-combined', title: '标尺' },
   { kind: 'rect', icon: 'fa-square', title: '矩形框' },
   { kind: 'pin', icon: 'fa-map-pin', title: '编号点' },
   { kind: 'text', icon: 'fa-font', title: '文字' },
@@ -155,6 +185,7 @@ const textInputStyle = computed(() => ({
   width: `${textDraftRect.value.width}px`,
   height: `${textDraftRect.value.height}px`,
   color: textDraft.value?.color ?? currentColor.value.value,
+  fontSize: `${textDraft.value?.fontSize ?? currentTextSize.value}px`,
 }));
 
 const textDraftRect = computed(() => {
@@ -249,6 +280,7 @@ function createItem(point: AnnotationPoint, kind = tool.value): AnnotationItem {
     color: currentColor.value.value,
     colorLabel: currentColor.value.label,
     textColor: currentColor.value.text,
+    fontSize: itemKind === 'text' ? currentTextSize.value : undefined,
   };
 }
 
@@ -313,6 +345,34 @@ function toLineAttrs(points: AnnotationPoint[]) {
   return { x1: start.x, y1: start.y, x2: end.x, y2: end.y };
 }
 
+function toRulerStartPoint(points: AnnotationPoint[]) {
+  const start = points[0] ?? { x: 0, y: 0 };
+  return { cx: start.x, cy: start.y };
+}
+
+function toRulerEndPoint(points: AnnotationPoint[]) {
+  const start = points[0] ?? { x: 0, y: 0 };
+  const end = points[points.length - 1] ?? start;
+  return { cx: end.x, cy: end.y };
+}
+
+function toRulerLabelPoint(points: AnnotationPoint[]) {
+  const start = points[0] ?? { x: 0, y: 0 };
+  const end = points[points.length - 1] ?? start;
+  return {
+    x: Math.round((start.x + end.x) / 2),
+    y: Math.round((start.y + end.y) / 2) - 10,
+  };
+}
+
+function getRulerLabel(points: AnnotationPoint[]) {
+  const start = points[0] ?? { x: 0, y: 0 };
+  const end = points[points.length - 1] ?? start;
+  const dx = Math.round(end.x - start.x);
+  const dy = Math.round(end.y - start.y);
+  return `${Math.round(Math.hypot(dx, dy))}px  Δx ${dx}  Δy ${dy}`;
+}
+
 function toRectAttrs(points: AnnotationPoint[]) {
   const rect = normalizeAnnotationRect(points.length > 1 ? points : [points[0] ?? { x: 0, y: 0 }, points[0] ?? { x: 0, y: 0 }]);
   return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
@@ -364,7 +424,9 @@ function beginTextInputFromDraft(item: AnnotationItem, editing = false) {
     color: item.color,
     colorLabel: item.colorLabel,
     textColor: item.textColor,
+    fontSize: item.fontSize ?? currentTextSize.value,
   };
+  currentTextSize.value = item.fontSize ?? currentTextSize.value;
   nextTick(() => {
     window.requestAnimationFrame(() => textInputRef.value?.focus());
   });
@@ -381,6 +443,7 @@ function commitTextInput() {
       if (note) {
         item.points = points;
         item.note = note;
+        item.fontSize = draftText.fontSize ?? currentTextSize.value;
       } else {
         items.value = items.value.filter(annotation => annotation.id !== draftText.editingId);
       }
@@ -397,6 +460,7 @@ function commitTextInput() {
       color: draftText.color ?? currentColor.value.value,
       colorLabel: draftText.colorLabel ?? currentColor.value.label,
       textColor: draftText.textColor ?? currentColor.value.text,
+      fontSize: draftText.fontSize ?? currentTextSize.value,
     }));
   }
   textDraft.value = null;
@@ -560,7 +624,30 @@ function getItemDistance(item: AnnotationItem, point: AnnotationPoint) {
     );
   }
 
+  if (item.kind === 'arrow' || item.kind === 'ruler') {
+    const start = item.points[0] ?? { x: 0, y: 0 };
+    const end = item.points[item.points.length - 1] ?? start;
+    return distanceToSegment(point, start, end);
+  }
+
   return Math.min(...item.points.map(p => Math.hypot(point.x - p.x, point.y - p.y)));
+}
+
+function distanceToSegment(point: AnnotationPoint, start: AnnotationPoint, end: AnnotationPoint) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  if (dx === 0 && dy === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy)));
+  const x = start.x + t * dx;
+  const y = start.y + t * dy;
+  return Math.hypot(point.x - x, point.y - y);
+}
+
+function changeTextSize(delta: number) {
+  currentTextSize.value = Math.max(MIN_TEXT_SIZE, Math.min(MAX_TEXT_SIZE, currentTextSize.value + delta));
+  if (textDraft.value) {
+    textDraft.value.fontSize = currentTextSize.value;
+  }
 }
 
 function onKeyDown(e: KeyboardEvent) {
@@ -657,6 +744,21 @@ function loadToolbarPosition() {
 .anno-btn i {
   font-size: 11px;
 }
+.anno-btn span {
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1;
+}
+.text-size-btn {
+  width: 28px;
+}
+.text-size-label {
+  min-width: 18px;
+  color: var(--pm-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
 .drag-handle {
   cursor: grab;
 }
@@ -704,6 +806,26 @@ function loadToolbarPosition() {
 .anno-rect {
   stroke-dasharray: 8 5;
 }
+.anno-ruler-line {
+  stroke-width: 2.5;
+  stroke-dasharray: 7 5;
+}
+.anno-ruler circle {
+  stroke: rgba(0, 0, 0, 0.62);
+  stroke-width: 1;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+}
+.anno-ruler-label {
+  font-size: 13px;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.84);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  text-anchor: middle;
+  user-select: none;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.38));
+}
 .anno-text-box {
   fill: color-mix(in srgb, var(--pm-ai-capsule) 18%, transparent);
   stroke-width: 2;
@@ -740,7 +862,6 @@ function loadToolbarPosition() {
   height: 100%;
   padding: 5px 7px;
   overflow: hidden;
-  font-size: 14px;
   font-weight: 750;
   line-height: 1.35;
   word-break: break-word;
@@ -759,7 +880,6 @@ function loadToolbarPosition() {
   border-radius: 8px;
   background: color-mix(in srgb, var(--pm-ai-capsule) 92%, transparent);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.26);
-  font-size: 13px;
   font-weight: 750;
   line-height: 1.35;
   resize: both;

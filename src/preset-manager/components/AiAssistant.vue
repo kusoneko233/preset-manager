@@ -320,13 +320,13 @@ function onDrawerResize(e: MouseEvent) {
   position: absolute;
   left: 50%;
   bottom: var(--pm-ai-dock-bottom, 26px);
-  width: min(var(--pm-ai-dock-width, 634px), calc(100% - var(--pm-ai-dock-side-gap, 96px)));
+  width: min(var(--pm-ai-dock-width, 400px), calc(100% - var(--pm-ai-dock-side-gap, 96px)));
   transform: translateX(-50%);
   pointer-events: none;
   transition: width 0.2s cubic-bezier(0, 0, 0.2, 1), transform 0.2s cubic-bezier(0, 0, 0.2, 1);
 }
 .overlay-shell.expanded {
-  width: min(var(--pm-ai-dock-width, 634px), calc(100% - var(--pm-ai-dock-side-gap, 96px)));
+  width: min(var(--pm-ai-dock-width, 400px), calc(100% - var(--pm-ai-dock-side-gap, 96px)));
 }
 .overlay-panel {
   display: flex;

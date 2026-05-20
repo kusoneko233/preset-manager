@@ -160,7 +160,7 @@ const textDraft = ref<{
 } | null>(null);
 let isRestoring = false;
 let textDragState: { item: AnnotationItem; startPoint: AnnotationPoint; startItemPoints: AnnotationPoint[] } | null = null;
-const DEFAULT_TEXT_SIZE = 22;
+const DEFAULT_TEXT_SIZE = 18;
 const MIN_TEXT_SIZE = 14;
 const MAX_TEXT_SIZE = 34;
 const currentTextSize = ref(DEFAULT_TEXT_SIZE);

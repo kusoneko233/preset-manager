@@ -12,7 +12,7 @@ export const CODEX_REFERENCE_METRICS = {
     height: 52,
   },
   aiDock: {
-    width: 634,
+    width: 400,
     minHeight: 93,
     maxHeight: 93,
     bottom: 18,

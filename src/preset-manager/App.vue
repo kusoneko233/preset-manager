@@ -629,18 +629,19 @@ html, body {
 body[data-pm-theme="dark"],
 .theme-dark {
   --pm-bg: #050506;
+  --pm-bg-transparent: rgba(5, 5, 6, 0);
   --pm-bg-soft: #0b0c0e;
   --pm-bg-panel: #101114;
-  --pm-bg-sidebar: rgba(30, 40, 66, 0.46);
+  --pm-bg-sidebar: rgba(30, 40, 66, 0.22);
   --pm-bg-elevated: #191a1f;
   --pm-row-bg: transparent;
   --pm-row-hover: rgba(255, 255, 255, 0.043);
   --pm-row-active: rgba(255, 255, 255, 0.064);
-  --pm-row-border: rgba(255, 255, 255, 0.062);
+  --pm-row-border: rgba(255, 255, 255, 0.095);
   --pm-bg-hover: rgba(255, 255, 255, 0.055);
   --pm-bg-active: rgba(255, 255, 255, 0.078);
-  --pm-border: rgba(255, 255, 255, 0.08);
-  --pm-border-strong: rgba(255, 255, 255, 0.145);
+  --pm-border: rgba(255, 255, 255, 0.115);
+  --pm-border-strong: rgba(255, 255, 255, 0.18);
   --pm-text: oklch(0.985 0 0);
   --pm-text-muted: oklch(0.74 0 0);
   --pm-text-subtle: oklch(0.56 0 0);
@@ -651,13 +652,13 @@ body[data-pm-theme="dark"],
   --pm-danger: #f08686;
   --pm-input-bg: rgba(255, 255, 255, 0.035);
   --pm-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
-  --pm-sidebar-glow: rgba(130, 158, 235, 0.18);
-  --pm-sidebar-glow-soft: rgba(82, 98, 148, 0.14);
+  --pm-sidebar-glow: rgba(130, 158, 235, 0.16);
+  --pm-sidebar-glow-soft: rgba(82, 98, 148, 0.1);
   --pm-sidebar-shadow: rgba(7, 11, 22, 0.24);
-  --pm-sidebar-edge: rgba(225, 235, 255, 0.065);
-  --pm-divider: rgba(255, 255, 255, 0.068);
-  --pm-split-line: rgba(255, 255, 255, 0.15);
-  --pm-split-line-hover: rgba(255, 255, 255, 0.32);
+  --pm-sidebar-edge: rgba(225, 235, 255, 0.105);
+  --pm-divider: rgba(255, 255, 255, 0.105);
+  --pm-split-line: rgba(255, 255, 255, 0.24);
+  --pm-split-line-hover: rgba(255, 255, 255, 0.46);
   --pm-ai-surface: rgba(16, 17, 20, 0.72);
   --pm-ai-capsule: rgba(20, 22, 28, 0.46);
   --pm-control-highlight: rgba(255, 255, 255, 0.09);
@@ -669,6 +670,7 @@ body[data-pm-theme="dark"],
 body[data-pm-theme="light"],
 .theme-light {
   --pm-bg: #f6f6f2;
+  --pm-bg-transparent: rgba(246, 246, 242, 0);
   --pm-bg-soft: #ffffff;
   --pm-bg-panel: #fbfbf8;
   --pm-bg-sidebar: rgba(237, 241, 248, 0.72);
@@ -800,7 +802,7 @@ button {
   flex-direction: column;
   height: 100vh;
   position: relative;
-  background: var(--pm-bg);
+  background: var(--pm-bg-transparent);
   color: var(--pm-text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   overflow: hidden;
@@ -817,7 +819,7 @@ button {
   background:
     radial-gradient(690px 420px at -230px -170px, var(--pm-sidebar-glow) 0%, transparent 68%),
     radial-gradient(600px 720px at -230px 48%, var(--pm-sidebar-glow-soft) 0%, transparent 74%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.038), transparent 36%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.028), transparent 36%),
     var(--pm-bg-sidebar);
   box-shadow: inset -1px 0 0 var(--pm-sidebar-edge);
   backdrop-filter: blur(28px) saturate(120%);

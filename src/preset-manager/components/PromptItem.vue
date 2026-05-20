@@ -296,33 +296,42 @@ defineExpose({ expanded });
   color: var(--pm-warning);
 }
 .status-toggle {
-  width: 18px;
+  width: 30px;
   height: 18px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
+  justify-content: flex-start;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--pm-border) 68%, transparent);
   border-radius: 999px;
-  background: transparent;
+  background: color-mix(in srgb, var(--pm-text-subtle) 12%, transparent);
   color: var(--pm-text-subtle);
   cursor: pointer;
-  transition: all 0.12s;
+  transition: background 0.14s, border-color 0.14s, opacity 0.14s;
 }
 .status-toggle:hover:not(:disabled) {
   background: var(--pm-bg-hover);
-  border-color: var(--pm-border);
+  border-color: var(--pm-border-strong);
+}
+.status-toggle.enabled {
+  background: color-mix(in srgb, var(--pm-success) 18%, transparent);
+  border-color: color-mix(in srgb, var(--pm-success) 58%, transparent);
 }
 .status-toggle:disabled {
   cursor: default;
 }
 .status-dot {
-  width: 5px;
-  height: 5px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: var(--pm-text-subtle);
+  background: color-mix(in srgb, var(--pm-text-subtle) 88%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pm-border-strong) 50%, transparent);
+  transition: transform 0.14s, background 0.14s, box-shadow 0.14s;
 }
 .status-toggle.enabled .status-dot {
   background: var(--pm-success);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pm-success) 38%, transparent), 0 0 10px color-mix(in srgb, var(--pm-success) 40%, transparent);
+  transform: translateX(12px);
 }
 .prompt-body {
   padding: 0 var(--pm-prompt-pad-x, 10px) var(--pm-prompt-pad-y, 8px);

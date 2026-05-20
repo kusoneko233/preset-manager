@@ -332,13 +332,13 @@ function onDrawerResize(e: MouseEvent) {
   display: flex;
   flex-direction: column;
   overflow: visible;
-  border: 1px solid color-mix(in srgb, var(--pm-border-strong) 68%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pm-border-strong) 46%, transparent);
   border-radius: 24px;
-  background: color-mix(in srgb, var(--pm-ai-capsule) 66%, transparent);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
+  background: color-mix(in srgb, var(--pm-ai-capsule) 72%, transparent);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.16);
   pointer-events: auto;
-  backdrop-filter: blur(24px) saturate(112%);
-  -webkit-backdrop-filter: blur(24px) saturate(112%);
+  backdrop-filter: blur(26px) saturate(116%);
+  -webkit-backdrop-filter: blur(26px) saturate(116%);
 }
 .overlay-panel.expanded {
   border-color: transparent;
@@ -387,9 +387,9 @@ function onDrawerResize(e: MouseEvent) {
   gap: 3px;
   margin: 0 12px 7px 0;
   padding: 2px 4px;
-  border: 1px solid color-mix(in srgb, var(--pm-border) 62%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pm-border) 42%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--pm-ai-capsule) 24%, transparent);
+  background: color-mix(in srgb, var(--pm-ai-capsule) 20%, transparent);
   box-shadow: none;
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -426,16 +426,16 @@ function onDrawerResize(e: MouseEvent) {
   align-items: center;
   justify-content: center;
   border-radius: 7px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--pm-text-subtle);
+  border: 1px solid color-mix(in srgb, var(--pm-border) 28%, transparent);
+  background: var(--pm-control-highlight);
+  color: var(--pm-text-muted);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .ai-btn:hover {
   color: var(--pm-text);
-  background: var(--pm-bg-hover);
-  border-color: var(--pm-border);
+  background: var(--pm-control-highlight-hover);
+  border-color: color-mix(in srgb, var(--pm-border-strong) 72%, transparent);
 }
 .messages-area {
   flex: 1;
@@ -531,14 +531,14 @@ function onDrawerResize(e: MouseEvent) {
   min-height: var(--pm-ai-dock-min-height, 93px);
   margin: 0;
   padding: 10px 14px;
-  border: 1px solid color-mix(in srgb, var(--pm-border) 64%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pm-border) 48%, transparent);
   border-radius: 20px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent),
-    color-mix(in srgb, var(--pm-ai-capsule) 50%, transparent);
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.035);
-  backdrop-filter: blur(24px) saturate(112%);
-  -webkit-backdrop-filter: blur(24px) saturate(112%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.026), transparent),
+    color-mix(in srgb, var(--pm-ai-capsule) 76%, transparent);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(28px) saturate(118%);
+  -webkit-backdrop-filter: blur(28px) saturate(118%);
 }
 .overlay-panel.empty .messages-area {
   display: none;
@@ -552,10 +552,11 @@ function onDrawerResize(e: MouseEvent) {
   gap: 6px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid transparent;
-  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--pm-border) 28%, transparent);
+  background: var(--pm-control-highlight);
   color: var(--pm-text-muted);
   font-size: 12px;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .tool-pill {
   cursor: pointer;
@@ -569,8 +570,8 @@ function onDrawerResize(e: MouseEvent) {
 .tool-pill:hover,
 .model-pill:hover {
   color: var(--pm-text);
-  background: var(--pm-bg-hover);
-  border-color: var(--pm-border);
+  background: var(--pm-control-highlight-hover);
+  border-color: color-mix(in srgb, var(--pm-border-strong) 72%, transparent);
 }
 .model-pill {
   margin-left: 0;
@@ -610,14 +611,16 @@ function onDrawerResize(e: MouseEvent) {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1px solid transparent;
-  background: var(--pm-accent);
-  color: var(--pm-accent-text);
+  border: 1px solid color-mix(in srgb, var(--pm-send-bg) 38%, transparent);
+  background: var(--pm-send-bg);
+  color: var(--pm-send-fg);
   cursor: pointer;
-  transition: transform 0.12s, opacity 0.12s, background 0.12s;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 0.12s, opacity 0.12s, background 0.12s, box-shadow 0.12s;
 }
 .send-btn:hover:not(:disabled) {
   transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 .send-btn:disabled {
   opacity: 0.3;

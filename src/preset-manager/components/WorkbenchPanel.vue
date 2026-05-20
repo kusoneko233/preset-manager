@@ -85,8 +85,8 @@ function onDragStart(e: DragEvent, draft: DraftPrompt) {
 
 <style scoped>
 .panel-title {
-  min-height: 36px;
-  padding: 2px 4px 8px !important;
+  min-height: 32px;
+  padding: 2px 4px 6px !important;
   border-bottom: 0;
 }
 .panel-label {
@@ -94,7 +94,7 @@ function onDragStart(e: DragEvent, draft: DraftPrompt) {
   align-items: center;
   gap: 7px;
   color: var(--pm-text-subtle);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 640;
   line-height: 1;
 }
@@ -117,7 +117,7 @@ function onDragStart(e: DragEvent, draft: DraftPrompt) {
   border-color: var(--pm-border);
 }
 .draft-list {
-  padding: 0 2px 8px;
+  padding: 0 1px 8px;
 }
 .empty-hint {
   padding: 14px 8px;
@@ -127,7 +127,7 @@ function onDragStart(e: DragEvent, draft: DraftPrompt) {
 }
 .draft-item {
   border: 1px solid transparent;
-  border-bottom-color: color-mix(in srgb, var(--pm-row-border) 82%, transparent);
+  border-bottom-color: transparent;
   border-radius: 0;
   background: transparent;
   cursor: grab;
@@ -135,18 +135,17 @@ function onDragStart(e: DragEvent, draft: DraftPrompt) {
 }
 .draft-item:hover {
   border-color: transparent;
-  border-bottom-color: color-mix(in srgb, var(--pm-row-border) 82%, transparent);
   background: var(--pm-bg-hover);
 }
 .draft-header {
   display: flex;
   align-items: center;
-  min-height: 38px;
-  padding: 7px 8px;
+  min-height: 40px;
+  padding: 7px 9px;
   cursor: pointer;
 }
 .draft-name {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--pm-text);
   font-weight: 520;
 }

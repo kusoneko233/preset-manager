@@ -42,8 +42,8 @@ function confirmDelete(folder: FavFolderType) {
 
 <style scoped>
 .panel-title {
-  min-height: 36px;
-  padding: 8px 4px !important;
+  min-height: 32px;
+  padding: 7px 4px 6px !important;
   border-bottom: 0;
 }
 .panel-label {
@@ -51,7 +51,7 @@ function confirmDelete(folder: FavFolderType) {
   align-items: center;
   gap: 7px;
   color: var(--pm-text-subtle);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 640;
   line-height: 1;
 }
@@ -74,7 +74,7 @@ function confirmDelete(folder: FavFolderType) {
   border-color: var(--pm-border);
 }
 .folder-list {
-  padding: 0 2px 8px;
+  padding: 0 1px 8px;
 }
 .empty-hint {
   padding: 14px 8px;

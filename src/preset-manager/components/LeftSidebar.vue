@@ -27,8 +27,8 @@ defineProps<{
   collapsed: boolean;
 }>();
 
-const topHeight = ref(220);
-const startTopHeight = ref(220);
+const topHeight = ref(188);
+const startTopHeight = ref(188);
 
 function onHorizontalDragStart() {
   startTopHeight.value = topHeight.value;
@@ -66,7 +66,7 @@ function onHorizontalResize(delta: number) {
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
-  padding: 16px 14px 14px;
+  padding: 6px 15px 14px;
   gap: 0;
 }
 .workbench-area {
@@ -79,10 +79,19 @@ function onHorizontalResize(delta: number) {
   opacity: 0;
   margin: 0;
   overflow: visible;
+  pointer-events: auto;
+}
+.sidebar-section-handle :deep(.split-handle-bar) {
+  opacity: 0 !important;
 }
 .sidebar-section-handle:hover,
 .sidebar-section-handle.dragging {
   opacity: 0;
+}
+.sidebar-section-handle:hover :deep(.split-handle-bar),
+.sidebar-section-handle.dragging :deep(.split-handle-bar) {
+  opacity: 0 !important;
+  box-shadow: none !important;
 }
 .favorites-area {
   overflow: hidden;

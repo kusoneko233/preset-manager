@@ -631,7 +631,7 @@ body[data-pm-theme="dark"],
   --pm-bg: #050506;
   --pm-bg-soft: #0b0c0e;
   --pm-bg-panel: #101114;
-  --pm-bg-sidebar: rgba(28, 37, 60, 0.64);
+  --pm-bg-sidebar: rgba(30, 40, 66, 0.46);
   --pm-bg-elevated: #191a1f;
   --pm-row-bg: transparent;
   --pm-row-hover: rgba(255, 255, 255, 0.043);
@@ -651,15 +651,19 @@ body[data-pm-theme="dark"],
   --pm-danger: #f08686;
   --pm-input-bg: rgba(255, 255, 255, 0.035);
   --pm-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
-  --pm-sidebar-glow: rgba(116, 142, 214, 0.22);
-  --pm-sidebar-glow-soft: rgba(58, 76, 122, 0.24);
-  --pm-sidebar-shadow: rgba(7, 11, 22, 0.34);
-  --pm-sidebar-edge: rgba(178, 196, 235, 0.14);
+  --pm-sidebar-glow: rgba(130, 158, 235, 0.18);
+  --pm-sidebar-glow-soft: rgba(82, 98, 148, 0.14);
+  --pm-sidebar-shadow: rgba(7, 11, 22, 0.24);
+  --pm-sidebar-edge: rgba(225, 235, 255, 0.065);
   --pm-divider: rgba(255, 255, 255, 0.068);
   --pm-split-line: rgba(255, 255, 255, 0.15);
   --pm-split-line-hover: rgba(255, 255, 255, 0.32);
-  --pm-ai-surface: rgba(16, 17, 20, 0.86);
-  --pm-ai-capsule: rgba(20, 21, 24, 0.74);
+  --pm-ai-surface: rgba(16, 17, 20, 0.72);
+  --pm-ai-capsule: rgba(20, 22, 28, 0.46);
+  --pm-control-highlight: rgba(255, 255, 255, 0.09);
+  --pm-control-highlight-hover: rgba(255, 255, 255, 0.15);
+  --pm-send-bg: #f7f7f2;
+  --pm-send-fg: #151517;
 }
 
 body[data-pm-theme="light"],
@@ -696,6 +700,10 @@ body[data-pm-theme="light"],
   --pm-split-line-hover: rgba(20, 24, 31, 0.38);
   --pm-ai-surface: rgba(250, 250, 247, 0.97);
   --pm-ai-capsule: rgba(255, 255, 255, 0.98);
+  --pm-control-highlight: rgba(20, 24, 31, 0.065);
+  --pm-control-highlight-hover: rgba(20, 24, 31, 0.11);
+  --pm-send-bg: #1d1e22;
+  --pm-send-fg: #ffffff;
 }
 
 button,
@@ -767,9 +775,6 @@ button {
 }
 
 .app-root .text-xs,
-.app-root .draft-name,
-.app-root .folder-name,
-.app-root .fav-item-name,
 .app-root .record-desc,
 .app-root .snap-name,
 .app-root .msg-content {
@@ -810,13 +815,13 @@ button {
   width: var(--pm-left-rail-width, 240px);
   pointer-events: none;
   background:
-    radial-gradient(660px 390px at -210px -160px, var(--pm-sidebar-glow) 0%, transparent 68%),
-    radial-gradient(520px 680px at -190px 50%, var(--pm-sidebar-glow-soft) 0%, transparent 76%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 38%),
+    radial-gradient(690px 420px at -230px -170px, var(--pm-sidebar-glow) 0%, transparent 68%),
+    radial-gradient(600px 720px at -230px 48%, var(--pm-sidebar-glow-soft) 0%, transparent 74%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.038), transparent 36%),
     var(--pm-bg-sidebar);
   box-shadow: inset -1px 0 0 var(--pm-sidebar-edge);
-  backdrop-filter: blur(26px) saturate(128%);
-  -webkit-backdrop-filter: blur(26px) saturate(128%);
+  backdrop-filter: blur(28px) saturate(120%);
+  -webkit-backdrop-filter: blur(28px) saturate(120%);
   z-index: 0;
 }
 .app-root::after {
@@ -827,8 +832,8 @@ button {
   left: calc(var(--pm-left-rail-width, 240px) - 1px);
   width: 1px;
   pointer-events: none;
-  background: linear-gradient(180deg, transparent, var(--pm-border-strong) 14%, var(--pm-border) 82%, transparent);
-  opacity: 0.42;
+  background: linear-gradient(180deg, transparent, var(--pm-sidebar-edge) 12%, var(--pm-sidebar-edge) 84%, transparent);
+  opacity: 0.32;
   z-index: 2;
 }
 .app-root.left-collapsed::before,

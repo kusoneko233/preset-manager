@@ -3,6 +3,7 @@ declare const require: any;
 import type { AnnotationItem } from './annotationTools';
 
 const {
+  clampAnnotationToolbarPosition,
   formatAnnotationExport,
   getNextAnnotationLabel,
   normalizeAnnotationRect,
@@ -23,6 +24,22 @@ function expectDeepEqual<T>(actual: T, expected: T) {
 expectEqual(getNextAnnotationLabel([]), '1');
 expectEqual(getNextAnnotationLabel([{ id: 'a', label: '1', kind: 'pin', points: [] }]), '2');
 expectEqual(getNextAnnotationLabel([{ id: 'a', label: 'A', kind: 'pin', points: [] }]), '1');
+expectDeepEqual(
+  clampAnnotationToolbarPosition(
+    { x: 1800, y: -60 },
+    { width: 1100, height: 700 },
+    { width: 360, height: 36 },
+  ),
+  { x: 732, y: 8 },
+);
+expectDeepEqual(
+  clampAnnotationToolbarPosition(
+    { x: Number.NaN, y: Number.POSITIVE_INFINITY },
+    { width: 1100, height: 700 },
+    { width: 72, height: 32 },
+  ),
+  { x: 16, y: 10 },
+);
 
 expectDeepEqual(
   normalizeAnnotationRect([

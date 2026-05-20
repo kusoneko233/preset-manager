@@ -46,6 +46,31 @@ export interface AnnotationRect {
   height: number;
 }
 
+export interface AnnotationToolbarPosition {
+  x: number;
+  y: number;
+}
+
+export function clampAnnotationToolbarPosition(
+  position: Partial<AnnotationToolbarPosition> | undefined,
+  container: AnnotationSize,
+  toolbar: AnnotationSize,
+): AnnotationToolbarPosition {
+  const margin = 8;
+  const fallback = { x: 16, y: 10 };
+  const rawX = Number(position?.x);
+  const rawY = Number(position?.y);
+  const x = Number.isFinite(rawX) ? rawX : fallback.x;
+  const y = Number.isFinite(rawY) ? rawY : fallback.y;
+  const maxX = Math.max(container.width - toolbar.width - margin, margin);
+  const maxY = Math.max(container.height - toolbar.height - margin, margin);
+
+  return {
+    x: Math.round(Math.min(Math.max(x, margin), maxX)),
+    y: Math.round(Math.min(Math.max(y, margin), maxY)),
+  };
+}
+
 export function getNextAnnotationLabel(items: Array<{ label: string; [key: string]: unknown }>) {
   const labels = items
     .map(item => Number(item.label))

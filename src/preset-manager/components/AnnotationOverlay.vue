@@ -8,7 +8,7 @@
     @pointerup.stop="onPointerUp"
     @pointercancel.stop="onPointerUp"
   >
-    <div class="annotation-toolbar" :class="{ collapsed: toolbarCollapsed }" :style="toolbarStyle" @pointerdown.stop>
+    <div ref="toolbarRef" class="annotation-toolbar" :class="{ collapsed: toolbarCollapsed }" :style="toolbarStyle" @pointerdown.stop>
       <button class="anno-btn drag-handle" title="拖动工具栏" @pointerdown.prevent="onToolbarDragStart">
         <i class="fas fa-grip-lines text-xs" />
       </button>
@@ -46,10 +46,10 @@
         <button class="anno-btn" title="清除批注" :disabled="!items.length" @click="clearAnnotations">
           <i class="fas fa-trash text-xs" />
         </button>
-        <button class="anno-btn" title="关闭批注模式 Esc" @click="emit('close')">
-          <i class="fas fa-times text-xs" />
-        </button>
       </template>
+      <button class="anno-btn" title="关闭批注模式 Esc" @click="emit('close')">
+        <i class="fas fa-times text-xs" />
+      </button>
       <button class="anno-btn" :title="toolbarCollapsed ? '展开工具栏' : '折叠工具栏'" @click="toolbarCollapsed = !toolbarCollapsed">
         <i :class="['fas', toolbarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left', 'text-xs']" />
       </button>
@@ -131,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { ANNOTATION_COLORS, formatAnnotationExport, getNextAnnotationLabel, normalizeAnnotationRect, type AnnotationColor, type AnnotationItem, type AnnotationPoint, type AnnotationTool } from '../utils/annotationTools';
+import { ANNOTATION_COLORS, clampAnnotationToolbarPosition, formatAnnotationExport, getNextAnnotationLabel, normalizeAnnotationRect, type AnnotationColor, type AnnotationItem, type AnnotationPoint, type AnnotationTool } from '../utils/annotationTools';
 
 const emit = defineEmits<{ close: [] }>();
 
@@ -140,6 +140,7 @@ const TOOLBAR_STORAGE_KEY = 'preset_manager_annotation_toolbar';
 
 const parentDoc = inject<Document>('parentDocument', document);
 const overlayRef = ref<HTMLElement>();
+const toolbarRef = ref<HTMLElement>();
 const svgRef = ref<SVGSVGElement>();
 const tool = ref<AnnotationTool>('pen');
 const items = ref<AnnotationItem[]>([]);
@@ -209,17 +210,22 @@ watch(
 
 onMounted(() => {
   loadAnnotations();
+  nextTick(clampToolbarToViewport);
   window.addEventListener('keydown', onKeyDown, true);
   document.addEventListener('keydown', onKeyDown, true);
   parentDoc?.addEventListener('keydown', onKeyDown, true);
-  window.addEventListener('resize', resizeCurrentAnnotations);
+  window.addEventListener('resize', onWindowResize);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown, true);
   document.removeEventListener('keydown', onKeyDown, true);
   parentDoc?.removeEventListener('keydown', onKeyDown, true);
-  window.removeEventListener('resize', resizeCurrentAnnotations);
+  window.removeEventListener('resize', onWindowResize);
+});
+
+watch(toolbarCollapsed, () => {
+  nextTick(clampToolbarToViewport);
 });
 
 function getCanvasSize() {
@@ -569,6 +575,11 @@ function resizeCurrentAnnotations() {
   });
 }
 
+function onWindowResize() {
+  resizeCurrentAnnotations();
+  nextTick(clampToolbarToViewport);
+}
+
 function restoreSavedAnnotations() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -671,12 +682,15 @@ function onToolbarDragStart(e: PointerEvent) {
 
   const onMove = (moveEvent: PointerEvent) => {
     const bounds = overlayRef.value?.getBoundingClientRect();
-    const maxX = Math.max((bounds?.width ?? window.innerWidth) - 120, 8);
-    const maxY = Math.max((bounds?.height ?? window.innerHeight) - 44, 8);
-    toolbarPosition.value = {
-      x: Math.min(Math.max(startPos.x + moveEvent.clientX - startX, 8), maxX),
-      y: Math.min(Math.max(startPos.y + moveEvent.clientY - startY, 8), maxY),
-    };
+    const toolbarBounds = toolbarRef.value?.getBoundingClientRect();
+    toolbarPosition.value = clampAnnotationToolbarPosition(
+      {
+        x: startPos.x + moveEvent.clientX - startX,
+        y: startPos.y + moveEvent.clientY - startY,
+      },
+      { width: bounds?.width ?? window.innerWidth, height: bounds?.height ?? window.innerHeight },
+      { width: toolbarBounds?.width ?? 120, height: toolbarBounds?.height ?? 36 },
+    );
   };
 
   const onEnd = () => {
@@ -694,9 +708,30 @@ function onToolbarDragStart(e: PointerEvent) {
 function loadToolbarPosition() {
   try {
     const raw = localStorage.getItem(TOOLBAR_STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as { x: number; y: number };
+    if (raw) {
+      return clampAnnotationToolbarPosition(
+        JSON.parse(raw) as { x: number; y: number },
+        { width: window.innerWidth, height: window.innerHeight },
+        { width: 360, height: 36 },
+      );
+    }
   } catch {}
   return { x: 16, y: 10 };
+}
+
+function clampToolbarToViewport() {
+  const bounds = overlayRef.value?.getBoundingClientRect();
+  const toolbarBounds = toolbarRef.value?.getBoundingClientRect();
+  const nextPosition = clampAnnotationToolbarPosition(
+    toolbarPosition.value,
+    { width: bounds?.width ?? window.innerWidth, height: bounds?.height ?? window.innerHeight },
+    { width: toolbarBounds?.width ?? 120, height: toolbarBounds?.height ?? 36 },
+  );
+
+  if (nextPosition.x !== toolbarPosition.value.x || nextPosition.y !== toolbarPosition.value.y) {
+    toolbarPosition.value = nextPosition;
+    localStorage.setItem(TOOLBAR_STORAGE_KEY, JSON.stringify(toolbarPosition.value));
+  }
 }
 </script>
 

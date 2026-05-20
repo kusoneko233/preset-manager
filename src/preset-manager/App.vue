@@ -631,7 +631,7 @@ body[data-pm-theme="dark"],
   --pm-bg: #050506;
   --pm-bg-soft: #0b0c0e;
   --pm-bg-panel: #101114;
-  --pm-bg-sidebar: oklch(0.145 0 0 / 0.52);
+  --pm-bg-sidebar: rgba(28, 37, 60, 0.64);
   --pm-bg-elevated: #191a1f;
   --pm-row-bg: transparent;
   --pm-row-hover: rgba(255, 255, 255, 0.043);
@@ -651,9 +651,10 @@ body[data-pm-theme="dark"],
   --pm-danger: #f08686;
   --pm-input-bg: rgba(255, 255, 255, 0.035);
   --pm-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
-  --pm-sidebar-glow: rgba(122, 138, 206, 0.16);
-  --pm-sidebar-glow-soft: rgba(63, 78, 126, 0.14);
-  --pm-sidebar-shadow: rgba(0, 0, 0, 0.22);
+  --pm-sidebar-glow: rgba(116, 142, 214, 0.22);
+  --pm-sidebar-glow-soft: rgba(58, 76, 122, 0.24);
+  --pm-sidebar-shadow: rgba(7, 11, 22, 0.34);
+  --pm-sidebar-edge: rgba(178, 196, 235, 0.14);
   --pm-divider: rgba(255, 255, 255, 0.068);
   --pm-split-line: rgba(255, 255, 255, 0.15);
   --pm-split-line-hover: rgba(255, 255, 255, 0.32);
@@ -689,6 +690,7 @@ body[data-pm-theme="light"],
   --pm-sidebar-glow: rgba(174, 191, 230, 0.5);
   --pm-sidebar-glow-soft: rgba(226, 233, 246, 0.8);
   --pm-sidebar-shadow: rgba(126, 143, 174, 0.16);
+  --pm-sidebar-edge: rgba(88, 102, 132, 0.14);
   --pm-divider: rgba(0, 0, 0, 0.08);
   --pm-split-line: rgba(20, 24, 31, 0.18);
   --pm-split-line-hover: rgba(20, 24, 31, 0.38);
@@ -808,12 +810,13 @@ button {
   width: var(--pm-left-rail-width, 240px);
   pointer-events: none;
   background:
-    radial-gradient(760px 480px at -230px -180px, var(--pm-sidebar-glow) 0%, transparent 70%),
-    radial-gradient(560px 720px at -210px 48%, var(--pm-sidebar-glow-soft) 0%, transparent 75%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.032), transparent 36%),
+    radial-gradient(660px 390px at -210px -160px, var(--pm-sidebar-glow) 0%, transparent 68%),
+    radial-gradient(520px 680px at -190px 50%, var(--pm-sidebar-glow-soft) 0%, transparent 76%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 38%),
     var(--pm-bg-sidebar);
-  backdrop-filter: blur(24px) saturate(115%);
-  -webkit-backdrop-filter: blur(24px) saturate(115%);
+  box-shadow: inset -1px 0 0 var(--pm-sidebar-edge);
+  backdrop-filter: blur(26px) saturate(128%);
+  -webkit-backdrop-filter: blur(26px) saturate(128%);
   z-index: 0;
 }
 .app-root::after {

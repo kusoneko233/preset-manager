@@ -1,7 +1,7 @@
 export const CODEX_REFERENCE_METRICS = {
   window: {
-    width: 1375,
-    height: 875,
+    width: 1100,
+    height: 700,
   },
   sidebar: {
     width: 255,
@@ -15,7 +15,7 @@ export const CODEX_REFERENCE_METRICS = {
     width: 634,
     minHeight: 93,
     maxHeight: 93,
-    bottom: 26,
+    bottom: 18,
     sideGap: 96,
   },
 } as const;

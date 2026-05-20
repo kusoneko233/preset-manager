@@ -242,7 +242,7 @@ onUnmounted(() => {
   align-self: stretch;
   flex: 0 0 var(--pm-left-rail-width, 240px);
   justify-content: flex-end;
-  padding: 0 18px;
+  padding: 0 12px 0 18px;
   background: transparent;
   border-right: 0;
 }
@@ -261,7 +261,7 @@ onUnmounted(() => {
   transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.12s;
 }
 .sidebar-toggle.collapsed {
-  transform: translateX(8px);
+  transform: translateX(12px);
 }
 .title-bar.left-collapsed .title-left {
   flex-basis: 0;
@@ -272,7 +272,7 @@ onUnmounted(() => {
 .title-bar.left-collapsed .sidebar-toggle.collapsed {
   position: absolute;
   top: 9px;
-  left: 14px;
+  left: 18px;
   z-index: 3;
   transform: none;
 }
@@ -313,7 +313,7 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--pm-divider);
 }
 .title-bar.left-collapsed .title-actions {
-  padding-left: 62px;
+  padding-left: 66px;
 }
 .title-main {
   min-width: 0;

@@ -839,6 +839,12 @@ button {
 .title-bar,
 .main-body {
   position: relative;
+}
+.title-bar {
+  z-index: 30;
+  overflow: visible;
+}
+.main-body {
   z-index: 1;
 }
 .window-resize-handle {

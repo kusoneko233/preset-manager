@@ -60,5 +60,5 @@ pnpm exec ts-node src\preset-manager\utils\promptRelations.test.ts
 - [ ] 执行 `pnpm build`。
 - [ ] 执行 `git diff --check`。
 - [ ] 在酒馆里验证第二预设面板打开后，跨面板复制、迁移、重复提示、撤销/重做是否正常。
-- [ ] 更新 README 的 `v0.6.0` 版本记录。
-- [ ] 提交、打 `v0.6.0` 标签并推送。
+- [ ] 更新 README 的 `v0.2.2` 版本记录。
+- [ ] 提交、打 `v0.2.2` 标签并推送。

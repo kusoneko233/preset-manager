@@ -134,17 +134,19 @@ function onItemDragStart(e: DragEvent, item: PresetNormalPrompt, index: number) 
 <style scoped>
 .favorite-folder {
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-bottom-color: color-mix(in srgb, var(--pm-row-border) 82%, transparent);
+  border-radius: 0;
   background: transparent;
   overflow: hidden;
 }
 .folder-header {
   display: flex;
   align-items: center;
-  min-height: 34px;
-  padding: 6px 8px;
+  min-height: 38px;
+  padding: 7px 8px;
   cursor: pointer;
   gap: 4px;
+  transition: background 0.12s;
 }
 .folder-header:hover {
   background: var(--pm-bg-hover);
@@ -152,7 +154,7 @@ function onItemDragStart(e: DragEvent, item: PresetNormalPrompt, index: number) 
 .folder-name {
   font-size: 12px;
   color: var(--pm-text);
-  font-weight: 500;
+  font-weight: 520;
 }
 .folder-name-input {
   flex: 1;
@@ -191,10 +193,10 @@ function onItemDragStart(e: DragEvent, item: PresetNormalPrompt, index: number) 
   background: var(--pm-bg-hover);
 }
 .folder-items {
-  padding: 2px 6px 6px;
+  padding: 0 6px 8px 22px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   transition: background 0.15s;
   min-height: 24px;
 }
@@ -204,15 +206,18 @@ function onItemDragStart(e: DragEvent, item: PresetNormalPrompt, index: number) 
 .fav-item {
   display: flex;
   align-items: center;
-  padding: 4px 8px;
-  border-radius: 8px;
-  background: var(--pm-bg-hover);
+  min-height: 30px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: transparent;
   border: 1px solid transparent;
   cursor: grab;
   gap: 4px;
+  transition: background 0.12s, border-color 0.12s;
 }
 .fav-item:hover {
-  border-color: var(--pm-border);
+  border-color: transparent;
+  background: var(--pm-bg-hover);
 }
 .fav-item-name {
   flex: 1;

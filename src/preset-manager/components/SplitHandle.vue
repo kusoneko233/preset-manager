@@ -86,7 +86,7 @@ function onMouseDown(e: MouseEvent) {
   position: absolute;
   border-radius: 999px;
   background: var(--pm-split-line);
-  opacity: 0.85;
+  opacity: 1;
   transition: background 0.12s, opacity 0.12s, box-shadow 0.12s;
 }
 .split-handle.vertical .split-handle-bar {

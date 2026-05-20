@@ -1,41 +1,37 @@
 <template>
   <div
-    v-if="ai.visible"
     class="ai-assistant"
     :class="[ai.mode, { snapped: !!ai.snappedEdge, [`snap-${ai.snappedEdge}`]: !!ai.snappedEdge }]"
   >
     <template v-if="ai.mode === 'drawer'">
       <div class="overlay-shell" :class="{ expanded: ai.drawerExpanded }">
-        <div class="overlay-panel" :class="{ expanded: ai.drawerExpanded, compact: isDrawerCompact }" :style="drawerStyle">
+        <div
+          class="overlay-panel"
+          :class="{ expanded: ai.drawerExpanded, compact: isDrawerCompact, empty: isDrawerEmpty }"
+          :style="drawerStyle"
+        >
           <template v-if="ai.drawerExpanded">
             <div class="drawer-handle" @mousedown.stop.prevent="onDrawerResize">
               <div class="handle-bar" />
             </div>
 
             <div class="overlay-topline">
-              <button class="ai-title" title="收起 AI 助手" @click="collapseDrawer">
-                <i class="fas fa-sparkles text-xs" />
-                <span>AI 助手</span>
+              <button class="ai-btn" title="收起 AI 助手" @click="collapseDrawer">
                 <i class="fas fa-chevron-down text-xs" />
               </button>
-              <div class="ai-actions">
-                <button class="ai-btn" title="脱出为独立窗口" @click="detach">
-                  <i class="fas fa-external-link-alt text-xs" />
-                </button>
-                <button class="ai-btn" title="设置" @click="ai.showConfig = !ai.showConfig">
-                  <i class="fas fa-cog text-xs" />
-                </button>
-                <button class="ai-btn" title="关闭" @click="ai.toggleVisible()">
-                  <i class="fas fa-times text-xs" />
-                </button>
-              </div>
+              <button class="ai-btn" title="脱出为独立窗口" @click="detach">
+                <i class="fas fa-external-link-alt text-xs" />
+              </button>
+              <button class="ai-btn" title="设置" @click="ai.showConfig = !ai.showConfig">
+                <i class="fas fa-cog text-xs" />
+              </button>
             </div>
 
             <AiConfig v-if="ai.showConfig && !isDrawerCompact" />
 
             <div ref="messagesRef" class="messages-area">
               <div v-if="!ai.messages.length" class="empty-ai text-slate-600 text-xs">
-                描述你想调整的预设结构、条目顺序或提示词问题。
+                询问预设结构、条目顺序或提示词问题。
               </div>
               <div v-for="msg in ai.messages" :key="msg.id" class="ai-message" :class="msg.role">
                 <div class="msg-content">{{ msg.content }}</div>
@@ -49,25 +45,30 @@
           </template>
 
           <div class="input-dock">
-            <button class="dock-toggle" :title="ai.drawerExpanded ? '收起 AI 助手' : '展开 AI 助手'" @click="toggleDrawer">
-              <i :class="['fas text-xs', ai.drawerExpanded ? 'fa-chevron-down' : 'fa-sparkles']" />
-            </button>
-            <input
-              v-model="inputText"
-              class="ai-input"
-              placeholder="Ask Codex anything"
-              @focus="expandDrawer"
-              @keydown.enter="send"
-            />
-            <button class="ai-btn dock-config" title="设置" @click="ai.showConfig = !ai.showConfig; expandDrawer()">
-              <i class="fas fa-cog text-xs" />
-            </button>
-            <button class="send-btn" :disabled="!inputText.trim() || ai.isGenerating" @click="send">
-              <i class="fas fa-arrow-up text-xs" />
-            </button>
-            <button class="ai-btn dock-close" title="关闭" @click="ai.toggleVisible()">
-              <i class="fas fa-times text-xs" />
-            </button>
+            <div class="input-row">
+              <input
+                v-model="inputText"
+                class="ai-input"
+                placeholder="询问预设、结构或条目"
+                @keydown.enter="send"
+              />
+              <button class="tool-pill icon-only detach-trigger" title="独立小窗" @click="detach">
+                <i class="fas fa-external-link-alt text-xs" />
+              </button>
+            </div>
+
+            <div class="input-tool-row">
+              <button class="tool-pill icon-only settings-trigger" title="AI 设置" @click="ai.showConfig = !ai.showConfig">
+                <i class="fas fa-cog text-xs" />
+              </button>
+              <button class="model-pill" title="AI 模型设置" @click="ai.showConfig = !ai.showConfig">
+                <span>{{ modelLabel }}</span>
+                <i class="fas fa-chevron-down text-xs" />
+              </button>
+              <button class="send-btn" :disabled="!inputText.trim() || ai.isGenerating" @click="send">
+                <i class="fas fa-arrow-up text-xs" />
+              </button>
+            </div>
           </div>
 
           <div v-if="ai.showConfig && !ai.drawerExpanded" class="capsule-config">
@@ -96,9 +97,6 @@
             </button>
             <button class="ai-btn" title="设置" @click="ai.showConfig = !ai.showConfig">
               <i class="fas fa-cog text-xs" />
-            </button>
-            <button class="ai-btn" title="关闭" @click="ai.toggleVisible()">
-              <i class="fas fa-times text-xs" />
             </button>
           </div>
         </div>
@@ -151,8 +149,10 @@ const detachedMsgRef = ref<HTMLElement>();
 const detachedRef = ref<HTMLElement>();
 const isHovering = ref(false);
 const isDrawerCompact = computed(() => ai.drawerHeight < 148);
+const isDrawerEmpty = computed(() => ai.drawerExpanded && !ai.messages.length && !ai.showConfig);
+const modelLabel = computed(() => ai.config.model || ai.config.proxyPreset || 'AI 模型');
 const drawerStyle = computed(() => ({
-  height: ai.drawerExpanded ? `${ai.drawerHeight}px` : 'auto',
+  height: ai.drawerExpanded ? (isDrawerEmpty.value ? 'auto' : `${ai.drawerHeight}px`) : 'auto',
 }));
 
 const detachedStyle = computed(() => {
@@ -225,10 +225,6 @@ function expandDrawer() {
 
 function collapseDrawer() {
   ai.setDrawerExpanded(false);
-}
-
-function toggleDrawer() {
-  ai.setDrawerExpanded(!ai.drawerExpanded);
 }
 
 let dragStartX = 0;
@@ -323,32 +319,37 @@ function onDrawerResize(e: MouseEvent) {
 .overlay-shell {
   position: absolute;
   left: 50%;
-  bottom: 20px;
-  width: min(560px, calc(100% - 72px));
+  bottom: 26px;
+  width: min(740px, calc(100% - 136px));
   transform: translateX(-50%);
   pointer-events: none;
   transition: width 0.2s cubic-bezier(0, 0, 0.2, 1), transform 0.2s cubic-bezier(0, 0, 0.2, 1);
 }
 .overlay-shell.expanded {
-  width: min(720px, calc(100% - 104px));
+  width: min(740px, calc(100% - 136px));
 }
 .overlay-panel {
   display: flex;
   flex-direction: column;
   overflow: visible;
-  border: 1px solid color-mix(in srgb, var(--pm-border-strong) 75%, transparent);
-  border-radius: 26px;
-  background: color-mix(in srgb, var(--pm-ai-capsule) 82%, transparent);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
+  border: 1px solid color-mix(in srgb, var(--pm-border-strong) 68%, transparent);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--pm-ai-capsule) 66%, transparent);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
   pointer-events: auto;
-  backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px) saturate(112%);
+  -webkit-backdrop-filter: blur(24px) saturate(112%);
 }
 .overlay-panel.expanded {
-  background:
-    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--pm-accent) 8%, transparent), transparent 34%),
-    color-mix(in srgb, var(--pm-ai-surface) 88%, transparent);
-  border-radius: 24px;
-  overflow: hidden;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.overlay-panel.expanded.empty {
+  box-shadow: none;
 }
 .drawer-handle {
   height: 9px;
@@ -370,13 +371,31 @@ function onDrawerResize(e: MouseEvent) {
 }
 .overlay-topline,
 .ai-header {
-  min-height: 30px;
+  min-height: 26px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 2px 10px 4px;
+  justify-content: flex-end;
+  padding: 1px 12px 3px;
   color: var(--pm-text);
   flex: 0 0 auto;
+}
+.overlay-panel.expanded .overlay-topline {
+  min-height: 28px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  align-self: flex-end;
+  gap: 3px;
+  margin: 0 12px 7px 0;
+  padding: 2px 4px;
+  border: 1px solid color-mix(in srgb, var(--pm-border) 62%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pm-ai-capsule) 24%, transparent);
+  box-shadow: none;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.overlay-panel.empty .overlay-topline {
+  display: none;
 }
 .ai-title,
 .detached-title {
@@ -401,12 +420,12 @@ function onDrawerResize(e: MouseEvent) {
   gap: 2px;
 }
 .ai-btn {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: 7px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--pm-text-subtle);
@@ -422,14 +441,20 @@ function onDrawerResize(e: MouseEvent) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 6px 14px 10px;
+  padding: 3px 18px 7px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   background: transparent;
 }
+.overlay-panel.expanded .messages-area {
+  flex: 1;
+  margin: 0 12px 8px;
+  padding: 0 2px;
+  mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 12px), transparent);
+}
 .ai-message {
-  max-width: 88%;
+  max-width: 92%;
 }
 .ai-message.user {
   align-self: flex-end;
@@ -438,21 +463,25 @@ function onDrawerResize(e: MouseEvent) {
   align-self: flex-start;
 }
 .msg-content {
-  padding: 8px 11px;
+  padding: 7px 10px;
   border-radius: 13px;
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-all;
-  border: 1px solid var(--pm-border);
+  border: 1px solid transparent;
+  box-shadow: none;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 .ai-message.user .msg-content {
-  background: var(--pm-accent);
-  border-color: var(--pm-accent);
+  background: color-mix(in srgb, var(--pm-accent) 92%, transparent);
+  border-color: transparent;
   color: var(--pm-accent-text);
 }
 .ai-message.assistant .msg-content {
-  background: color-mix(in srgb, var(--pm-bg-elevated) 62%, transparent);
+  background: color-mix(in srgb, var(--pm-bg-elevated) 15%, transparent);
+  border-color: color-mix(in srgb, var(--pm-border) 42%, transparent);
   color: var(--pm-text);
 }
 .typing {
@@ -475,39 +504,95 @@ function onDrawerResize(e: MouseEvent) {
 }
 .input-dock {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 58px;
-  padding: 10px 12px;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 112px;
+  padding: 13px 15px;
   background: transparent;
   flex: 0 0 auto;
 }
-.overlay-panel.expanded .input-dock {
-  min-height: 56px;
-  margin: 0 10px 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--pm-border);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--pm-bg) 62%, transparent);
-}
-.dock-toggle {
-  width: 34px;
-  height: 34px;
-  flex-shrink: 0;
+.input-row,
+.input-tool-row {
+  width: 100%;
   display: flex;
   align-items: center;
-  justify-content: center;
+}
+.input-row {
+  gap: 12px;
+  min-height: 42px;
+  align-items: flex-start;
+}
+.input-tool-row {
+  gap: 10px;
+  min-height: 38px;
+  padding: 0;
+}
+.overlay-panel.expanded .input-dock {
+  min-height: 112px;
+  margin: 0;
+  padding: 13px 15px;
+  border: 1px solid color-mix(in srgb, var(--pm-border) 64%, transparent);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent),
+    color-mix(in srgb, var(--pm-ai-capsule) 50%, transparent);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(24px) saturate(112%);
+  -webkit-backdrop-filter: blur(24px) saturate(112%);
+}
+.overlay-panel.empty .messages-area {
+  display: none;
+}
+.tool-pill,
+.model-pill {
+  min-width: 0;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
   border-radius: 999px;
   border: 1px solid transparent;
-  background: color-mix(in srgb, var(--pm-bg-hover) 72%, transparent);
-  color: var(--pm-text);
+  background: transparent;
+  color: var(--pm-text-muted);
+  font-size: 12px;
+}
+.tool-pill {
   cursor: pointer;
+}
+.tool-pill.icon-only {
+  width: 32px;
+  flex: 0 0 32px;
+  justify-content: center;
+  padding: 0;
+}
+.tool-pill:hover,
+.model-pill:hover {
+  color: var(--pm-text);
+  background: var(--pm-bg-hover);
+  border-color: var(--pm-border);
+}
+.model-pill {
+  margin-left: 0;
+  max-width: 220px;
+  cursor: pointer;
+}
+.model-pill span {
+  min-width: 0;
+  max-width: 190px;
+  overflow: hidden;
+  color: var(--pm-text-subtle);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-pill:hover span {
+  color: var(--pm-text);
 }
 .ai-input {
   flex: 1;
-  height: 36px;
+  height: 34px;
   min-width: 0;
-  padding: 0 4px;
+  padding: 0;
   border: 1px solid transparent;
   background: transparent;
   color: var(--pm-text);
@@ -518,17 +603,18 @@ function onDrawerResize(e: MouseEvent) {
   color: var(--pm-text-subtle);
 }
 .send-btn {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
+  margin-left: auto;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: none;
+  border: 1px solid transparent;
   background: var(--pm-accent);
   color: var(--pm-accent-text);
   cursor: pointer;
-  transition: transform 0.12s, opacity 0.12s;
+  transition: transform 0.12s, opacity 0.12s, background 0.12s;
 }
 .send-btn:hover:not(:disabled) {
   transform: translateY(-1px);
@@ -591,10 +677,16 @@ function onDrawerResize(e: MouseEvent) {
 .empty-ai {
   align-self: center;
   margin: auto 0;
-  padding: 18px;
+  padding: 4px 18px 8px;
   color: var(--pm-text-subtle);
+  text-align: center;
 }
 .detached-input {
+  min-height: 54px;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 10px;
   border-top-color: var(--pm-divider);
   background: color-mix(in srgb, var(--pm-bg) 45%, transparent);
 }
@@ -605,7 +697,6 @@ function onDrawerResize(e: MouseEvent) {
     width: calc(100% - 24px);
     bottom: 14px;
   }
-  .dock-close,
   .dock-config {
     display: none;
   }

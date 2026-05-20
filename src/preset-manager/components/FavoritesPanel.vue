@@ -1,16 +1,16 @@
 <template>
   <div class="favorites-panel flex flex-col h-full">
     <div class="panel-title flex items-center justify-between px-3 py-2">
-      <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">
-        <i class="fas fa-star mr-1 text-amber-500" /> 收藏夹
+      <span class="panel-label">
+        <i class="fas fa-star" /> 收藏夹
       </span>
       <button class="add-btn" title="新建收藏夹" @click="store.addFavoriteFolder()">
         <i class="fas fa-plus text-xs" />
       </button>
     </div>
 
-    <div class="folder-list flex-1 overflow-y-auto px-2 pb-2">
-      <div v-if="!folders.length" class="empty-hint text-slate-600 text-xs text-center py-4">
+    <div class="folder-list flex-1 overflow-y-auto">
+      <div v-if="!folders.length" class="empty-hint">
         点击 + 新建收藏夹
       </div>
       <FavoriteFolder
@@ -42,13 +42,22 @@ function confirmDelete(folder: FavFolderType) {
 
 <style scoped>
 .panel-title {
-  min-height: 34px;
-  padding: 4px 2px 6px !important;
+  min-height: 36px;
+  padding: 8px 4px !important;
   border-bottom: 0;
 }
+.panel-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--pm-text-subtle);
+  font-size: 11px;
+  font-weight: 640;
+  line-height: 1;
+}
 .add-btn {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -63,5 +72,14 @@ function confirmDelete(folder: FavFolderType) {
   background: var(--pm-bg-hover);
   color: var(--pm-text);
   border-color: var(--pm-border);
+}
+.folder-list {
+  padding: 0 2px 8px;
+}
+.empty-hint {
+  padding: 14px 8px;
+  color: var(--pm-text-subtle);
+  font-size: 12px;
+  text-align: center;
 }
 </style>

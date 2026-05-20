@@ -5,9 +5,9 @@
     @dragleave="onDragLeave"
     @drop.prevent="onDrop"
   >
-    <div class="panel-header">
+    <div v-if="panelId !== 'main'" class="panel-header">
       <div class="preset-path">
-        <span class="panel-kicker">{{ panelId === 'main' ? '当前预设' : '第二预设' }}</span>
+        <span class="panel-kicker">第二预设</span>
         <div class="preset-select-wrap">
           <select v-model="selectedPreset" class="preset-select" @change="onPresetChange">
             <option value="" disabled>选择预设...</option>

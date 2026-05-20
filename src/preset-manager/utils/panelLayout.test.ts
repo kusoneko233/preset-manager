@@ -1,15 +1,31 @@
-import assert from 'node:assert/strict';
-import { clampSecondPresetWidth, getSecondPresetBounds } from './panelLayout';
+declare const require: any;
+
+const {
+  clampSecondPresetWidth,
+  getSecondPresetBounds,
+} = require('./panelLayout');
+
+function expectEqual<T>(actual: T, expected: T) {
+  if (actual !== expected) {
+    throw new Error(`Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+  }
+}
+
+function expectTrue(value: boolean, message: string) {
+  if (!value) {
+    throw new Error(message);
+  }
+}
 
 const desktop = getSecondPresetBounds(1000);
-assert.equal(desktop.center, 489);
-assert.equal(clampSecondPresetWidth(489, 1000), 489);
-assert.equal(clampSecondPresetWidth(900, 1000), desktop.max);
-assert.ok(desktop.max > 500);
+expectEqual(desktop.center, 489);
+expectEqual(clampSecondPresetWidth(489, 1000), 489);
+expectEqual(clampSecondPresetWidth(900, 1000), desktop.max);
+expectTrue(desktop.max > 500, 'Expected desktop max width to be greater than 500');
 
 const compact = getSecondPresetBounds(520);
-assert.equal(compact.center, 249);
-assert.equal(clampSecondPresetWidth(10, 520), compact.min);
-assert.equal(clampSecondPresetWidth(Number.NaN, 520), compact.center);
+expectEqual(compact.center, 249);
+expectEqual(clampSecondPresetWidth(10, 520), compact.min);
+expectEqual(clampSecondPresetWidth(Number.NaN, 520), compact.center);
 
 console.info('panelLayout tests passed');

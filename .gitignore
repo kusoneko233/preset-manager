@@ -26,3 +26,10 @@ package.json.tmp
 !/README.md
 !/codex-ui-ai-drawer-plan.md
 !/second-preset-transfer-plan.md
+!/docs/
+/docs/*
+!/docs/archive/
+/docs/archive/*
+!/docs/archive/README.md
+!/docs/archive/plans/
+!/docs/archive/plans/*.md

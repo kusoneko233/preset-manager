@@ -1,16 +1,16 @@
 <template>
   <div class="workbench-panel flex flex-col h-full">
     <div class="panel-title flex items-center justify-between px-3 py-2">
-      <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">
-        <i class="fas fa-pen-nib mr-1" /> 新建条目
+      <span class="panel-label">
+        <i class="fas fa-pen-nib" /> 新建条目
       </span>
       <button class="add-btn" title="新建草稿" @click="store.addDraft()">
         <i class="fas fa-plus text-xs" />
       </button>
     </div>
 
-    <div class="draft-list flex-1 overflow-y-auto px-2 pb-2">
-      <div v-if="!drafts.length" class="empty-hint text-slate-600 text-xs text-center py-4">
+    <div class="draft-list flex-1 overflow-y-auto">
+      <div v-if="!drafts.length" class="empty-hint">
         点击 + 新建草稿条目
       </div>
 
@@ -85,13 +85,22 @@ function onDragStart(e: DragEvent, draft: DraftPrompt) {
 
 <style scoped>
 .panel-title {
-  min-height: 34px;
-  padding: 4px 2px 6px !important;
+  min-height: 36px;
+  padding: 2px 4px 8px !important;
   border-bottom: 0;
 }
+.panel-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--pm-text-subtle);
+  font-size: 11px;
+  font-weight: 640;
+  line-height: 1;
+}
 .add-btn {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -107,27 +116,39 @@ function onDragStart(e: DragEvent, draft: DraftPrompt) {
   color: var(--pm-text);
   border-color: var(--pm-border);
 }
+.draft-list {
+  padding: 0 2px 8px;
+}
+.empty-hint {
+  padding: 14px 8px;
+  color: var(--pm-text-subtle);
+  font-size: 12px;
+  text-align: center;
+}
 .draft-item {
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-bottom-color: color-mix(in srgb, var(--pm-row-border) 82%, transparent);
+  border-radius: 0;
   background: transparent;
-  margin-bottom: 3px;
   cursor: grab;
+  transition: background 0.12s, border-color 0.12s;
 }
 .draft-item:hover {
   border-color: transparent;
+  border-bottom-color: color-mix(in srgb, var(--pm-row-border) 82%, transparent);
   background: var(--pm-bg-hover);
 }
 .draft-header {
   display: flex;
   align-items: center;
-  min-height: 34px;
-  padding: 6px 8px;
+  min-height: 38px;
+  padding: 7px 8px;
   cursor: pointer;
 }
 .draft-name {
   font-size: 12px;
   color: var(--pm-text);
+  font-weight: 520;
 }
 .del-btn {
   width: 20px;
@@ -146,11 +167,12 @@ function onDragStart(e: DragEvent, draft: DraftPrompt) {
   background: color-mix(in srgb, var(--pm-danger) 13%, transparent);
 }
 .draft-body {
-  padding: 6px 8px 8px;
+  padding: 7px 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  border-top: 1px solid var(--pm-border);
+  gap: 6px;
+  border-top: 1px solid var(--pm-divider);
+  background: color-mix(in srgb, var(--pm-bg-hover) 42%, transparent);
 }
 .draft-input,
 .draft-select {

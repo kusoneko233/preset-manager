@@ -23,8 +23,7 @@
         <span v-if="relationLabel" class="relation-badge">{{ relationLabel }}</span>
       </div>
 
-      <div class="flex items-center gap-2 flex-shrink-0">
-        <span class="role-badge" :class="prompt.role">{{ prompt.role }}</span>
+      <div class="flex items-center gap-1 flex-shrink-0">
         <button
           v-if="'enabled' in prompt"
           class="status-toggle"
@@ -35,7 +34,7 @@
         >
           <span class="status-dot" />
         </button>
-        <i :class="['fas text-xs text-slate-500 transition-transform', expanded ? 'fa-chevron-up' : 'fa-chevron-down']" />
+        <span class="expand-chevron" :class="{ expanded }" aria-hidden="true" />
       </div>
     </div>
 
@@ -44,6 +43,9 @@
     </div>
 
     <div v-if="expanded" class="prompt-body">
+      <div class="prompt-meta">
+        <span class="role-badge" :class="prompt.role">{{ prompt.role }}</span>
+      </div>
       <div v-if="prompt.content" class="content-preview">{{ prompt.content }}</div>
       <div v-else class="text-slate-500 text-xs italic">[无内容]</div>
 
@@ -155,11 +157,11 @@ defineExpose({ expanded });
 .prompt-item::before {
   content: '';
   position: absolute;
-  inset: 3px auto 3px 0;
-  width: 2px;
+  inset: 8px auto 8px 0;
+  width: 1px;
   border-radius: 999px;
   background: transparent;
-  transition: background 0.12s;
+  transition: background 0.12s, opacity 0.12s;
 }
 .prompt-item:hover {
   border-color: transparent;
@@ -168,12 +170,13 @@ defineExpose({ expanded });
 }
 .prompt-item.expanded {
   border-color: var(--pm-border);
-  border-radius: 8px;
-  background: var(--pm-row-active);
-  margin: 4px 0;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--pm-row-active) 82%, transparent);
+  margin: 3px 0;
 }
 .prompt-item.expanded::before {
   background: var(--pm-accent);
+  opacity: 0.76;
 }
 .prompt-item.dragging {
   opacity: 0.5;
@@ -192,15 +195,16 @@ defineExpose({ expanded });
   display: flex;
   align-items: center;
   min-height: var(--pm-prompt-row-min, 44px);
-  padding: var(--pm-prompt-pad-y, 8px) calc(var(--pm-prompt-pad-x, 10px) + 1px);
+  padding: var(--pm-prompt-pad-y, 8px) calc(var(--pm-prompt-pad-x, 10px) + 2px);
   cursor: pointer;
   gap: 8px;
 }
 .prompt-name {
   color: var(--pm-text);
   word-break: break-all;
-  font-weight: 540;
+  font-weight: 500;
   line-height: 1.35;
+  letter-spacing: 0;
 }
 .relation-badge {
   flex-shrink: 0;
@@ -236,18 +240,44 @@ defineExpose({ expanded });
 .prompt-preview {
   display: -webkit-box;
   margin: calc(-1 * var(--pm-prompt-pad-y, 8px) + 1px) calc(var(--pm-prompt-pad-x, 10px) + 48px) var(--pm-prompt-pad-y, 8px) calc(var(--pm-prompt-pad-x, 10px) + var(--pm-prompt-icon-size, 22px) + 8px);
-  color: var(--pm-text-muted);
+  color: var(--pm-text-subtle);
   line-height: 1.45;
   word-break: break-all;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: var(--pm-prompt-preview-lines, 1);
 }
+.expand-chevron {
+  width: 15px;
+  height: 15px;
+  position: relative;
+  flex: 0 0 15px;
+  opacity: 0.56;
+  transition: opacity 0.12s, transform 0.12s;
+}
+.expand-chevron::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 6px;
+  height: 6px;
+  border-right: 1.2px solid var(--pm-text-muted);
+  border-bottom: 1.2px solid var(--pm-text-muted);
+  transform: rotate(45deg);
+}
+.expand-chevron.expanded::before {
+  top: 6px;
+  transform: rotate(225deg);
+}
+.prompt-header:hover .expand-chevron {
+  opacity: 0.9;
+}
 .role-badge {
-  font-size: calc(var(--pm-prompt-preview-font-size, 13px) * 0.8);
-  min-width: 58px;
-  padding: 2px 7px;
-  border-radius: 6px;
+  font-size: 10px;
+  min-width: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
   font-weight: 500;
   text-align: center;
   text-transform: uppercase;
@@ -266,8 +296,8 @@ defineExpose({ expanded });
   color: var(--pm-warning);
 }
 .status-toggle {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -286,8 +316,8 @@ defineExpose({ expanded });
   cursor: default;
 }
 .status-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--pm-text-subtle);
 }
@@ -300,6 +330,11 @@ defineExpose({ expanded });
   margin-top: 0;
   padding-top: var(--pm-prompt-pad-y, 8px);
 }
+.prompt-meta {
+  display: flex;
+  align-items: center;
+  margin-bottom: 7px;
+}
 .content-preview {
   font-size: var(--pm-prompt-preview-font-size, 13px);
   color: var(--pm-text-muted);
@@ -308,9 +343,9 @@ defineExpose({ expanded });
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
-  background: var(--pm-input-bg);
+  background: color-mix(in srgb, var(--pm-input-bg) 70%, transparent);
   border: 1px solid var(--pm-divider);
-  border-radius: 8px;
+  border-radius: 7px;
   padding: var(--pm-prompt-pad-y, 8px);
 }
 .prompt-actions {
@@ -323,19 +358,19 @@ defineExpose({ expanded });
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 10px;
-  border-radius: 7px;
-  border: 1px solid var(--pm-border);
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 1px solid transparent;
   background: transparent;
-  color: var(--pm-text-muted);
+  color: var(--pm-text-subtle);
   font-size: 11px;
   cursor: pointer;
-  transition: all 0.12s;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 .action-btn:hover {
   background: var(--pm-bg-hover);
   color: var(--pm-text);
-  border-color: var(--pm-border-strong);
+  border-color: var(--pm-border);
 }
 .action-btn.danger:hover {
   color: var(--pm-danger);

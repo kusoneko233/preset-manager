@@ -68,6 +68,15 @@ const aiStore = reactive({
     this.visible = !this.visible;
   },
 
+  show() {
+    this.visible = true;
+  },
+
+  hide() {
+    this.visible = false;
+    this.showConfig = false;
+  },
+
   setMode(mode: 'drawer' | 'detached') {
     this.mode = mode;
   },

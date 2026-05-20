@@ -33,8 +33,9 @@ expectDeepEqual(
 );
 
 const items: AnnotationItem[] = [
-  { id: 'a', label: '1', kind: 'pin', points: [{ x: 12.4, y: 18.8 }], note: '按钮位置别扭' },
-  { id: 'b', label: '2', kind: 'rect', points: [{ x: 20, y: 30 }, { x: 80, y: 90 }] },
+  { id: 'a', label: '1', kind: 'pin', points: [{ x: 12.4, y: 18.8 }], colorLabel: '红色', note: '按钮位置别扭' },
+  { id: 'b', label: '2', kind: 'rect', points: [{ x: 20, y: 30 }, { x: 80, y: 90 }], colorLabel: '绿色' },
+  { id: 'c', label: '3', kind: 'text', points: [{ x: 100, y: 50 }], colorLabel: '蓝色', note: '这里需要更醒目' },
 ];
 
 expectEqual(
@@ -42,8 +43,9 @@ expectEqual(
   [
     '预设管理器 UI 批注',
     '画布尺寸：320 x 240',
-    '1. [pin] x=12, y=19：按钮位置别扭',
-    '2. [rect] left=20, top=30, width=60, height=60',
+    '1. [pin] x=12, y=19 color=红色：按钮位置别扭',
+    '2. [rect] left=20, top=30, width=60, height=60 color=绿色',
+    '3. [text] x=100, y=50 color=蓝色：这里需要更醒目',
   ].join('\n'),
 );
 

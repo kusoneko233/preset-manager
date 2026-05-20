@@ -1,28 +1,34 @@
 <template>
   <div
     class="app-root"
-    :class="[`theme-${theme}`, { fullscreen: isFullscreen, 'hide-prompt-preview': promptPreviewLines === 0 }]"
+    :class="[`theme-${theme}`, { fullscreen: isFullscreen, 'hide-prompt-preview': promptPreviewLines === 0, 'left-collapsed': leftCollapsed }]"
     :style="uiVars"
   >
     <TitleBar
       :is-fullscreen="isFullscreen"
       :can-undo="history.canUndo"
       :can-redo="history.canRedo"
-      :ai-visible="ai.visible"
       :annotation-visible="showAnnotation"
       :theme="theme"
+      :left-collapsed="leftCollapsed"
+      :current-preset-name="manager.presetName"
+      :preset-names="manager.presetNames"
+      :prompt-count="manager.mainPrompts.length"
+      :token-estimate="mainPresetTokenEstimate"
       @undo="doUndo"
       @redo="doRedo"
       @toggle-history="showHistory = !showHistory"
-      @toggle-ai="ai.toggleVisible()"
       @toggle-theme="toggleTheme"
       @toggle-ui-settings="showUiSettings = !showUiSettings"
       @toggle-annotation="showAnnotation = !showAnnotation"
+      @toggle-left-sidebar="leftCollapsed = !leftCollapsed"
+      @select-preset="selectMainPreset"
       @toggle-fullscreen="toggleFullscreen"
       @close="closePanel"
     />
 
     <SplitHandle
+      v-if="!leftCollapsed"
       class="sidebar-edge-handle"
       direction="vertical"
       :style="sidebarSplitHandleStyle"
@@ -31,7 +37,7 @@
     />
 
     <div class="main-body">
-      <LeftSidebar ref="leftSidebarRef" :width="leftWidth" />
+      <LeftSidebar :width="leftWidth" :collapsed="leftCollapsed" />
 
       <div ref="presetWorkspaceRef" class="preset-workspace">
         <div class="preset-panels">
@@ -157,24 +163,24 @@ import HistoryPanel from './components/HistoryPanel.vue';
 import AnnotationOverlay from './components/AnnotationOverlay.vue';
 import { useManagerStore } from './stores/manager';
 import { useHistoryStore } from './stores/history';
-import { useAiStore } from './stores/ai';
 import { startParentDrag } from './utils/drag';
 import { clampSecondPresetWidth, getSecondPresetBounds } from './utils/panelLayout';
 
 const manager = useManagerStore();
 const history = useHistoryStore();
-const ai = useAiStore();
 
 const isFullscreen = ref(false);
 const showHistory = ref(false);
 const showAnnotation = ref(false);
 const showSecondPreset = ref(false);
-const leftWidth = ref(240);
+const leftCollapsed = ref(false);
+const leftWidth = ref(320);
 const rightWidth = ref(280);
-const leftSidebarRef = ref<any>();
 const presetWorkspaceRef = ref<HTMLElement>();
 
 const WINDOW_STATE_KEY = 'presetManagerWindowState';
+const WINDOW_STATE_VERSION_KEY = 'presetManagerWindowStateVersion';
+const WINDOW_STATE_VERSION = 'codex-1375x875';
 const THEME_KEY = 'presetManagerTheme';
 const UI_SCALE_KEY = 'presetManagerUiScale';
 const PROMPT_SCALE_KEY = 'presetManagerPromptScale';
@@ -189,6 +195,8 @@ let lastWindowState: WindowState | null = null;
 type WindowResizeDirection = 'top' | 'right' | 'bottom' | 'left' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 const MIN_WINDOW_WIDTH = 640;
 const MIN_WINDOW_HEIGHT = 420;
+const DEFAULT_WINDOW_WIDTH = 1375;
+const DEFAULT_WINDOW_HEIGHT = 875;
 
 const DEFAULT_UI_PRESETS: UiPresetMap = {
   compact: { uiScale: 0.94, promptScale: 1, promptPreviewLines: 0 },
@@ -202,7 +210,7 @@ const uiPresetOptions: { key: UiPresetKey; label: string }[] = [
   { key: 'large', label: '放大' },
 ];
 
-const startLeftWidth = ref(240);
+const startLeftWidth = ref(320);
 const startRightWidth = ref(280);
 const theme = ref<AppTheme>(readTheme());
 const showUiSettings = ref(false);
@@ -228,6 +236,7 @@ const uiVars = computed(() => {
     '--pm-prompt-list-gap': `${5 * prompt}px`,
     '--pm-prompt-list-pad': `${8 * prompt}px`,
     '--pm-prompt-preview-lines': String(promptPreviewLines.value),
+    '--pm-left-rail-width': `${leftCollapsed.value ? 0 : leftWidth.value}px`,
   };
 });
 
@@ -235,9 +244,17 @@ const sidebarSplitHandleStyle = computed(() => ({
   position: 'absolute',
   top: '0',
   bottom: '0',
-  left: `${leftSidebarRef.value?.isCollapsed ? 32 : leftWidth.value}px`,
+  left: `${leftCollapsed.value ? 0 : leftWidth.value}px`,
   zIndex: 220,
 }));
+
+const mainPresetTokenEstimate = computed(() => {
+  const totalChars = manager.mainPrompts.reduce((sum, prompt) => {
+    const content = (prompt as any).content ?? '';
+    return sum + String(prompt.name ?? '').length + String(content).length;
+  }, 0);
+  return Math.max(0, Math.ceil(totalChars / 3.8));
+});
 
 const favoritedIds = computed(() => {
   const ids = new Set<string>();
@@ -254,7 +271,7 @@ function onLeftDragStart() {
 }
 
 function onLeftSplitResize(delta: number) {
-  leftWidth.value = Math.max(160, Math.min(startLeftWidth.value + delta, 500));
+  leftWidth.value = Math.max(248, Math.min(startLeftWidth.value + delta, 420));
 }
 
 function onRightDragStart() {
@@ -264,6 +281,14 @@ function onRightDragStart() {
 
 function onRightSplitResize(delta: number) {
   rightWidth.value = clampSecondPresetWidth(startRightWidth.value - delta, getPresetWorkspaceWidth());
+}
+
+function selectMainPreset(name: string) {
+  if (!name || name === manager.presetName) return;
+  const loaded = manager.loadMainPreset(name);
+  if (loaded) {
+    history.createSnapshot(name, undefined, true);
+  }
 }
 
 function getPresetWorkspaceWidth() {
@@ -402,6 +427,7 @@ function toggleTheme() {
 
 function readWindowState(): WindowState | null {
   try {
+    if (localStorage.getItem(WINDOW_STATE_VERSION_KEY) !== WINDOW_STATE_VERSION) return null;
     const raw = localStorage.getItem(WINDOW_STATE_KEY);
     if (!raw) return null;
     const state = JSON.parse(raw) as WindowState;
@@ -417,6 +443,7 @@ function saveWindowState() {
   const rect = iframeEl.getBoundingClientRect();
   lastWindowState = { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
   localStorage.setItem(WINDOW_STATE_KEY, JSON.stringify(lastWindowState));
+  localStorage.setItem(WINDOW_STATE_VERSION_KEY, WINDOW_STATE_VERSION);
 }
 
 function applyWindowState(state: WindowState) {
@@ -431,6 +458,18 @@ function applyWindowState(state: WindowState) {
   style.maxWidth = 'none';
   style.maxHeight = 'none';
   style.borderRadius = '12px';
+}
+
+function getDefaultWindowState(): WindowState {
+  const viewport = parentDoc.documentElement;
+  const width = DEFAULT_WINDOW_WIDTH;
+  const height = DEFAULT_WINDOW_HEIGHT;
+  return {
+    top: Math.max(0, Math.round((viewport.clientHeight - height) / 2)),
+    left: Math.max(0, Math.round((viewport.clientWidth - width) / 2)),
+    width,
+    height,
+  };
 }
 
 function toggleFullscreen() {
@@ -450,7 +489,7 @@ function toggleFullscreen() {
     style.borderRadius = '0';
   } else {
     isFullscreen.value = false;
-    applyWindowState(lastWindowState ?? readWindowState() ?? { top: 80, left: 120, width: 900, height: 600 });
+    applyWindowState(lastWindowState ?? readWindowState() ?? getDefaultWindowState());
   }
 }
 
@@ -580,37 +619,37 @@ html, body {
 
 body[data-pm-theme="dark"],
 .theme-dark {
-  --pm-bg: #202126;
-  --pm-bg-soft: #24262d;
-  --pm-bg-panel: #22242a;
-  --pm-bg-sidebar: #1b2230;
-  --pm-bg-elevated: #292c34;
+  --pm-bg: #050506;
+  --pm-bg-soft: #0b0c0e;
+  --pm-bg-panel: #101114;
+  --pm-bg-sidebar: oklch(0.145 0 0 / 0.52);
+  --pm-bg-elevated: #191a1f;
   --pm-row-bg: transparent;
-  --pm-row-hover: rgba(255, 255, 255, 0.048);
-  --pm-row-active: rgba(255, 255, 255, 0.07);
-  --pm-row-border: rgba(255, 255, 255, 0.075);
+  --pm-row-hover: rgba(255, 255, 255, 0.043);
+  --pm-row-active: rgba(255, 255, 255, 0.064);
+  --pm-row-border: rgba(255, 255, 255, 0.062);
   --pm-bg-hover: rgba(255, 255, 255, 0.055);
-  --pm-bg-active: rgba(255, 255, 255, 0.085);
-  --pm-border: rgba(255, 255, 255, 0.078);
-  --pm-border-strong: rgba(255, 255, 255, 0.13);
-  --pm-text: #f1f2f4;
-  --pm-text-muted: #aaaeb7;
-  --pm-text-subtle: #777d89;
-  --pm-accent: #f4f1e8;
-  --pm-accent-text: #171717;
-  --pm-danger: #ff7676;
-  --pm-success: #80d794;
-  --pm-warning: #e8bf6a;
-  --pm-shadow: 0 24px 68px rgba(0, 0, 0, 0.34);
-  --pm-input-bg: #1d1f25;
-  --pm-sidebar-glow: rgba(117, 144, 218, 0.25);
-  --pm-sidebar-glow-soft: rgba(54, 76, 130, 0.28);
-  --pm-sidebar-shadow: rgba(8, 13, 25, 0.23);
-  --pm-divider: rgba(255, 255, 255, 0.06);
-  --pm-split-line: rgba(255, 255, 255, 0.075);
-  --pm-split-line-hover: rgba(244, 241, 232, 0.42);
-  --pm-ai-surface: rgba(32, 33, 38, 0.96);
-  --pm-ai-capsule: rgba(29, 31, 37, 0.96);
+  --pm-bg-active: rgba(255, 255, 255, 0.078);
+  --pm-border: rgba(255, 255, 255, 0.08);
+  --pm-border-strong: rgba(255, 255, 255, 0.145);
+  --pm-text: oklch(0.985 0 0);
+  --pm-text-muted: oklch(0.74 0 0);
+  --pm-text-subtle: oklch(0.56 0 0);
+  --pm-accent: oklch(0.922 0 0);
+  --pm-accent-text: #151517;
+  --pm-success: #7bd99a;
+  --pm-warning: #e7b96e;
+  --pm-danger: #f08686;
+  --pm-input-bg: rgba(255, 255, 255, 0.035);
+  --pm-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+  --pm-sidebar-glow: rgba(122, 138, 206, 0.16);
+  --pm-sidebar-glow-soft: rgba(63, 78, 126, 0.14);
+  --pm-sidebar-shadow: rgba(0, 0, 0, 0.22);
+  --pm-divider: rgba(255, 255, 255, 0.068);
+  --pm-split-line: rgba(255, 255, 255, 0.15);
+  --pm-split-line-hover: rgba(255, 255, 255, 0.32);
+  --pm-ai-surface: rgba(16, 17, 20, 0.86);
+  --pm-ai-capsule: rgba(20, 21, 24, 0.74);
 }
 
 body[data-pm-theme="light"],
@@ -618,7 +657,7 @@ body[data-pm-theme="light"],
   --pm-bg: #f6f6f2;
   --pm-bg-soft: #ffffff;
   --pm-bg-panel: #fbfbf8;
-  --pm-bg-sidebar: #eef1f7;
+  --pm-bg-sidebar: rgba(237, 241, 248, 0.72);
   --pm-bg-elevated: #ffffff;
   --pm-row-bg: transparent;
   --pm-row-hover: rgba(20, 24, 31, 0.045);
@@ -638,12 +677,12 @@ body[data-pm-theme="light"],
   --pm-warning: #9b6b00;
   --pm-shadow: 0 24px 70px rgba(24, 31, 44, 0.16);
   --pm-input-bg: #ffffff;
-  --pm-sidebar-glow: rgba(174, 191, 230, 0.62);
-  --pm-sidebar-glow-soft: rgba(226, 233, 246, 0.92);
+  --pm-sidebar-glow: rgba(174, 191, 230, 0.5);
+  --pm-sidebar-glow-soft: rgba(226, 233, 246, 0.8);
   --pm-sidebar-shadow: rgba(126, 143, 174, 0.16);
   --pm-divider: rgba(0, 0, 0, 0.08);
-  --pm-split-line: rgba(20, 24, 31, 0.095);
-  --pm-split-line-hover: rgba(20, 24, 31, 0.34);
+  --pm-split-line: rgba(20, 24, 31, 0.18);
+  --pm-split-line-hover: rgba(20, 24, 31, 0.38);
   --pm-ai-surface: rgba(250, 250, 247, 0.97);
   --pm-ai-capsule: rgba(255, 255, 255, 0.98);
 }
@@ -734,10 +773,6 @@ button {
   font-size: var(--pm-prompt-preview-font-size, 13px) !important;
 }
 
-.app-root .title-text {
-  font-size: var(--pm-title-font-size, 13px) !important;
-}
-
 .app-root.hide-prompt-preview .prompt-preview {
   display: none !important;
 }
@@ -757,9 +792,45 @@ button {
   border-radius: 14px;
   box-shadow: var(--pm-shadow);
 }
+.app-root::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--pm-left-rail-width, 240px);
+  pointer-events: none;
+  background:
+    radial-gradient(760px 480px at -230px -180px, var(--pm-sidebar-glow) 0%, transparent 70%),
+    radial-gradient(560px 720px at -210px 48%, var(--pm-sidebar-glow-soft) 0%, transparent 75%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.032), transparent 36%),
+    var(--pm-bg-sidebar);
+  backdrop-filter: blur(24px) saturate(115%);
+  -webkit-backdrop-filter: blur(24px) saturate(115%);
+  z-index: 0;
+}
+.app-root::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--pm-left-rail-width, 240px) - 1px);
+  width: 1px;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, var(--pm-border-strong) 14%, var(--pm-border) 82%, transparent);
+  opacity: 0.42;
+  z-index: 2;
+}
+.app-root.left-collapsed::before,
+.app-root.left-collapsed::after {
+  display: none;
+}
 .app-root.fullscreen {
   border: 0;
   border-radius: 0;
+}
+.title-bar,
+.main-body {
+  position: relative;
+  z-index: 1;
 }
 .window-resize-handle {
   position: absolute;
@@ -825,19 +896,19 @@ button {
   display: flex;
   overflow: hidden;
   position: relative;
-  background: var(--pm-bg);
+  background: transparent;
 }
 .sidebar-edge-handle {
   position: absolute;
   top: 0;
   bottom: 0;
   z-index: 220;
-  opacity: 0.3;
+  opacity: 0.08;
   transform: translateX(-1px);
 }
 .sidebar-edge-handle:hover,
 .sidebar-edge-handle.dragging {
-  opacity: 0.72;
+  opacity: 0.34;
 }
 .preset-workspace {
   position: relative;
@@ -847,7 +918,8 @@ button {
   flex-direction: column;
   overflow: hidden;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--pm-bg-soft) 30%, transparent), transparent 140px),
+    radial-gradient(760px 420px at 12% -18%, color-mix(in srgb, var(--pm-accent) 5%, transparent), transparent 58%),
+    linear-gradient(180deg, color-mix(in srgb, var(--pm-bg-soft) 36%, transparent), transparent 180px),
     var(--pm-bg);
 }
 .preset-panels {
@@ -858,38 +930,39 @@ button {
   overflow: hidden;
 }
 .center-area {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  min-width: 0;
+  background: color-mix(in srgb, var(--pm-bg-panel) 18%, transparent);
 }
 .second-preset-area {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: color-mix(in srgb, var(--pm-bg-soft) 18%, transparent);
+  background: color-mix(in srgb, var(--pm-bg-panel) 24%, transparent);
 }
 .second-toggle {
   position: absolute;
   right: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 22px;
+  width: 14px;
   height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--pm-bg-elevated) 86%, transparent);
-  border: 1px solid var(--pm-border);
-  border-right: none;
-  border-radius: 7px 0 0 7px;
+  border: 1px solid transparent;
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+  background: color-mix(in srgb, var(--pm-bg-elevated) 24%, transparent);
   color: var(--pm-text-subtle);
   cursor: pointer;
   z-index: 20;
-  transition: all 0.12s;
+  backdrop-filter: blur(18px);
+  transition: background 0.12s, color 0.12s, opacity 0.12s;
 }
 .second-toggle:hover {
   color: var(--pm-text);
-  background: var(--pm-bg-hover);
+  border-color: var(--pm-border);
+  background: color-mix(in srgb, var(--pm-bg-hover) 62%, transparent);
 }
 .second-toggle.active {
   right: auto;

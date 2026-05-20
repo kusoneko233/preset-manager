@@ -1,6 +1,7 @@
 import { createApp } from 'vue';
 import { createScriptIdIframe, teleportStyle } from '@util/script';
 import App from './App.vue';
+import { CODEX_REFERENCE_METRICS } from './designMetrics';
 
 let $iframe: JQuery<HTMLIFrameElement> | null = null;
 let $floatingBtn: JQuery<HTMLDivElement> | null = null;
@@ -96,8 +97,8 @@ function togglePanel() {
       top: '50%',
       left: '50%',
       transform: 'translate(-50%, -50%)',
-      width: '1375px',
-      height: '875px',
+      width: `${CODEX_REFERENCE_METRICS.window.width}px`,
+      height: `${CODEX_REFERENCE_METRICS.window.height}px`,
       maxWidth: 'none',
       maxHeight: 'none',
       border: 'none',

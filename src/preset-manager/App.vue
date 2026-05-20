@@ -165,6 +165,7 @@ import { useManagerStore } from './stores/manager';
 import { useHistoryStore } from './stores/history';
 import { startParentDrag } from './utils/drag';
 import { clampSecondPresetWidth, getSecondPresetBounds } from './utils/panelLayout';
+import { CODEX_REFERENCE_METRICS } from './designMetrics';
 
 const manager = useManagerStore();
 const history = useHistoryStore();
@@ -174,13 +175,13 @@ const showHistory = ref(false);
 const showAnnotation = ref(false);
 const showSecondPreset = ref(false);
 const leftCollapsed = ref(false);
-const leftWidth = ref(320);
+const leftWidth = ref(CODEX_REFERENCE_METRICS.sidebar.width);
 const rightWidth = ref(280);
 const presetWorkspaceRef = ref<HTMLElement>();
 
 const WINDOW_STATE_KEY = 'presetManagerWindowState';
 const WINDOW_STATE_VERSION_KEY = 'presetManagerWindowStateVersion';
-const WINDOW_STATE_VERSION = 'codex-1375x875';
+const WINDOW_STATE_VERSION = `codex-${CODEX_REFERENCE_METRICS.window.width}x${CODEX_REFERENCE_METRICS.window.height}`;
 const THEME_KEY = 'presetManagerTheme';
 const UI_SCALE_KEY = 'presetManagerUiScale';
 const PROMPT_SCALE_KEY = 'presetManagerPromptScale';
@@ -195,8 +196,8 @@ let lastWindowState: WindowState | null = null;
 type WindowResizeDirection = 'top' | 'right' | 'bottom' | 'left' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 const MIN_WINDOW_WIDTH = 640;
 const MIN_WINDOW_HEIGHT = 420;
-const DEFAULT_WINDOW_WIDTH = 1375;
-const DEFAULT_WINDOW_HEIGHT = 875;
+const DEFAULT_WINDOW_WIDTH = CODEX_REFERENCE_METRICS.window.width;
+const DEFAULT_WINDOW_HEIGHT = CODEX_REFERENCE_METRICS.window.height;
 
 const DEFAULT_UI_PRESETS: UiPresetMap = {
   compact: { uiScale: 0.94, promptScale: 1, promptPreviewLines: 0 },
@@ -210,7 +211,7 @@ const uiPresetOptions: { key: UiPresetKey; label: string }[] = [
   { key: 'large', label: '放大' },
 ];
 
-const startLeftWidth = ref(320);
+const startLeftWidth = ref(CODEX_REFERENCE_METRICS.sidebar.width);
 const startRightWidth = ref(280);
 const theme = ref<AppTheme>(readTheme());
 const showUiSettings = ref(false);
@@ -237,6 +238,11 @@ const uiVars = computed(() => {
     '--pm-prompt-list-pad': `${8 * prompt}px`,
     '--pm-prompt-preview-lines': String(promptPreviewLines.value),
     '--pm-left-rail-width': `${leftCollapsed.value ? 0 : leftWidth.value}px`,
+    '--pm-titlebar-height': `${CODEX_REFERENCE_METRICS.titleBar.height}px`,
+    '--pm-ai-dock-width': `${CODEX_REFERENCE_METRICS.aiDock.width}px`,
+    '--pm-ai-dock-side-gap': `${CODEX_REFERENCE_METRICS.aiDock.sideGap}px`,
+    '--pm-ai-dock-bottom': `${CODEX_REFERENCE_METRICS.aiDock.bottom}px`,
+    '--pm-ai-dock-min-height': `${CODEX_REFERENCE_METRICS.aiDock.minHeight}px`,
   };
 });
 
@@ -271,7 +277,10 @@ function onLeftDragStart() {
 }
 
 function onLeftSplitResize(delta: number) {
-  leftWidth.value = Math.max(248, Math.min(startLeftWidth.value + delta, 420));
+  leftWidth.value = Math.max(
+    CODEX_REFERENCE_METRICS.sidebar.minWidth,
+    Math.min(startLeftWidth.value + delta, CODEX_REFERENCE_METRICS.sidebar.maxWidth),
+  );
 }
 
 function onRightDragStart() {
@@ -972,7 +981,7 @@ button {
 }
 .ui-settings-panel {
   position: absolute;
-  top: 54px;
+  top: calc(var(--pm-titlebar-height, 52px) + 2px);
   right: 18px;
   z-index: 800;
   width: 260px;

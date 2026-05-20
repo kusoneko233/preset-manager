@@ -319,14 +319,14 @@ function onDrawerResize(e: MouseEvent) {
 .overlay-shell {
   position: absolute;
   left: 50%;
-  bottom: 26px;
-  width: min(740px, calc(100% - 136px));
+  bottom: var(--pm-ai-dock-bottom, 26px);
+  width: min(var(--pm-ai-dock-width, 800px), calc(100% - var(--pm-ai-dock-side-gap, 136px)));
   transform: translateX(-50%);
   pointer-events: none;
   transition: width 0.2s cubic-bezier(0, 0, 0.2, 1), transform 0.2s cubic-bezier(0, 0, 0.2, 1);
 }
 .overlay-shell.expanded {
-  width: min(740px, calc(100% - 136px));
+  width: min(var(--pm-ai-dock-width, 800px), calc(100% - var(--pm-ai-dock-side-gap, 136px)));
 }
 .overlay-panel {
   display: flex;
@@ -506,7 +506,7 @@ function onDrawerResize(e: MouseEvent) {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-height: 112px;
+  min-height: var(--pm-ai-dock-min-height, 112px);
   padding: 13px 15px;
   background: transparent;
   flex: 0 0 auto;
@@ -528,7 +528,7 @@ function onDrawerResize(e: MouseEvent) {
   padding: 0;
 }
 .overlay-panel.expanded .input-dock {
-  min-height: 112px;
+  min-height: var(--pm-ai-dock-min-height, 112px);
   margin: 0;
   padding: 13px 15px;
   border: 1px solid color-mix(in srgb, var(--pm-border) 64%, transparent);

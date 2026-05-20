@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-最新已归档标签：`v0.9.0`
+最新已归档标签：`v0.9.1`
 
 当前工作区暂无已规划但未归档的版本内容。
 
@@ -40,6 +40,16 @@
 注意：如果酒馆里仍看到旧的“输入批注文字”浏览器弹窗，通常是旧脚本还在运行；刷新酒馆页面、重开插件或重新加载本地脚本后再测。
 
 ## 版本记录
+
+### v0.9.1
+
+Codex 参考尺寸标准化。
+- 将 Codex 贴图参考尺寸记录进 `docs/roadmap.md`：窗口 `1375x875`、侧栏 `320px`、主区 `1055px`、顶栏 `52px`、AI 输入框约 `800px` 宽。
+- 新增 `src/preset-manager/designMetrics.ts`，统一管理窗口、侧栏、顶栏和 AI 输入框基准尺寸。
+- `App.vue`、`index.ts`、`TitleBar.vue`、`AiAssistant.vue` 改为引用统一设计标尺或 CSS 变量。
+- AI 输入框基准从 `740px` 调整到更接近参考图的 `800px`。
+- 新增 `designMetrics.test.ts`，防止 Codex 参考尺寸被误改。
+- 重新构建 `dist/preset-manager/index.js` 和 `dist/preset-manager/index.js.map`。
 
 ### v0.9.0
 

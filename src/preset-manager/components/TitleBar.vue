@@ -231,7 +231,7 @@ onUnmounted(() => {
 
 <style scoped>
 .title-bar {
-  height: 52px;
+  height: var(--pm-titlebar-height, 52px);
   padding: 0;
   background: transparent;
   border-bottom: 0;

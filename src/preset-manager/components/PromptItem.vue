@@ -7,7 +7,7 @@
     @dragend="onDragEnd"
   >
     <div class="prompt-header" @click="toggle">
-      <div class="flex items-center gap-2 min-w-0 flex-1">
+      <div class="flex min-w-0 flex-1 items-center gap-2">
         <button
           v-if="!isPlaceholder"
           class="star-btn"
@@ -17,13 +17,13 @@
         >
           <i :class="['text-xs', isFavorited ? 'fas fa-star' : 'far fa-star']" />
         </button>
-        <i v-else class="fas fa-grip-lines text-slate-600 text-xs flex-shrink-0" />
+        <i v-else class="fas fa-grip-lines flex-shrink-0 text-xs text-slate-600" />
 
         <span class="prompt-name">{{ prompt.name }}</span>
         <span v-if="relationLabel" class="relation-badge">{{ relationLabel }}</span>
       </div>
 
-      <div class="flex items-center gap-1 flex-shrink-0">
+      <div class="flex flex-shrink-0 items-center gap-1">
         <button
           v-if="'enabled' in prompt"
           class="status-toggle"
@@ -45,41 +45,35 @@
     <div v-if="expanded" class="prompt-body">
       <div class="prompt-meta">
         <span class="role-badge" :class="prompt.role">{{ prompt.role }}</span>
+        <span class="meta-badge">{{ positionLabel }}</span>
+        <span class="meta-badge">{{ triggerLabel }}</span>
+        <span v-if="forbidOverrides" class="meta-badge lock">锁定</span>
       </div>
-      <div v-if="prompt.content" class="content-preview">{{ prompt.content }}</div>
-      <div v-else class="text-slate-500 text-xs italic">[无内容]</div>
+      <div v-if="prompt.content" class="content-preview expanded-content">{{ prompt.content }}</div>
+      <div v-else class="text-xs text-slate-500 italic">[无内容]</div>
 
       <div class="prompt-actions">
-        <button class="action-btn" title="放大查看" @click.stop="$emit('zoom')">
-          <i class="fas fa-search-plus text-xs" />
-          <span>放大</span>
-        </button>
-        <button v-if="!isPlaceholder" class="action-btn" title="编辑" @click.stop="$emit('edit')">
+        <button v-if="!isPlaceholder" class="action-btn" title="编辑条目" @click.stop="$emit('edit')">
           <i class="fas fa-edit text-xs" />
           <span>编辑</span>
         </button>
-        <button
-          v-if="!isPlaceholder"
-          class="action-btn"
-          :title="prompt.enabled ? '禁用条目' : '启用条目'"
-          @click.stop="$emit('toggleEnabled')"
-        >
-          <i :class="['fas text-xs', prompt.enabled ? 'fa-toggle-on' : 'fa-toggle-off']" />
-          <span>{{ prompt.enabled ? '禁用' : '启用' }}</span>
+        <button v-if="canRestoreDefault" class="action-btn" title="恢复官方默认内容" @click.stop="$emit('restoreDefault')">
+          <i class="fas fa-rotate-left text-xs" />
+          <span>恢复默认</span>
         </button>
-        <button v-if="!isPlaceholder" class="action-btn" title="收藏" @click.stop="$emit('toggleFavorite')">
-          <i :class="['text-xs', isFavorited ? 'fas fa-star text-amber-400' : 'far fa-star']" />
-          <span>{{ isFavorited ? '取消收藏' : '收藏' }}</span>
-        </button>
-        <button v-if="canTransfer" class="action-btn transfer" :title="`复制到${transferTargetLabel}`" @click.stop="$emit('copyToOther')">
+        <button v-if="canCopyToOther" class="action-btn transfer" :title="`复制到${transferTargetLabel}`" @click.stop="$emit('copyToOther')">
           <i class="fas fa-copy text-xs" />
           <span>复制到{{ transferTargetLabel }}</span>
         </button>
-        <button v-if="canTransfer" class="action-btn transfer" :title="`迁移到${transferTargetLabel}`" @click.stop="$emit('moveToOther')">
+        <button v-if="canMoveToOther" class="action-btn transfer" :title="`迁移到${transferTargetLabel}`" @click.stop="$emit('moveToOther')">
           <i class="fas fa-arrow-right-arrow-left text-xs" />
           <span>迁移到{{ transferTargetLabel }}</span>
         </button>
-        <button v-if="!isPlaceholder" class="action-btn danger" title="删除条目" @click.stop="$emit('delete')">
+        <button v-if="canDetach" class="action-btn" title="移出当前列表，保留在未使用条目中" @click.stop="$emit('detach')">
+          <i class="fas fa-box-archive text-xs" />
+          <span>移出列表</span>
+        </button>
+        <button v-if="canDelete" class="action-btn danger" title="删除条目" @click.stop="$emit('delete')">
           <i class="fas fa-trash text-xs" />
           <span>删除</span>
         </button>
@@ -97,6 +91,9 @@ const props = defineProps<{
   dragIndex?: number;
   relationLabel?: string;
   canTransfer?: boolean;
+  canDetach?: boolean;
+  canDelete?: boolean;
+  canRestoreDefault?: boolean;
   transferTargetLabel?: string;
 }>();
 
@@ -105,7 +102,9 @@ defineEmits<{
   edit: [];
   toggleFavorite: [];
   toggleEnabled: [];
+  detach: [];
   delete: [];
+  restoreDefault: [];
   copyToOther: [];
   moveToOther: [];
 }>();
@@ -114,6 +113,23 @@ const expanded = ref(false);
 const isDragging = ref(false);
 
 const isPlaceholder = computed(() => isPresetPlaceholderPrompt(props.prompt));
+const canCopyToOther = computed(() => Boolean(props.canTransfer) && !isPlaceholder.value);
+const canMoveToOther = computed(() => canCopyToOther.value && Boolean(props.canDelete));
+const positionLabel = computed(() => {
+  const position = (props.prompt as any).injection_position;
+  const inChat = position === 1 || (props.prompt as any).position?.type === 'in_chat';
+  if (!inChat) return '相对';
+
+  const depth = (props.prompt as any).injection_depth ?? (props.prompt as any).position?.depth ?? 4;
+  const order = (props.prompt as any).injection_order ?? (props.prompt as any).position?.order ?? 100;
+  return `聊天@${depth}/${order}`;
+});
+const triggerLabel = computed(() => {
+  const triggers = (props.prompt as any).injection_trigger;
+  if (!Array.isArray(triggers) || triggers.length === 0) return '全部触发';
+  return `${triggers.length}种触发`;
+});
+const forbidOverrides = computed(() => Boolean((props.prompt as any).forbid_overrides));
 
 function toggle() {
   expanded.value = !expanded.value;
@@ -147,48 +163,48 @@ defineExpose({ expanded });
 <style scoped>
 .prompt-item {
   position: relative;
-  border: 1px solid transparent;
-  border-bottom-color: var(--pm-row-border);
+  border: 0;
+  border-bottom: 1px solid var(--pm-row-border);
   border-radius: 0;
   background: var(--pm-row-bg);
-  transition: background 0.12s, border-color 0.12s, opacity 0.12s;
+  transition: background 0.12s, opacity 0.12s;
   cursor: grab;
 }
 .prompt-item::before {
   content: '';
   position: absolute;
-  inset: 8px auto 8px 0;
-  width: 1px;
+  inset: 6px auto 6px 0;
+  width: 2px;
   border-radius: 999px;
   background: transparent;
-  transition: background 0.12s, opacity 0.12s;
+  transition: background 0.12s;
 }
 .prompt-item:hover {
-  border-color: transparent;
-  border-bottom-color: var(--pm-row-border);
   background: var(--pm-row-hover);
 }
 .prompt-item.expanded {
-  border-color: var(--pm-border);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--pm-row-active) 82%, transparent);
-  margin: 3px 0;
+  border: 0;
+  border-top: 1px solid var(--pm-divider);
+  border-bottom: 1px solid var(--pm-divider);
+  border-radius: 0;
+  background: var(--pm-row-active);
+  margin: 0;
 }
 .prompt-item.expanded::before {
-  background: var(--pm-accent);
-  opacity: 0.76;
+  background: var(--pm-text-muted);
 }
 .prompt-item.dragging {
   opacity: 0.5;
   cursor: grabbing;
 }
 .prompt-item.disabled {
-  opacity: 0.68;
+  opacity: 0.62;
 }
 .prompt-item.is-placeholder {
   cursor: default;
-  border: 1px dashed var(--pm-row-border);
-  border-radius: 8px;
+  border: 0;
+  border-bottom: 1px dashed var(--pm-row-border);
+  border-radius: 0;
   opacity: 0.7;
 }
 .prompt-header {
@@ -307,15 +323,15 @@ defineExpose({ expanded });
   background: color-mix(in srgb, var(--pm-text-subtle) 12%, transparent);
   color: var(--pm-text-subtle);
   cursor: pointer;
-  transition: background 0.14s, border-color 0.14s, opacity 0.14s;
+  transition: opacity 0.14s;
 }
 .status-toggle:hover:not(:disabled) {
   background: var(--pm-bg-hover);
   border-color: var(--pm-border-strong);
 }
 .status-toggle.enabled {
-  background: color-mix(in srgb, var(--pm-success) 18%, transparent);
-  border-color: color-mix(in srgb, var(--pm-success) 58%, transparent);
+  background: color-mix(in srgb, var(--pm-text-subtle) 12%, transparent);
+  border-color: color-mix(in srgb, var(--pm-border) 68%, transparent);
 }
 .status-toggle:disabled {
   cursor: default;
@@ -326,11 +342,11 @@ defineExpose({ expanded });
   border-radius: 50%;
   background: color-mix(in srgb, var(--pm-text-subtle) 88%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--pm-border-strong) 50%, transparent);
-  transition: transform 0.14s, background 0.14s, box-shadow 0.14s;
+  transition: transform 0.14s, background 0.14s;
 }
 .status-toggle.enabled .status-dot {
   background: var(--pm-success);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pm-success) 38%, transparent), 0 0 10px color-mix(in srgb, var(--pm-success) 40%, transparent);
+  box-shadow: none;
   transform: translateX(12px);
 }
 .prompt-body {
@@ -342,13 +358,27 @@ defineExpose({ expanded });
 .prompt-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
   margin-bottom: 7px;
+}
+.meta-badge {
+  padding: 1px 6px;
+  border: 1px solid var(--pm-border);
+  border-radius: 999px;
+  color: var(--pm-text-subtle);
+  font-size: 10px;
+  line-height: 1.5;
+  background: color-mix(in srgb, var(--pm-bg-elevated) 44%, transparent);
+}
+.meta-badge.lock {
+  color: var(--pm-warning);
 }
 .content-preview {
   font-size: var(--pm-prompt-preview-font-size, 13px);
   color: var(--pm-text-muted);
   line-height: 1.5;
-  max-height: 120px;
+  max-height: clamp(220px, 34vh, 460px);
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
@@ -374,21 +404,18 @@ defineExpose({ expanded });
   color: var(--pm-text-subtle);
   font-size: 11px;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  transition: background 0.12s, color 0.12s;
 }
 .action-btn:hover {
   background: var(--pm-bg-hover);
   color: var(--pm-text);
-  border-color: var(--pm-border);
 }
 .action-btn.danger:hover {
   color: var(--pm-danger);
-  border-color: color-mix(in srgb, var(--pm-danger) 42%, var(--pm-border));
   background: color-mix(in srgb, var(--pm-danger) 10%, transparent);
 }
 .action-btn.transfer:hover {
   color: var(--pm-text);
-  border-color: color-mix(in srgb, var(--pm-accent) 38%, var(--pm-border));
   background: color-mix(in srgb, var(--pm-accent) 10%, transparent);
 }
 </style>

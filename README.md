@@ -19,19 +19,19 @@
 
 ## 文档入口
 
-当前只保留两个主要维护入口：
+当前保留三个主要维护入口：
 - `README.md`：项目状态、版本记录、仓库维护流程和未发布变更。
 - `docs/roadmap.md`：当前唯一的功能路线、UI 改造方案和待办任务账本。
+- `docs/ai-knowledge/preset-writing.md`：插件 AI 使用的中文预设写作知识库。
 
 已完成或阶段性过期的方案文档放入归档目录，只作为历史参考：
 - `docs/archive/plans/preset-manager-design-legacy.md`
 - `docs/archive/plans/codex-ui-ai-drawer-plan.md`
 - `docs/archive/plans/second-preset-transfer-plan.md`
 
-以下 `.md` 文件属于规则或外部示例，不按普通项目方案文档清理：
-- `AGENTS.md`、`CLAUDE.md`、`GEMINI.md`
-- `.augment/rules/*.md`、`.clinerules/*.md`、`.kilocode/rules/*.md`、`.roo/rules/*.md`
-- `示例/角色卡示例/更新日志.md`
+以下 `.md` 文件属于本地工具规则入口，不按普通项目方案文档清理：
+- `AGENTS.md`：Codex 项目规则入口。
+- `CLAUDE.md`：Claude Code 项目规则入口。
 
 ## 未发布变更
 

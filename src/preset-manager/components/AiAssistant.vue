@@ -49,10 +49,10 @@
               <input
                 v-model="inputText"
                 class="ai-input"
-                placeholder="询问预设、结构或条目"
+                placeholder="Ask Codex anything"
                 @keydown.enter="send"
               />
-              <button class="tool-pill icon-only detach-trigger" title="独立小窗" @click="detach">
+              <button class="tool-pill icon-only floating-detach" title="独立小窗" @click="detach">
                 <i class="fas fa-external-link-alt text-xs" />
               </button>
             </div>
@@ -121,7 +121,7 @@
           <input
             v-model="inputText"
             class="ai-input"
-            placeholder="输入消息..."
+            placeholder="Ask Codex anything"
             @keydown.enter="send"
           />
           <button class="send-btn" :disabled="!inputText.trim() || ai.isGenerating" @click="send">
@@ -332,24 +332,24 @@ function onDrawerResize(e: MouseEvent) {
   display: flex;
   flex-direction: column;
   overflow: visible;
-  border: 1px solid color-mix(in srgb, var(--pm-border-strong) 46%, transparent);
-  border-radius: 24px;
-  background: color-mix(in srgb, var(--pm-ai-capsule) 72%, transparent);
-  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.16);
+  border: 1px solid var(--pm-border);
+  border-radius: 22px;
+  background: var(--pm-ai-capsule);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
   pointer-events: auto;
-  backdrop-filter: blur(26px) saturate(116%);
-  -webkit-backdrop-filter: blur(26px) saturate(116%);
+  backdrop-filter: blur(32px) saturate(140%);
+  -webkit-backdrop-filter: blur(32px) saturate(140%);
 }
 .overlay-panel.expanded {
-  border-color: transparent;
-  background: transparent;
-  box-shadow: none;
-  overflow: visible;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  border-color: var(--pm-border);
+  background: var(--pm-ai-surface);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.26);
+  overflow: hidden;
+  backdrop-filter: blur(34px) saturate(140%);
+  -webkit-backdrop-filter: blur(34px) saturate(140%);
 }
 .overlay-panel.expanded.empty {
-  box-shadow: none;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.20);
 }
 .drawer-handle {
   height: 9px;
@@ -371,28 +371,28 @@ function onDrawerResize(e: MouseEvent) {
 }
 .overlay-topline,
 .ai-header {
-  min-height: 26px;
+  min-height: 28px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 1px 12px 3px;
+  padding: 4px 10px 0;
   color: var(--pm-text);
   flex: 0 0 auto;
 }
 .overlay-panel.expanded .overlay-topline {
-  min-height: 28px;
-  width: max-content;
-  max-width: calc(100% - 24px);
-  align-self: flex-end;
-  gap: 3px;
-  margin: 0 12px 7px 0;
-  padding: 2px 4px;
-  border: 1px solid color-mix(in srgb, var(--pm-border) 42%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--pm-ai-capsule) 20%, transparent);
+  min-height: 30px;
+  width: auto;
+  max-width: 100%;
+  align-self: stretch;
+  gap: 2px;
+  margin: 0;
+  padding: 6px 10px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .overlay-panel.empty .overlay-topline {
   display: none;
@@ -420,37 +420,39 @@ function onDrawerResize(e: MouseEvent) {
   gap: 2px;
 }
 .ai-btn {
-  width: 26px;
-  height: 26px;
+  width: var(--pm-btn-size-sm, 26px);
+  height: var(--pm-btn-size-sm, 26px);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 7px;
-  border: 1px solid color-mix(in srgb, var(--pm-border) 28%, transparent);
-  background: var(--pm-control-highlight);
+  border-radius: var(--pm-btn-radius, 8px);
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--pm-text-muted);
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  transition: background 0.12s, color 0.12s;
 }
 .ai-btn:hover {
   color: var(--pm-text);
-  background: var(--pm-control-highlight-hover);
-  border-color: color-mix(in srgb, var(--pm-border-strong) 72%, transparent);
+  background: var(--pm-btn-hover);
+}
+.ai-btn.ghost {
+  border-radius: var(--pm-btn-radius-pill, 999px);
 }
 .messages-area {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 3px 18px 7px;
+  padding: 6px 18px 10px;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 10px;
   background: transparent;
 }
 .overlay-panel.expanded .messages-area {
   flex: 1;
-  margin: 0 12px 8px;
-  padding: 0 2px;
+  margin: 0;
+  padding: 8px 16px 10px;
   mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 12px), transparent);
 }
 .ai-message {
@@ -461,27 +463,28 @@ function onDrawerResize(e: MouseEvent) {
 }
 .ai-message.assistant {
   align-self: flex-start;
+  max-width: 100%;
 }
 .msg-content {
-  padding: 7px 10px;
-  border-radius: 13px;
-  font-size: 12px;
-  line-height: 1.5;
+  padding: 7px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.55;
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: break-word;
   border: 1px solid transparent;
   box-shadow: none;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
 }
 .ai-message.user .msg-content {
-  background: color-mix(in srgb, var(--pm-accent) 92%, transparent);
-  border-color: transparent;
-  color: var(--pm-accent-text);
+  background: var(--pm-bg-elevated);
+  border-color: var(--pm-border);
+  color: var(--pm-text);
 }
 .ai-message.assistant .msg-content {
-  background: color-mix(in srgb, var(--pm-bg-elevated) 15%, transparent);
-  border-color: color-mix(in srgb, var(--pm-border) 42%, transparent);
+  padding: 0 2px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   color: var(--pm-text);
 }
 .typing {
@@ -505,9 +508,9 @@ function onDrawerResize(e: MouseEvent) {
 .input-dock {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 12px;
   min-height: var(--pm-ai-dock-min-height, 93px);
-  padding: 10px 14px;
+  padding: 14px 16px 12px;
   background: transparent;
   flex: 0 0 auto;
 }
@@ -517,11 +520,6 @@ function onDrawerResize(e: MouseEvent) {
   display: flex;
   align-items: center;
 }
-.input-row {
-  gap: 10px;
-  min-height: 35px;
-  align-items: flex-start;
-}
 .input-tool-row {
   gap: 8px;
   min-height: 30px;
@@ -530,15 +528,14 @@ function onDrawerResize(e: MouseEvent) {
 .overlay-panel.expanded .input-dock {
   min-height: var(--pm-ai-dock-min-height, 93px);
   margin: 0;
-  padding: 10px 14px;
-  border: 1px solid color-mix(in srgb, var(--pm-border) 48%, transparent);
-  border-radius: 20px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.026), transparent),
-    color-mix(in srgb, var(--pm-ai-capsule) 76%, transparent);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(28px) saturate(118%);
-  -webkit-backdrop-filter: blur(28px) saturate(118%);
+  padding: 14px 16px 12px;
+  border: 0;
+  border-top: 1px solid var(--pm-divider);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .overlay-panel.empty .messages-area {
   display: none;
@@ -546,81 +543,94 @@ function onDrawerResize(e: MouseEvent) {
 .tool-pill,
 .model-pill {
   min-width: 0;
-  height: 30px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--pm-border) 28%, transparent);
-  background: var(--pm-control-highlight);
+  border-radius: var(--pm-btn-radius-pill, 999px);
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--pm-text-muted);
   font-size: 12px;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s, opacity 0.12s;
 }
 .tool-pill {
   cursor: pointer;
 }
 .tool-pill.icon-only {
-  width: 30px;
-  flex: 0 0 30px;
+  width: 28px;
+  flex: 0 0 28px;
   justify-content: center;
   padding: 0;
 }
 .tool-pill:hover,
 .model-pill:hover {
   color: var(--pm-text);
-  background: var(--pm-control-highlight-hover);
-  border-color: color-mix(in srgb, var(--pm-border-strong) 72%, transparent);
+  background: var(--pm-btn-hover);
+  border-color: transparent;
 }
 .model-pill {
-  margin-left: 0;
+  margin-right: auto;
   max-width: 220px;
   cursor: pointer;
 }
 .model-pill span {
   min-width: 0;
-  max-width: 190px;
+  max-width: 180px;
   overflow: hidden;
-  color: var(--pm-text-subtle);
+  color: var(--pm-text-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 500;
 }
 .model-pill:hover span {
   color: var(--pm-text);
 }
+.floating-detach {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s;
+}
+.overlay-panel:hover .floating-detach,
+.floating-detach:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
 .ai-input {
-  flex: 1;
+  width: 100%;
   height: 32px;
   min-width: 0;
   padding: 0;
-  border: 1px solid transparent;
+  border: 0;
   background: transparent;
   color: var(--pm-text);
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 500;
   outline: none;
 }
 .ai-input::placeholder {
   color: var(--pm-text-subtle);
+  font-weight: 400;
 }
 .send-btn {
-  width: 34px;
-  height: 34px;
-  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  margin-left: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--pm-send-bg) 38%, transparent);
+  border: 0;
   background: var(--pm-send-bg);
   color: var(--pm-send-fg);
   cursor: pointer;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.22);
-  transition: transform 0.12s, opacity 0.12s, background 0.12s, box-shadow 0.12s;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  transition: transform 0.12s, opacity 0.12s, box-shadow 0.12s;
 }
 .send-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
 }
 .send-btn:disabled {
   opacity: 0.3;

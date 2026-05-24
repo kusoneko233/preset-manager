@@ -1,7 +1,7 @@
 <template>
   <div class="favorite-folder">
     <div class="folder-header" @click="store.toggleFavoriteFolder(folder.id)">
-      <i :class="['fas text-xs text-slate-500 mr-1', folder.collapsed ? 'fa-chevron-right' : 'fa-chevron-down']" />
+      <i :class="['fas mr-1 text-xs text-slate-500', folder.collapsed ? 'fa-chevron-right' : 'fa-chevron-down']" />
 
       <template v-if="isEditing">
         <input
@@ -29,12 +29,12 @@
     <div
       v-if="!folder.collapsed"
       class="folder-items"
+      :class="{ 'drag-over': isDragOver }"
       @dragover.prevent="onDragOver"
       @dragleave="isDragOver = false"
       @drop.prevent="onDrop"
-      :class="{ 'drag-over': isDragOver }"
     >
-      <div v-if="!folder.items.length" class="empty-folder text-slate-600 text-xs text-center py-2">
+      <div v-if="!folder.items.length" class="empty-folder py-2 text-center text-xs text-slate-600">
         拖拽条目到此处
       </div>
       <div
@@ -54,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { useManagerStore, type FavoriteFolder } from '../stores/manager';
+import { getPromptKey, useManagerStore, type FavoriteFolder } from '../stores/manager';
 
 const props = defineProps<{
   folder: FavoriteFolder;
@@ -102,14 +102,24 @@ function onDrop(e: DragEvent) {
     const prompt = data.prompt as PresetPrompt;
     if (!prompt || isPresetPlaceholderPrompt(prompt)) return;
 
-    store.addToFavorites(props.folder.id, {
-      id: prompt.id,
+    const promptKey = getPromptKey(prompt) || prompt.id;
+    const stored = {
+      ...klona(prompt as any),
+      id: prompt.id || promptKey,
+      identifier: promptKey,
       name: prompt.name,
       enabled: prompt.enabled ?? true,
       position: (prompt as any).position ?? { type: 'relative' as const },
       role: prompt.role,
       content: (prompt as any).content ?? '',
-    });
+    };
+    stored.injection_position = stored.injection_position
+      ?? (stored.position?.type === 'in_chat' ? 1 : 0);
+    stored.injection_depth = stored.injection_depth ?? stored.position?.depth ?? 4;
+    stored.injection_order = stored.injection_order ?? stored.position?.order ?? 100;
+    stored.injection_trigger = Array.isArray(stored.injection_trigger) ? stored.injection_trigger : [];
+    stored.forbid_overrides = Boolean(stored.forbid_overrides);
+    store.addToFavorites(props.folder.id, stored as PresetNormalPrompt);
 
     toastr.success(`已收藏 "${prompt.name}"`, '', { timeOut: 1500 });
   } catch (err) {

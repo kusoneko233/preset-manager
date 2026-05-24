@@ -1,9 +1,7 @@
 <template>
   <div class="workbench-panel flex flex-col h-full">
     <div class="panel-title flex items-center justify-between px-3 py-2">
-      <span class="panel-label">
-        <i class="fas fa-pen-nib" /> 新建条目
-      </span>
+      <span class="panel-label">草稿</span>
       <button class="add-btn" title="新建草稿" @click="store.addDraft()">
         <i class="fas fa-plus text-xs" />
       </button>
@@ -94,9 +92,11 @@ function onDragStart(e: DragEvent, draft: DraftPrompt) {
   align-items: center;
   gap: 7px;
   color: var(--pm-text-subtle);
-  font-size: 12px;
-  font-weight: 640;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   line-height: 1;
+  text-transform: uppercase;
 }
 .add-btn {
   width: 28px;

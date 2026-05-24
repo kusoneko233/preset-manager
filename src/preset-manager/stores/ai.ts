@@ -1,3 +1,5 @@
+import { buildPresetWritingSkillPrompt, shouldUsePresetWritingSkill } from '../utils/presetWritingSkill';
+
 export interface AiMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -102,12 +104,16 @@ const aiStore = reactive({
     this.isGenerating = true;
 
     try {
+      const presetWritingPrompt = shouldUsePresetWritingSkill(content)
+        ? `\n\n${buildPresetWritingSkillPrompt({ presetContext, userInput: content })}`
+        : '';
       const systemPrompt = dedent`
         你是一个预设管理助手，帮助用户管理和优化 SillyTavern 的预设提示词。
         你了解各种预设的思维链语法、提示词排列最佳实践。
         用户可能会请你分析预设结构、建议条目排列顺序、生成新条目、或修改现有条目。
         请用中文回复，保持简洁实用。
         ${presetContext ? `\n当前预设上下文:\n${presetContext}` : ''}
+        ${presetWritingPrompt}
       `;
 
       const chatHistory = this.messages.map(m => ({

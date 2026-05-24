@@ -21,7 +21,26 @@
 - 预设条目走高级列表感，不走厚重卡片堆叠。
 - AI 助手是内嵌命令入口，不是横跨全屏的外置聊天底栏。
 
-## 当前节点：Codex 参考尺寸标准化
+## 当前节点：Codex 化视觉精修（P0/P1/P2）
+
+目标：在已固化的标尺基础上，把暗色玻璃、AI 输入坞、预设条目和批注工具栏全部对齐 Codex 视觉语言，统一按钮和滚动条质感。
+
+- [x] P0 玻璃化与令牌重构：暗色 `--pm-bg` 改为 `oklch(0.155 0.008 255)`，新增 `--pm-bg-sidebar`、`--pm-bg-transparent`、`--pm-split-line`、`--pm-ai-capsule`、`--pm-control-highlight`、`--pm-send-bg`、`--pm-btn-hover/active/active-border` 等令牌；浅色同步更新。
+- [x] P0 主容器去重压：`.app-root::before` 去掉两组径向 glow 和内阴影，只保留线性渐变 + `blur(32px) saturate(140%)`；侧栏边缘线收回；工作区改用更深底色让玻璃侧栏漂浮其上。
+- [x] P0 顶栏轻量化：去除底色和底部分隔线；`TitleBar` 按钮接入 `--pm-btn-size / --pm-btn-radius / --pm-btn-hover`，关闭按钮改 CSS 类替代 Tailwind 内联红色。
+- [x] P1 AI 输入坞结构重做：拆出双行结构（顶部 input + 底部工具行），占位符改为 `Ask Codex anything`；模型胶囊靠左 + 自动占位，独立小窗按钮改为 hover 才显形的 `.floating-detach`，发送按钮换成 oklch 亮白圆。
+- [x] P1 预设条目去卡片：展开态去掉 1px 边和圆角，改为 `border-top/bottom` 配 `var(--pm-row-active)` 底色 + 左侧 2px 强调条，列表更接近 Codex。
+- [x] P1 面板小标题统一：工作台、收藏夹的图标去掉，文本改为 `草稿 / 收藏`，统一 11px 600 字重、`uppercase`、`letter-spacing: 0.04em`。
+- [x] P1 批注工具栏紧凑分组：用 `.anno-group / .anno-separator` 重排工具/颜色/字号/操作；按钮缩到 22px，图标降到 10px；删除被覆盖的旧 hover 块。
+- [x] P2 圆角与按钮尺寸令牌化：`--pm-btn-radius`、`--pm-btn-radius-pill`、`--pm-btn-size`、`--pm-btn-size-sm` 统一接入标题栏、AI 助手等组件。
+- [x] P2 滚动条收窄：宽高从 10px 收到 6px，去除背景剪裁和边框，玻璃容器内更安静。
+- [x] P2 Tailwind 警告清理：移除 `hover:!bg-red-500/30` 等内联危险样式，替换为 scoped CSS。
+- [x] 同步更新 `visualPolish.test.ts` 断言以覆盖新令牌、滚动条 6px、面板小标题 uppercase、AI 占位符、`floating-detach`、条目去卡片边线、批注 `.anno-group` 与 22px 按钮等。
+- [x] 从 UI 工作区同步开发者背景调试面板：支持本地背景图、毛玻璃、遮罩、渐变、噪点、内阴影、边缘高光、区域开关、预设保存和导入导出。
+- [x] 新增 `devThemeCss/devThemeIO` 工具、Pinia 持久化 store、动态样式注入器和面板入口，覆盖 sidebar/workspace/panel 三个调试区域。
+- [x] 新增 `devThemeCss.test.ts`、`devThemeIO.test.ts`、`devThemeIntegration.test.ts`，防止背景 CSS 生成、导入导出和 UI 挂载点回退。
+
+## 已完成节点：Codex 参考尺寸标准化
 
 目标：把参考图里的窗口、边栏、顶栏和 AI 输入框尺寸变成项目内统一标尺，后续“借鉴”Codex 时先对齐比例，再逐块改视觉。
 
@@ -66,6 +85,10 @@
 - [x] 只有展开项使用轻微卡片化背景。
 - [x] 标题、预览、状态点、收藏、展开箭头统一视觉轴线。
 - [x] 条目右侧启用状态点改为胶囊开关，开启时带轻微绿色高亮。
+- [x] 按批注取消展开项右侧的“放大/编辑”快捷图标，减少标题行按钮噪音。
+- [x] 展开内容阅读区加高，方便直接查看完整提示词内容。
+- [x] 展开底部操作区去掉和标题行重复的“禁用/收藏”，只保留编辑、复制/迁移、删除等低频操作。
+- [x] 编辑弹窗从 `body` 传送改为面板内部浮层，避免点击编辑后预设列表视觉上消失或层级异常。
 - [x] 标准模式继续以 `106%` 条目比例为基准。
 - [x] UI 比例设置继续保留，可保存用户自定义比例并恢复默认。
 
@@ -80,6 +103,37 @@
 - [x] 去掉笨重上栏，消息区域轻量浮出。
 - [x] 设置、模型、发送按钮按 Codex 风格重新排布。
 - [ ] 独立小窗模式保留，但拖动、吸附、收回和视觉反馈放到后续节点。
+
+## 当前功能节点：AI 预设写作知识库与操作代理
+
+目标：让插件 AI 不只是聊天建议，而是作为用户的预设写作 handler，能指导用户、帮助用户写条目，并在确认后代用户执行插件内部操作。
+
+- [x] 新增中文知识库文档 `docs/ai-knowledge/preset-writing.md`，沉淀预设写作、诊断、文风、模型适配和安全边界。
+- [x] 补充 `语言模型与提示词分析入门教程（雾）` 主附件的安全提炼：Transformer、decoder-only、文本向量化、自回归生成、上下文、token 和注意力诊断。
+- [x] 新增运行时知识片段 `src/preset-manager/knowledge/presetWritingKnowledge.ts`，供插件 AI 在触发预设写作意图时注入。
+- [x] `presetWritingSkill` 支持新手引导、从零创建、局部优化、故障诊断、文风塑形、模型适配六类处理策略。
+- [x] `ai.ts` 在用户输入涉及预设写作时自动加入预设写作知识库提示。
+- [ ] 设计 AI Action Agent：把用户指令解析为结构化动作，如切换预设、插入条目、修改条目、移动条目、开关条目。
+- [ ] 动作执行前必须给预览和确认，不允许 AI 静默改动预设。
+- [ ] 动作执行前写入历史快照，支持撤销。
+- [ ] 第一版只开放低风险动作：切换当前预设、插入 AI 写好的条目、修改已有条目、移动条目、开关启用状态、复制到第二预设。
+- [ ] 高风险动作暂缓：批量删除、自动清空、跨预设大规模重排。
+
+## 当前功能节点：官方 Prompt Manager 兼容
+
+目标：把插件的预设条目操作对齐 SillyTavern 官方 Prompt Manager，避免导入导出、未使用条目和系统条目处理出现格式偏差。
+
+- [x] 新增 `officialPromptManager.ts`，统一处理官方 `identifier`、`prompt_order`、导入导出、默认顺序和系统/占位条目判定。
+- [x] 官方导出格式改为 `{ version, type, data: { prompts, prompt_order } }`，其中 `prompts` 排除系统/占位条目，`prompt_order` 保留当前列表顺序和启用状态。
+- [x] 官方导入支持 `data.prompts` 与 `data.prompt_order`，按 `identifier` 合并条目并应用启用状态和顺序。
+- [x] 预设主列表只显示 `prompts`，`prompts_unused` 不再在主列表为空时混入显示。
+- [x] 顶栏更多菜单新增“添加未使用条目”，可把 `prompts_unused` 中的条目移回当前列表，默认禁用并插到列表开头。
+- [x] 条目操作拆分为“移出列表”和“删除”：移出列表保留条目到未使用池，删除才从 active/unused 中彻底删除。
+- [x] 系统/占位条目禁止彻底删除、移出列表和跨预设迁移，避免破坏官方默认结构。
+- [x] 插入、复制、迁移普通条目时重新生成 `id/identifier`，防止跨预设或重复插入造成官方 key 冲突。
+- [x] 新增 `officialPromptManager.test.ts`、扩展 `promptOfficialTools.test.ts` 和 `promptOfficialFields.test.ts` 覆盖官方兼容行为。
+- [x] 补齐预设级操作：新建预设、重命名预设、删除预设；复制预设底层保留，前端不显示。
+- [x] 补齐系统提示词“恢复默认内容”能力，从 `default_preset` 恢复官方系统条目内容并保留当前启用状态。
 
 ## 下一节点：UI 批注系统完善
 

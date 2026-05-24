@@ -4,7 +4,7 @@
     :class="{ 'left-collapsed': leftCollapsed }"
     @mousedown.stop.prevent="onDragStart"
   >
-    <div class="title-left flex items-center min-w-0">
+    <div class="title-left flex min-w-0 items-center">
       <button
         class="sidebar-toggle"
         :class="{ collapsed: leftCollapsed }"
@@ -75,6 +75,13 @@
         >
           <i class="fas fa-highlighter text-xs" />
         </button>
+        <button
+          class="title-btn"
+          title="开发者背景面板"
+          @click="$emit('toggleDevThemePanel')"
+        >
+          <i class="fas fa-palette text-xs" />
+        </button>
         <div ref="moreMenuRef" class="more-menu-wrap">
           <button
             class="title-btn"
@@ -87,6 +94,38 @@
 
           <Transition name="title-menu-pop">
             <div v-if="moreMenuOpen" class="title-more-menu" @mousedown.stop>
+              <button class="title-more-item" @click="runMoreAction('createPreset')">
+                <i class="fas fa-folder-plus text-xs" />
+                <span>新建预设</span>
+              </button>
+              <button class="title-more-item" @click="runMoreAction('renamePreset')">
+                <i class="fas fa-pen text-xs" />
+                <span>重命名预设</span>
+              </button>
+              <button class="title-more-item danger-item" @click="runMoreAction('deletePreset')">
+                <i class="fas fa-trash text-xs" />
+                <span>删除预设</span>
+              </button>
+              <button class="title-more-item" @click="runMoreAction('createPrompt')">
+                <i class="fas fa-plus text-xs" />
+                <span>新建条目</span>
+              </button>
+              <button class="title-more-item" @click="runMoreAction('appendUnusedPrompt')">
+                <i class="fas fa-list-check text-xs" />
+                <span>添加未使用条目</span>
+              </button>
+              <button class="title-more-item" @click="runMoreAction('importPrompts')">
+                <i class="fas fa-file-import text-xs" />
+                <span>导入条目</span>
+              </button>
+              <button class="title-more-item" @click="runMoreAction('exportPrompts')">
+                <i class="fas fa-file-export text-xs" />
+                <span>导出条目</span>
+              </button>
+              <button class="title-more-item" @click="runMoreAction('resetPromptOrder')">
+                <i class="fas fa-arrow-down-a-z text-xs" />
+                <span>重置顺序</span>
+              </button>
               <button class="title-more-item" @click="runMoreAction('history')">
                 <i class="fas fa-clock-rotate-left text-xs" />
                 <span>历史备份</span>
@@ -108,7 +147,7 @@
         <button class="title-btn" :title="isFullscreen ? '还原' : '全屏'" @click="$emit('toggleFullscreen')">
           <i :class="['fas text-xs', isFullscreen ? 'fa-compress' : 'fa-expand']" />
         </button>
-        <button class="title-btn hover:!bg-red-500/30 hover:!text-red-400" title="关闭" @click="$emit('close')">
+        <button class="title-btn close-btn" title="关闭" @click="$emit('close')">
           <i class="fas fa-times text-xs" />
         </button>
       </div>
@@ -139,14 +178,26 @@ const emit = defineEmits<{
   toggleTheme: [];
   toggleUiSettings: [];
   toggleAnnotation: [];
+  toggleDevThemePanel: [];
   toggleLeftSidebar: [];
   selectPreset: [name: string];
+  createPreset: [];
+  renamePreset: [];
+  deletePreset: [];
+  createPrompt: [];
+  appendUnusedPrompt: [];
+  importPrompts: [];
+  exportPrompts: [];
+  resetPromptOrder: [];
   toggleFullscreen: [];
   close: [];
 }>();
 
 const parentDoc = inject<Document>('parentDocument')!;
 const iframeEl = inject<HTMLIFrameElement>('iframeElement')!;
+const windowStateKey = inject<string>('presetManagerWindowStateKey', 'presetManagerWindowState');
+const windowStateVersionKey = inject<string>('presetManagerWindowStateVersionKey', 'presetManagerWindowStateVersion');
+const windowStateVersion = inject<string>('presetManagerWindowStateVersion', '');
 
 const presetMenuOpen = ref(false);
 const moreMenuOpen = ref(false);
@@ -164,11 +215,19 @@ function toggleMoreMenu() {
   if (moreMenuOpen.value) presetMenuOpen.value = false;
 }
 
-function runMoreAction(action: 'history' | 'theme' | 'ui') {
+function runMoreAction(action: 'history' | 'theme' | 'ui' | 'createPreset' | 'renamePreset' | 'deletePreset' | 'createPrompt' | 'appendUnusedPrompt' | 'importPrompts' | 'exportPrompts' | 'resetPromptOrder') {
   moreMenuOpen.value = false;
   if (action === 'history') emit('toggleHistory');
   if (action === 'theme') emit('toggleTheme');
   if (action === 'ui') emit('toggleUiSettings');
+  if (action === 'createPreset') emit('createPreset');
+  if (action === 'renamePreset') emit('renamePreset');
+  if (action === 'deletePreset') emit('deletePreset');
+  if (action === 'createPrompt') emit('createPrompt');
+  if (action === 'appendUnusedPrompt') emit('appendUnusedPrompt');
+  if (action === 'importPrompts') emit('importPrompts');
+  if (action === 'exportPrompts') emit('exportPrompts');
+  if (action === 'resetPromptOrder') emit('resetPromptOrder');
 }
 
 function selectPreset(name: string) {
@@ -210,12 +269,15 @@ function onDragStart(e: MouseEvent) {
       style.left = `${startLeft + ev.screenX - startX}px`;
     },
     onEnd: () => {
-      localStorage.setItem('presetManagerWindowState', JSON.stringify({
+      localStorage.setItem(windowStateKey, JSON.stringify({
         top: iframe.getBoundingClientRect().top,
         left: iframe.getBoundingClientRect().left,
         width: iframe.getBoundingClientRect().width,
         height: iframe.getBoundingClientRect().height,
       }));
+      if (windowStateVersion) {
+        localStorage.setItem(windowStateVersionKey, windowStateVersion);
+      }
     },
   });
 }
@@ -233,7 +295,7 @@ onUnmounted(() => {
 .title-bar {
   height: var(--pm-titlebar-height, 52px);
   padding: 0;
-  background: transparent;
+  background: var(--pm-bg-titlebar);
   border-bottom: 0;
   cursor: move;
 }
@@ -247,14 +309,14 @@ onUnmounted(() => {
   border-right: 0;
 }
 .sidebar-toggle {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: var(--pm-btn-radius, 8px);
   background: transparent;
   color: var(--pm-text-muted);
   cursor: pointer;
@@ -271,15 +333,16 @@ onUnmounted(() => {
 }
 .title-bar.left-collapsed .sidebar-toggle.collapsed {
   position: absolute;
-  top: 9px;
+  top: 10px;
   left: 18px;
   z-index: 3;
   transform: none;
 }
-.sidebar-toggle:hover,
+.sidebar-toggle:hover {
+  background: var(--pm-btn-hover);
+  color: var(--pm-text);
+}
 .sidebar-toggle.collapsed {
-  border-color: var(--pm-border);
-  background: var(--pm-bg-hover);
   color: var(--pm-text);
 }
 .sidebar-glyph {
@@ -309,8 +372,8 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 20px;
   padding: 0 14px 0 22px;
-  background: color-mix(in srgb, var(--pm-bg-soft) 14%, transparent);
-  border-bottom: 1px solid var(--pm-divider);
+  background: transparent;
+  border-bottom: 0;
 }
 .title-bar.left-collapsed .title-actions {
   padding-left: 66px;
@@ -460,12 +523,12 @@ onUnmounted(() => {
   position: relative;
 }
 .title-btn {
-  width: 34px;
-  height: 34px;
+  width: var(--pm-btn-size, 30px);
+  height: var(--pm-btn-size, 30px);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: var(--pm-btn-radius, 8px);
   color: var(--pm-text-muted);
   background: transparent;
   border: 1px solid transparent;
@@ -473,8 +536,8 @@ onUnmounted(() => {
   transition: background 0.14s, border-color 0.14s, color 0.14s, opacity 0.14s;
 }
 .title-btn:hover:not(:disabled) {
-  background: var(--pm-bg-hover);
-  border-color: var(--pm-border);
+  background: var(--pm-btn-hover);
+  border-color: transparent;
   color: var(--pm-text);
 }
 .title-btn:disabled {
@@ -483,8 +546,13 @@ onUnmounted(() => {
 }
 .title-btn.active {
   color: var(--pm-text);
-  background: var(--pm-bg-active);
-  border-color: var(--pm-border-strong);
+  background: var(--pm-btn-active);
+  border-color: var(--pm-btn-active-border);
+}
+.title-btn.close-btn:hover:not(:disabled) {
+  color: var(--pm-danger);
+  background: color-mix(in srgb, var(--pm-danger) 14%, transparent);
+  border-color: color-mix(in srgb, var(--pm-danger) 30%, transparent);
 }
 .title-more-menu {
   position: absolute;
@@ -517,6 +585,10 @@ onUnmounted(() => {
 .title-more-item:hover {
   background: var(--pm-bg-hover);
   color: var(--pm-text);
+}
+.title-more-item.danger-item:hover {
+  color: var(--pm-danger);
+  background: color-mix(in srgb, var(--pm-danger) 10%, transparent);
 }
 .title-more-item i {
   width: 14px;

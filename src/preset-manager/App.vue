@@ -3,6 +3,9 @@
     class="app-root"
     :class="[`theme-${theme}`, { fullscreen: isFullscreen, 'hide-prompt-preview': promptPreviewLines === 0, 'left-collapsed': leftCollapsed }]"
     :style="uiVars"
+    :data-dev-sidebar="devTheme.enabled && devTheme.currentTargets.sidebar ? 'on' : undefined"
+    :data-dev-workspace="devTheme.enabled && devTheme.currentTargets.workspace ? 'on' : undefined"
+    :data-dev-panel="devTheme.enabled && devTheme.currentTargets.panel ? 'on' : undefined"
   >
     <TitleBar
       :is-fullscreen="isFullscreen"
@@ -21,10 +24,27 @@
       @toggle-theme="toggleTheme"
       @toggle-ui-settings="showUiSettings = !showUiSettings"
       @toggle-annotation="showAnnotation = !showAnnotation"
+      @toggle-dev-theme-panel="devTheme.togglePanel"
       @toggle-left-sidebar="leftCollapsed = !leftCollapsed"
       @select-preset="selectMainPreset"
+      @create-preset="createOfficialPreset"
+      @rename-preset="renameOfficialPreset"
+      @delete-preset="deleteOfficialPreset"
+      @create-prompt="createOfficialPrompt"
+      @append-unused-prompt="openUnusedPromptPicker"
+      @import-prompts="openOfficialPromptImport"
+      @export-prompts="downloadPresetPromptExport"
+      @reset-prompt-order="resetOfficialPromptOrder"
       @toggle-fullscreen="toggleFullscreen"
       @close="closePanel"
+    />
+
+    <input
+      ref="officialPromptImportInput"
+      class="hidden-file-input"
+      type="file"
+      accept=".json,application/json"
+      @change="handleImportPromptsFile"
     />
 
     <SplitHandle
@@ -69,6 +89,37 @@
     <HistoryPanel :visible="showHistory" @close="showHistory = false" />
 
     <AnnotationOverlay v-if="showAnnotation" @close="showAnnotation = false" />
+
+    <Transition name="unused-picker-pop">
+      <div v-if="showUnusedPromptPicker" class="unused-picker-backdrop" @click.self="showUnusedPromptPicker = false">
+        <div class="unused-picker-card">
+          <div class="unused-picker-head">
+            <div>
+              <div class="unused-picker-title">添加未使用条目</div>
+              <div class="unused-picker-subtitle">{{ manager.mainUnusedPrompts.length }} 个可添加条目</div>
+            </div>
+            <button class="unused-picker-close" title="关闭" @click="showUnusedPromptPicker = false">
+              <i class="fas fa-times text-xs" />
+            </button>
+          </div>
+
+          <div v-if="!manager.mainUnusedPrompts.length" class="unused-picker-empty">
+            当前预设没有未使用条目
+          </div>
+          <div v-else class="unused-picker-list">
+            <button
+              v-for="prompt in manager.mainUnusedPrompts"
+              :key="getPromptKey(prompt)"
+              class="unused-picker-item"
+              @click="appendOfficialUnusedPrompt(prompt)"
+            >
+              <span class="unused-picker-name">{{ prompt.name }}</span>
+              <span class="unused-picker-role">{{ prompt.role }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <Transition name="settings-pop">
       <div v-if="showUiSettings" class="ui-settings-panel">
@@ -144,6 +195,9 @@
       </div>
     </Transition>
 
+    <DevThemeStyleInjector />
+    <DevThemePanel v-if="devTheme.panelOpen" />
+
     <template v-if="!isFullscreen">
       <div class="window-resize-handle resize-top-left" @mousedown.stop.prevent="onWindowResizeStart($event, 'top-left')" />
       <div class="window-resize-handle resize-top-right" @mousedown.stop.prevent="onWindowResizeStart($event, 'top-right')" />
@@ -161,32 +215,39 @@ import PresetPanel from './components/PresetPanel.vue';
 import AiAssistant from './components/AiAssistant.vue';
 import HistoryPanel from './components/HistoryPanel.vue';
 import AnnotationOverlay from './components/AnnotationOverlay.vue';
-import { useManagerStore } from './stores/manager';
+import DevThemePanel from './components/DevThemePanel.vue';
+import DevThemeStyleInjector from './components/DevThemeStyleInjector.vue';
+import { useDevThemeStore } from './stores/devTheme';
+import { getPromptKey, useManagerStore } from './stores/manager';
 import { useHistoryStore } from './stores/history';
 import { startParentDrag } from './utils/drag';
 import { clampSecondPresetWidth, getSecondPresetBounds } from './utils/panelLayout';
 import { CODEX_REFERENCE_METRICS } from './designMetrics';
+import { getInstanceStorageKey, type PresetManagerInstanceKey } from './utils/instanceConfig';
 
 const manager = useManagerStore();
 const history = useHistoryStore();
+const devTheme = useDevThemeStore();
 
 const isFullscreen = ref(false);
 const showHistory = ref(false);
 const showAnnotation = ref(false);
 const showSecondPreset = ref(false);
+const showUnusedPromptPicker = ref(false);
 const leftCollapsed = ref(false);
 const leftWidth = ref(CODEX_REFERENCE_METRICS.sidebar.width);
 const rightWidth = ref(280);
 const presetWorkspaceRef = ref<HTMLElement>();
+const instanceKey = inject<PresetManagerInstanceKey>('presetManagerInstanceKey', 'default');
 
-const WINDOW_STATE_KEY = 'presetManagerWindowState';
-const WINDOW_STATE_VERSION_KEY = 'presetManagerWindowStateVersion';
+const WINDOW_STATE_KEY = getInstanceStorageKey(instanceKey, 'WindowState');
+const WINDOW_STATE_VERSION_KEY = getInstanceStorageKey(instanceKey, 'WindowStateVersion');
 const WINDOW_STATE_VERSION = `codex-${CODEX_REFERENCE_METRICS.window.width}x${CODEX_REFERENCE_METRICS.window.height}`;
-const THEME_KEY = 'presetManagerTheme';
-const UI_SCALE_KEY = 'presetManagerUiScale';
-const PROMPT_SCALE_KEY = 'presetManagerPromptScale';
-const PROMPT_PREVIEW_LINES_KEY = 'presetManagerPromptPreviewLines';
-const UI_PRESETS_KEY = 'presetManagerUiPresets';
+const THEME_KEY = getInstanceStorageKey(instanceKey, 'Theme');
+const UI_SCALE_KEY = getInstanceStorageKey(instanceKey, 'UiScale');
+const PROMPT_SCALE_KEY = getInstanceStorageKey(instanceKey, 'PromptScale');
+const PROMPT_PREVIEW_LINES_KEY = getInstanceStorageKey(instanceKey, 'PromptPreviewLines');
+const UI_PRESETS_KEY = getInstanceStorageKey(instanceKey, 'UiPresets');
 type WindowState = { top: number; left: number; width: number; height: number };
 type AppTheme = 'dark' | 'light';
 type UiPresetKey = 'compact' | 'standard' | 'large';
@@ -215,6 +276,7 @@ const startLeftWidth = ref(CODEX_REFERENCE_METRICS.sidebar.width);
 const startRightWidth = ref(280);
 const theme = ref<AppTheme>(readTheme());
 const showUiSettings = ref(false);
+const officialPromptImportInput = ref<HTMLInputElement>();
 const uiScale = ref(readUiScale());
 const promptScale = ref(readPromptScale());
 const promptPreviewLines = ref(readPromptPreviewLines());
@@ -266,11 +328,33 @@ const favoritedIds = computed(() => {
   const ids = new Set<string>();
   for (const folder of manager.favorites) {
     for (const item of folder.items) {
-      ids.add(item.id);
+      ids.add(getPromptKey(item));
     }
   }
   return ids;
 });
+
+function normalizePromptForCollection(prompt: PresetPrompt): PresetNormalPrompt {
+  const promptKey = getPromptKey(prompt) || prompt.id;
+  const stored = {
+    ...klona(prompt as any),
+    id: prompt.id || promptKey,
+    identifier: promptKey,
+    name: prompt.name,
+    enabled: prompt.enabled ?? true,
+    position: (prompt as any).position ?? { type: 'relative' as const },
+    role: prompt.role,
+    content: (prompt as any).content ?? '',
+  };
+  stored.injection_position = stored.injection_position
+    ?? (stored.position?.type === 'in_chat' ? 1 : 0);
+  stored.injection_depth = stored.injection_depth ?? stored.position?.depth ?? 4;
+  stored.injection_order = stored.injection_order ?? stored.position?.order ?? 100;
+  stored.injection_trigger = Array.isArray(stored.injection_trigger) ? stored.injection_trigger : [];
+  stored.forbid_overrides = Boolean(stored.forbid_overrides);
+
+  return stored as PresetNormalPrompt;
+}
 
 function onLeftDragStart() {
   startLeftWidth.value = leftWidth.value;
@@ -300,6 +384,183 @@ function selectMainPreset(name: string) {
   }
 }
 
+function getMainPresetSnapshot() {
+  return manager.presetName ? klona(getPreset(manager.presetName)) : null;
+}
+
+function getUniquePresetName(baseName: string) {
+  const base = baseName.trim() || '新预设';
+  if (!manager.presetNames.includes(base)) return base;
+
+  let index = 2;
+  while (manager.presetNames.includes(`${base} ${index}`)) {
+    index += 1;
+  }
+  return `${base} ${index}`;
+}
+
+async function createOfficialPreset() {
+  const defaultName = getUniquePresetName('新预设');
+  const name = prompt('输入新预设名称', defaultName)?.trim();
+  if (!name) return;
+
+  const created = await manager.createPresetByName(name);
+  if (created) {
+    history.createSnapshot(name, undefined, true);
+    toastr.success(`已新建预设 "${name}"`, '', { timeOut: 1600 });
+  } else {
+    toastr.warning('新建失败：名称为空、重复或不可用', '', { timeOut: 1800 });
+  }
+}
+
+async function renameOfficialPreset() {
+  if (!manager.presetName) {
+    toastr.warning('请先选择主预设', '', { timeOut: 1400 });
+    return;
+  }
+
+  const oldName = manager.presetName;
+  const name = prompt('输入新的预设名称', oldName)?.trim();
+  if (!name || name === oldName) return;
+
+  const renamed = await manager.renamePresetByName(oldName, name);
+  if (renamed) {
+    history.createSnapshot(name, undefined, true);
+    toastr.success(`已重命名为 "${name}"`, '', { timeOut: 1600 });
+  } else {
+    toastr.warning('重命名失败：名称为空、重复或不可用', '', { timeOut: 1800 });
+  }
+}
+
+async function deleteOfficialPreset() {
+  if (!manager.presetName) {
+    toastr.warning('请先选择主预设', '', { timeOut: 1400 });
+    return;
+  }
+
+  const name = manager.presetName;
+  if (!confirm(`确定删除预设 "${name}" 吗？此操作会删除酒馆中的预设文件，不能通过插件历史撤销。`)) return;
+
+  const deleted = await manager.deletePresetByName(name);
+  if (deleted) {
+    toastr.info(`已删除预设 "${name}"`, '', { timeOut: 1600 });
+  } else {
+    toastr.warning('删除失败：预设不存在或不可删除', '', { timeOut: 1800 });
+  }
+}
+
+async function createOfficialPrompt() {
+  if (!manager.presetName) {
+    toastr.warning('请先选择主预设', '', { timeOut: 1400 });
+    return;
+  }
+
+  const before = getMainPresetSnapshot();
+  const prompt = await manager.createPromptInPreset('main');
+  const after = getMainPresetSnapshot();
+  if (before && after && prompt) {
+    history.recordOperation(manager.presetName, before, after, `新建条目: ${prompt.name}`);
+    toastr.success('已新建条目', '', { timeOut: 1400 });
+  }
+}
+
+function openUnusedPromptPicker() {
+  if (!manager.presetName) {
+    toastr.warning('请先选择主预设', '', { timeOut: 1400 });
+    return;
+  }
+  if (!manager.mainUnusedPrompts.length) {
+    toastr.info('当前预设没有未使用条目', '', { timeOut: 1400 });
+    return;
+  }
+  showUnusedPromptPicker.value = true;
+}
+
+async function appendOfficialUnusedPrompt(prompt: PresetPrompt) {
+  if (!manager.presetName) return;
+
+  const before = getMainPresetSnapshot();
+  const appended = await manager.appendUnusedPromptToPreset(getPromptKey(prompt), 'main');
+  const after = getMainPresetSnapshot();
+  if (appended && before && after) {
+    history.recordOperation(manager.presetName, before, after, `添加未使用条目: ${prompt.name}`);
+    showUnusedPromptPicker.value = false;
+    toastr.success(`已添加 "${prompt.name}"`, '', { timeOut: 1400 });
+  }
+}
+
+function openOfficialPromptImport() {
+  if (!manager.presetName) {
+    toastr.warning('请先选择主预设', '', { timeOut: 1400 });
+    return;
+  }
+  officialPromptImportInput.value?.click();
+}
+
+async function handleImportPromptsFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file || !manager.presetName) return;
+
+  try {
+    const text = await file.text();
+    const importData = JSON.parse(text);
+    const before = getMainPresetSnapshot();
+    const count = await manager.importPromptsToPreset(importData, 'main');
+    const after = getMainPresetSnapshot();
+    if (!count) {
+      toastr.warning('未找到可导入的条目', '', { timeOut: 1600 });
+      return;
+    }
+    if (before && after) {
+      history.recordOperation(manager.presetName, before, after, `导入条目: ${count} 个`);
+    }
+    toastr.success(`已导入 ${count} 个条目`, '', { timeOut: 1600 });
+  } catch (e) {
+    console.error('[PresetManager] import prompts failed:', e);
+    toastr.error('导入失败，请检查 JSON 格式', '', { timeOut: 2200 });
+  }
+}
+
+function getFormattedDateForFile() {
+  const date = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`;
+}
+
+function downloadPresetPromptExport() {
+  const exportData = manager.exportPromptsFromPreset('main');
+  if (!exportData || !manager.presetName) {
+    toastr.warning('请先选择主预设', '', { timeOut: 1400 });
+    return;
+  }
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${manager.presetName}-prompts-${getFormattedDateForFile()}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function resetOfficialPromptOrder() {
+  if (!manager.presetName) {
+    toastr.warning('请先选择主预设', '', { timeOut: 1400 });
+    return;
+  }
+  if (!confirm('确定按注入顺序重排当前预设条目吗？可以通过撤销恢复。')) return;
+
+  const before = getMainPresetSnapshot();
+  const changed = await manager.resetPromptOrder('main');
+  const after = getMainPresetSnapshot();
+  if (changed && before && after) {
+    history.recordOperation(manager.presetName, before, after, '重置预设顺序');
+    toastr.success('已重置条目顺序', '', { timeOut: 1400 });
+  }
+}
+
 function getPresetWorkspaceWidth() {
   return presetWorkspaceRef.value?.clientWidth ?? iframeEl?.getBoundingClientRect().width ?? 900;
 }
@@ -317,6 +578,9 @@ watch(showSecondPreset, visible => {
 
 const parentDoc = inject<Document>('parentDocument')!;
 const iframeEl = inject<HTMLIFrameElement>('iframeElement')!;
+provide('presetManagerWindowStateKey', WINDOW_STATE_KEY);
+provide('presetManagerWindowStateVersionKey', WINDOW_STATE_VERSION_KEY);
+provide('presetManagerWindowStateVersion', WINDOW_STATE_VERSION);
 
 function readTheme(): AppTheme {
   return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
@@ -581,19 +845,13 @@ function onFavorite(prompt: PresetPrompt) {
     manager.addFavoriteFolder('收藏夹 1');
   }
   const firstFolder = manager.favorites[0];
-  const existingIdx = firstFolder.items.findIndex(i => i.id === prompt.id);
+  const promptKey = getPromptKey(prompt);
+  const existingIdx = firstFolder.items.findIndex(i => getPromptKey(i) === promptKey);
   if (existingIdx >= 0) {
     manager.removeFromFavorites(firstFolder.id, existingIdx);
     toastr.info('已取消收藏', '', { timeOut: 1200 });
   } else {
-    manager.addToFavorites(firstFolder.id, {
-      id: prompt.id,
-      name: prompt.name,
-      enabled: prompt.enabled ?? true,
-      position: (prompt as any).position ?? { type: 'relative' as const },
-      role: prompt.role,
-      content: (prompt as any).content ?? '',
-    });
+    manager.addToFavorites(firstFolder.id, normalizePromptForCollection(prompt));
     toastr.success('已收藏', '', { timeOut: 1200 });
   }
 }
@@ -628,43 +886,52 @@ html, body {
 
 body[data-pm-theme="dark"],
 .theme-dark {
-  --pm-bg: #050506;
-  --pm-bg-transparent: rgba(5, 5, 6, 0);
-  --pm-bg-soft: #0b0c0e;
-  --pm-bg-panel: #101114;
-  --pm-bg-sidebar: rgba(30, 40, 66, 0.22);
-  --pm-bg-elevated: #191a1f;
+  --pm-bg: oklch(0.155 0.008 255);
+  --pm-bg-transparent: oklch(0.155 0.008 255 / 0);
+  --pm-bg-soft: oklch(0.182 0.008 255);
+  --pm-bg-panel: oklch(0.195 0.008 255);
+  --pm-bg-titlebar: #1c1e25;
+  --pm-bg-workspace: #1c1e25;
+  --pm-bg-sidebar: rgba(34, 38, 48, 0.62);
+  --pm-bg-elevated: oklch(0.225 0.008 255);
   --pm-row-bg: transparent;
-  --pm-row-hover: rgba(255, 255, 255, 0.043);
-  --pm-row-active: rgba(255, 255, 255, 0.064);
-  --pm-row-border: rgba(255, 255, 255, 0.095);
-  --pm-bg-hover: rgba(255, 255, 255, 0.055);
-  --pm-bg-active: rgba(255, 255, 255, 0.078);
-  --pm-border: rgba(255, 255, 255, 0.115);
-  --pm-border-strong: rgba(255, 255, 255, 0.18);
-  --pm-text: oklch(0.985 0 0);
-  --pm-text-muted: oklch(0.74 0 0);
-  --pm-text-subtle: oklch(0.56 0 0);
-  --pm-accent: oklch(0.922 0 0);
-  --pm-accent-text: #151517;
+  --pm-row-hover: rgba(255, 255, 255, 0.035);
+  --pm-row-active: rgba(255, 255, 255, 0.055);
+  --pm-row-border: rgba(255, 255, 255, 0.038);
+  --pm-bg-hover: rgba(255, 255, 255, 0.045);
+  --pm-bg-active: rgba(255, 255, 255, 0.065);
+  --pm-border: rgba(255, 255, 255, 0.06);
+  --pm-border-strong: rgba(255, 255, 255, 0.10);
+  --pm-text: oklch(0.97 0 0);
+  --pm-text-muted: oklch(0.72 0.01 255);
+  --pm-text-subtle: oklch(0.55 0.01 255);
+  --pm-accent: oklch(0.93 0 0);
+  --pm-accent-text: oklch(0.16 0.008 255);
   --pm-success: #7bd99a;
   --pm-warning: #e7b96e;
   --pm-danger: #f08686;
-  --pm-input-bg: rgba(255, 255, 255, 0.035);
-  --pm-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
-  --pm-sidebar-glow: rgba(130, 158, 235, 0.16);
-  --pm-sidebar-glow-soft: rgba(82, 98, 148, 0.1);
-  --pm-sidebar-shadow: rgba(7, 11, 22, 0.24);
-  --pm-sidebar-edge: rgba(225, 235, 255, 0.105);
-  --pm-divider: rgba(255, 255, 255, 0.105);
-  --pm-split-line: rgba(255, 255, 255, 0.24);
-  --pm-split-line-hover: rgba(255, 255, 255, 0.46);
-  --pm-ai-surface: rgba(16, 17, 20, 0.72);
-  --pm-ai-capsule: rgba(20, 22, 28, 0.46);
-  --pm-control-highlight: rgba(255, 255, 255, 0.09);
-  --pm-control-highlight-hover: rgba(255, 255, 255, 0.15);
-  --pm-send-bg: #f7f7f2;
-  --pm-send-fg: #151517;
+  --pm-input-bg: rgba(255, 255, 255, 0.028);
+  --pm-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
+  --pm-sidebar-glow: rgba(255, 255, 255, 0);
+  --pm-sidebar-glow-soft: rgba(255, 255, 255, 0);
+  --pm-sidebar-shadow: rgba(0, 0, 0, 0.22);
+  --pm-sidebar-edge: rgba(255, 255, 255, 0.08);
+  --pm-divider: rgba(255, 255, 255, 0.05);
+  --pm-split-line: rgba(255, 255, 255, 0.075);
+  --pm-split-line-hover: rgba(255, 255, 255, 0.20);
+  --pm-ai-surface: rgba(28, 32, 42, 0.92);
+  --pm-ai-capsule: rgba(28, 32, 42, 0.78);
+  --pm-control-highlight: rgba(255, 255, 255, 0.05);
+  --pm-control-highlight-hover: rgba(255, 255, 255, 0.085);
+  --pm-send-bg: oklch(0.97 0 0);
+  --pm-send-fg: oklch(0.16 0.008 255);
+  --pm-btn-radius: 6px;
+  --pm-btn-radius-pill: 999px;
+  --pm-btn-size: 30px;
+  --pm-btn-size-sm: 26px;
+  --pm-btn-hover: rgba(255, 255, 255, 0.05);
+  --pm-btn-active: rgba(255, 255, 255, 0.07);
+  --pm-btn-active-border: rgba(255, 255, 255, 0.10);
 }
 
 body[data-pm-theme="light"],
@@ -673,16 +940,18 @@ body[data-pm-theme="light"],
   --pm-bg-transparent: rgba(246, 246, 242, 0);
   --pm-bg-soft: #ffffff;
   --pm-bg-panel: #fbfbf8;
-  --pm-bg-sidebar: rgba(237, 241, 248, 0.72);
+  --pm-bg-titlebar: #f6f6f2;
+  --pm-bg-workspace: #f6f6f2;
+  --pm-bg-sidebar: rgba(252, 252, 248, 0.62);
   --pm-bg-elevated: #ffffff;
   --pm-row-bg: transparent;
-  --pm-row-hover: rgba(20, 24, 31, 0.045);
-  --pm-row-active: rgba(20, 24, 31, 0.068);
-  --pm-row-border: rgba(20, 24, 31, 0.08);
-  --pm-bg-hover: rgba(20, 24, 31, 0.052);
-  --pm-bg-active: rgba(20, 24, 31, 0.08);
-  --pm-border: rgba(20, 24, 31, 0.105);
-  --pm-border-strong: rgba(20, 24, 31, 0.17);
+  --pm-row-hover: rgba(20, 24, 31, 0.038);
+  --pm-row-active: rgba(20, 24, 31, 0.058);
+  --pm-row-border: rgba(20, 24, 31, 0.05);
+  --pm-bg-hover: rgba(20, 24, 31, 0.045);
+  --pm-bg-active: rgba(20, 24, 31, 0.07);
+  --pm-border: rgba(20, 24, 31, 0.07);
+  --pm-border-strong: rgba(20, 24, 31, 0.12);
   --pm-text: #16181d;
   --pm-text-muted: #5d636e;
   --pm-text-subtle: #8a9099;
@@ -691,21 +960,28 @@ body[data-pm-theme="light"],
   --pm-danger: #c74444;
   --pm-success: #197a36;
   --pm-warning: #9b6b00;
-  --pm-shadow: 0 24px 70px rgba(24, 31, 44, 0.16);
+  --pm-shadow: 0 28px 80px rgba(24, 31, 44, 0.18);
   --pm-input-bg: #ffffff;
-  --pm-sidebar-glow: rgba(174, 191, 230, 0.5);
-  --pm-sidebar-glow-soft: rgba(226, 233, 246, 0.8);
+  --pm-sidebar-glow: rgba(255, 255, 255, 0);
+  --pm-sidebar-glow-soft: rgba(255, 255, 255, 0);
   --pm-sidebar-shadow: rgba(126, 143, 174, 0.16);
-  --pm-sidebar-edge: rgba(88, 102, 132, 0.14);
-  --pm-divider: rgba(0, 0, 0, 0.08);
-  --pm-split-line: rgba(20, 24, 31, 0.18);
-  --pm-split-line-hover: rgba(20, 24, 31, 0.38);
-  --pm-ai-surface: rgba(250, 250, 247, 0.97);
-  --pm-ai-capsule: rgba(255, 255, 255, 0.98);
-  --pm-control-highlight: rgba(20, 24, 31, 0.065);
-  --pm-control-highlight-hover: rgba(20, 24, 31, 0.11);
+  --pm-sidebar-edge: rgba(20, 24, 31, 0.08);
+  --pm-divider: rgba(20, 24, 31, 0.05);
+  --pm-split-line: rgba(20, 24, 31, 0.08);
+  --pm-split-line-hover: rgba(20, 24, 31, 0.20);
+  --pm-ai-surface: rgba(255, 255, 255, 0.92);
+  --pm-ai-capsule: rgba(255, 255, 255, 0.78);
+  --pm-control-highlight: rgba(20, 24, 31, 0.045);
+  --pm-control-highlight-hover: rgba(20, 24, 31, 0.085);
   --pm-send-bg: #1d1e22;
   --pm-send-fg: #ffffff;
+  --pm-btn-radius: 6px;
+  --pm-btn-radius-pill: 999px;
+  --pm-btn-size: 30px;
+  --pm-btn-size-sm: 26px;
+  --pm-btn-hover: rgba(20, 24, 31, 0.055);
+  --pm-btn-active: rgba(20, 24, 31, 0.085);
+  --pm-btn-active-border: rgba(20, 24, 31, 0.13);
 }
 
 button,
@@ -724,15 +1000,13 @@ button {
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--pm-border-strong);
-  border: 3px solid transparent;
   border-radius: 999px;
-  background-clip: content-box;
 }
 
 ::-webkit-scrollbar-track {
@@ -817,26 +1091,15 @@ button {
   width: var(--pm-left-rail-width, 240px);
   pointer-events: none;
   background:
-    radial-gradient(690px 420px at -230px -170px, var(--pm-sidebar-glow) 0%, transparent 68%),
-    radial-gradient(600px 720px at -230px 48%, var(--pm-sidebar-glow-soft) 0%, transparent 74%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.028), transparent 36%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent 38%),
     var(--pm-bg-sidebar);
-  box-shadow: inset -1px 0 0 var(--pm-sidebar-edge);
-  backdrop-filter: blur(28px) saturate(120%);
-  -webkit-backdrop-filter: blur(28px) saturate(120%);
+  backdrop-filter: blur(32px) saturate(140%);
+  -webkit-backdrop-filter: blur(32px) saturate(140%);
+  box-shadow: inset -0.8px 0 0 var(--pm-sidebar-edge);
   z-index: 0;
 }
 .app-root::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: calc(var(--pm-left-rail-width, 240px) - 1px);
-  width: 1px;
-  pointer-events: none;
-  background: linear-gradient(180deg, transparent, var(--pm-sidebar-edge) 12%, var(--pm-sidebar-edge) 84%, transparent);
-  opacity: 0.32;
-  z-index: 2;
+  display: none;
 }
 .app-root.left-collapsed::before,
 .app-root.left-collapsed::after {
@@ -942,10 +1205,7 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background:
-    radial-gradient(760px 420px at 12% -18%, color-mix(in srgb, var(--pm-accent) 5%, transparent), transparent 58%),
-    linear-gradient(180deg, color-mix(in srgb, var(--pm-bg-soft) 36%, transparent), transparent 180px),
-    var(--pm-bg);
+  background: var(--pm-bg-workspace);
 }
 .preset-panels {
   position: relative;
@@ -956,13 +1216,13 @@ button {
 }
 .center-area {
   min-width: 0;
-  background: color-mix(in srgb, var(--pm-bg-panel) 18%, transparent);
+  background: transparent;
 }
 .second-preset-area {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: color-mix(in srgb, var(--pm-bg-panel) 24%, transparent);
+  background: transparent;
 }
 .second-toggle {
   position: absolute;
@@ -1143,5 +1403,110 @@ button {
 .settings-pop-leave-to {
   opacity: 0;
   transform: translateY(-4px);
+}
+.unused-picker-backdrop {
+  position: absolute;
+  inset: var(--pm-titlebar-height, 52px) 0 0;
+  z-index: 820;
+  display: flex;
+  justify-content: center;
+  padding-top: 18px;
+  background: color-mix(in srgb, var(--pm-bg) 34%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.unused-picker-card {
+  width: min(420px, calc(100% - 32px));
+  max-height: min(520px, calc(100% - 36px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--pm-border-strong);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--pm-bg-elevated) 92%, transparent);
+  color: var(--pm-text);
+  box-shadow: var(--pm-shadow);
+  backdrop-filter: blur(22px) saturate(116%);
+  -webkit-backdrop-filter: blur(22px) saturate(116%);
+}
+.unused-picker-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--pm-border);
+}
+.unused-picker-title {
+  font-weight: 670;
+}
+.unused-picker-subtitle {
+  margin-top: 3px;
+  color: var(--pm-text-subtle);
+  font-size: 12px;
+}
+.unused-picker-close {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--pm-btn-radius, 8px);
+  background: transparent;
+  color: var(--pm-text-muted);
+  cursor: pointer;
+}
+.unused-picker-close:hover {
+  background: var(--pm-btn-hover);
+  color: var(--pm-text);
+}
+.unused-picker-list {
+  overflow-y: auto;
+  padding: 6px;
+}
+.unused-picker-item {
+  width: 100%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pm-text-muted);
+  cursor: pointer;
+  text-align: left;
+}
+.unused-picker-item:hover {
+  background: var(--pm-bg-hover);
+  color: var(--pm-text);
+}
+.unused-picker-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--pm-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.unused-picker-role {
+  flex-shrink: 0;
+  color: var(--pm-text-subtle);
+  font-size: 11px;
+}
+.unused-picker-empty {
+  padding: 28px 18px;
+  color: var(--pm-text-subtle);
+  text-align: center;
+}
+.unused-picker-pop-enter-active,
+.unused-picker-pop-leave-active {
+  transition: opacity 0.12s ease;
+}
+.unused-picker-pop-enter-from,
+.unused-picker-pop-leave-to {
+  opacity: 0;
 }
 </style>

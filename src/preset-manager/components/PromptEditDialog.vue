@@ -1,10 +1,10 @@
 <template>
-  <Teleport to="body">
-    <Transition name="dialog">
-      <div v-if="visible" class="dialog-backdrop" @click.self="$emit('close')">
+  <Transition name="dialog">
+    <div v-if="visible" class="dialog-layer">
+      <div class="dialog-backdrop" @click.self="$emit('close')">
         <form class="dialog-card" @submit.prevent="save">
           <div class="dialog-header">
-            <div>
+            <div class="dialog-title-group">
               <div class="dialog-title">编辑条目</div>
               <div class="dialog-subtitle">{{ prompt.name }}</div>
             </div>
@@ -43,6 +43,47 @@
               </label>
             </div>
 
+            <div class="field-grid">
+              <label class="field">
+                <span>位置</span>
+                <select v-model="draft.positionType" class="text-input">
+                  <option value="relative">相对列表位置</option>
+                  <option value="in_chat">插入聊天记录</option>
+                </select>
+              </label>
+
+              <label class="field compact-check">
+                <span>覆盖保护</span>
+                <label class="checkbox-line">
+                  <input v-model="draft.forbidOverrides" type="checkbox" />
+                  <span>禁止被覆盖</span>
+                </label>
+              </label>
+            </div>
+
+            <div v-if="draft.positionType === 'in_chat'" class="field-grid">
+              <label class="field">
+                <span>深度</span>
+                <input v-model.number="draft.depth" class="text-input" type="number" min="0" step="1" />
+              </label>
+
+              <label class="field">
+                <span>顺序</span>
+                <input v-model.number="draft.order" class="text-input" type="number" step="1" />
+              </label>
+            </div>
+
+            <fieldset class="field trigger-field">
+              <legend>触发类型</legend>
+              <div class="trigger-options">
+                <label v-for="option in TRIGGER_OPTIONS" :key="option.value" class="checkbox-line">
+                  <input v-model="draft.triggers" type="checkbox" :value="option.value" />
+                  <span>{{ option.label }}</span>
+                </label>
+              </div>
+              <small>不选择时等同于全部触发。</small>
+            </fieldset>
+
             <label class="field content-field">
               <span>内容</span>
               <textarea v-model="draft.content" class="content-input" />
@@ -55,18 +96,38 @@
           </div>
         </form>
       </div>
-    </Transition>
-  </Teleport>
+    </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
 type PromptRole = 'system' | 'user' | 'assistant';
+type PromptPositionType = 'relative' | 'in_chat';
 type PromptEditDraft = {
   name: string;
   role: PromptRole;
   enabled: boolean;
   content: string;
+  positionType: PromptPositionType;
+  depth: number;
+  order: number;
+  triggers: string[];
+  forbidOverrides: boolean;
 };
+
+const INJECTION_POSITION_RELATIVE = 0;
+const INJECTION_POSITION_IN_CHAT = 1;
+const DEFAULT_DEPTH = 4;
+const DEFAULT_ORDER = 100;
+
+const TRIGGER_OPTIONS = [
+  { value: 'normal', label: '普通' },
+  { value: 'continue', label: '继续' },
+  { value: 'impersonate', label: '扮演' },
+  { value: 'swipe', label: '换回复' },
+  { value: 'regenerate', label: '重新生成' },
+  { value: 'quiet', label: '静默' },
+] as const;
 
 const props = defineProps<{
   visible: boolean;
@@ -84,10 +145,20 @@ const draft = reactive<PromptEditDraft>({
   role: 'system',
   enabled: true,
   content: '',
+  positionType: 'relative',
+  depth: DEFAULT_DEPTH,
+  order: DEFAULT_ORDER,
+  triggers: [],
+  forbidOverrides: false,
 });
 
 function normalizeRole(role: PresetPrompt['role']): PromptRole {
   return role === 'user' || role === 'assistant' ? role : 'system';
+}
+
+function normalizeNumber(value: unknown, fallback: number) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
 }
 
 function resetDraft() {
@@ -95,16 +166,35 @@ function resetDraft() {
   draft.role = normalizeRole(props.prompt.role);
   draft.enabled = props.prompt.enabled ?? true;
   draft.content = props.prompt.content ?? '';
+  draft.positionType = (props.prompt as any).injection_position === INJECTION_POSITION_IN_CHAT
+    || (props.prompt as any).position?.type === 'in_chat'
+    ? 'in_chat'
+    : 'relative';
+  draft.depth = normalizeNumber((props.prompt as any).injection_depth ?? (props.prompt as any).position?.depth, DEFAULT_DEPTH);
+  draft.order = normalizeNumber((props.prompt as any).injection_order ?? (props.prompt as any).position?.order, DEFAULT_ORDER);
+  draft.triggers = Array.isArray((props.prompt as any).injection_trigger)
+    ? [...(props.prompt as any).injection_trigger]
+    : [];
+  draft.forbidOverrides = Boolean((props.prompt as any).forbid_overrides);
   nextTick(() => nameInput.value?.focus());
 }
 
 function save() {
+  const isInChat = draft.positionType === 'in_chat';
   emit('save', {
     name: draft.name.trim() || 'Untitled',
     role: draft.role,
     enabled: draft.enabled,
     content: draft.content,
-  });
+    position: isInChat
+      ? { type: 'in_chat', depth: draft.depth, order: draft.order }
+      : { type: 'relative' },
+    injection_position: isInChat ? INJECTION_POSITION_IN_CHAT : INJECTION_POSITION_RELATIVE,
+    injection_depth: draft.depth,
+    injection_order: draft.order,
+    injection_trigger: [...draft.triggers],
+    forbid_overrides: draft.forbidOverrides,
+  } as any);
 }
 
 watch(
@@ -117,20 +207,26 @@ watch(
 </script>
 
 <style scoped>
-.dialog-backdrop {
-  position: fixed;
+.dialog-layer {
+  position: absolute;
   inset: 0;
-  z-index: 1100;
+  z-index: 880;
+  display: flex;
+  min-height: 0;
+}
+.dialog-backdrop {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 18px;
   background: color-mix(in srgb, var(--pm-bg) 72%, rgba(0, 0, 0, 0.45));
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 .dialog-card {
-  width: min(760px, 94vw);
-  max-height: min(760px, 88vh);
+  width: min(760px, calc(100% - 28px));
+  max-height: calc(100% - 28px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -147,6 +243,9 @@ watch(
   gap: 12px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--pm-border);
+}
+.dialog-title-group {
+  min-width: 0;
 }
 .dialog-title {
   font-size: 15px;

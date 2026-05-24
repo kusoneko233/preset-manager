@@ -1,6 +1,6 @@
 <template>
   <div
-    class="preset-panel flex flex-col h-full"
+    class="preset-panel flex h-full flex-col"
     @dragover.prevent="onDragOver"
     @dragleave="onDragLeave"
     @drop.prevent="onDrop"
@@ -26,13 +26,13 @@
       @dragover.prevent="onListDragOver"
     >
       <div v-if="!prompts.length" class="empty-state">
-        <i class="fas fa-inbox text-2xl text-slate-600 mb-2" />
-        <div class="text-slate-500 text-xs">{{ selectedPreset ? '预设为空' : '请选择预设' }}</div>
+        <i class="fas fa-inbox mb-2 text-2xl text-slate-600" />
+        <div class="text-xs text-slate-500">{{ selectedPreset ? '预设为空' : '请选择预设' }}</div>
       </div>
 
       <div
         v-for="(prompt, i) in prompts"
-        :key="prompt.id"
+        :key="getPromptKey(prompt)"
         class="prompt-drop-slot"
         :class="{ 'drop-before': dropIndex === i }"
         @dragover.prevent.stop="onPromptDragOver($event, i)"
@@ -45,7 +45,10 @@
           :drag-source="panelId"
           :drag-index="i"
           :relation-label="relationLabel(prompt)"
-          :can-transfer="canTransferToOther"
+          :can-transfer="canTransferPromptToOther(prompt)"
+          :can-detach="canDeletePrompt(prompt)"
+          :can-delete="canDeletePrompt(prompt)"
+          :can-restore-default="canRestoreDefaultPrompt(prompt)"
           :transfer-target-label="otherPanelLabel"
           @zoom="zoomPrompt = prompt"
           @edit="openEditor(prompt)"
@@ -53,6 +56,8 @@
           @toggle-favorite="$emit('favorite', prompt)"
           @copy-to-other="copyPromptToOther(prompt)"
           @move-to-other="movePromptToOther(prompt)"
+          @restore-default="restoreSystemPromptDefault(prompt)"
+          @detach="detachPrompt(prompt)"
           @delete="deletePrompt(prompt)"
         />
       </div>
@@ -89,9 +94,10 @@
 import PromptItem from './PromptItem.vue';
 import PromptDetailOverlay from './PromptDetailOverlay.vue';
 import PromptEditDialog from './PromptEditDialog.vue';
-import { useManagerStore } from '../stores/manager';
+import { getPromptKey, useManagerStore } from '../stores/manager';
 import { useHistoryStore } from '../stores/history';
 import { getPromptRelation, getPromptRelationLabel, type PromptRelation } from '../utils/promptRelations';
+import { isOfficialPromptDeletable, isOfficialRestorableSystemPrompt } from '../utils/officialPromptManager';
 
 const props = defineProps<{
   panelId: 'main' | 'second';
@@ -116,7 +122,7 @@ const emptyPrompt: PresetPrompt = { id: '', name: '', enabled: false, role: 'sys
 
 const presetNames = computed(() => store.presetNames);
 const prompts = ref<PresetPrompt[]>([]);
-const promptListKey = computed(() => `${props.panelId}:${selectedPreset.value}:${prompts.value.length}:${prompts.value.map(p => `${p.id}:${p.enabled}`).join('|')}`);
+const promptListKey = computed(() => `${props.panelId}:${selectedPreset.value}:${prompts.value.length}:${prompts.value.map(p => `${getPromptKey(p)}:${p.enabled}`).join('|')}`);
 
 function syncPromptsFromStore() {
   prompts.value = props.panelId === 'main' ? [...store.mainPrompts] : [...store.secondPrompts];
@@ -147,7 +153,19 @@ function relationLabel(prompt: PresetPrompt) {
 }
 
 function isFavorited(prompt: PresetPrompt): boolean {
-  return props.favoritedIds?.has(prompt.id) ?? false;
+  return props.favoritedIds?.has(getPromptKey(prompt)) ?? false;
+}
+
+function canDeletePrompt(prompt: PresetPrompt) {
+  return isOfficialPromptDeletable(prompt as any);
+}
+
+function canRestoreDefaultPrompt(prompt: PresetPrompt) {
+  return isOfficialRestorableSystemPrompt(prompt as any);
+}
+
+function canTransferPromptToOther(prompt: PresetPrompt) {
+  return canTransferToOther.value && canDeletePrompt(prompt);
 }
 
 function openEditor(prompt: PresetPrompt) {
@@ -222,14 +240,33 @@ async function recordTargetPresetChange(targetPanel: 'main' | 'second', descript
 }
 
 function normalizePrompt(prompt: PresetPrompt): PresetNormalPrompt {
-  return {
-    id: prompt.id,
+  const promptKey = getPromptKey(prompt) || prompt.id;
+  const normalized = {
+    ...klona(prompt as any),
+    id: prompt.id || promptKey,
+    identifier: promptKey,
     name: prompt.name,
     enabled: prompt.enabled ?? true,
-    position: (prompt as any).position ?? { type: 'relative' as const },
     role: prompt.role,
     content: (prompt as any).content ?? '',
   };
+  normalized.position = normalized.position ?? (
+    normalized.injection_position === 1
+      ? {
+          type: 'in_chat' as const,
+          depth: normalized.injection_depth ?? 4,
+          order: normalized.injection_order ?? 100,
+        }
+      : { type: 'relative' as const }
+  );
+  normalized.injection_position = normalized.injection_position
+    ?? (normalized.position?.type === 'in_chat' ? 1 : 0);
+  normalized.injection_depth = normalized.injection_depth ?? normalized.position?.depth ?? 4;
+  normalized.injection_order = normalized.injection_order ?? normalized.position?.order ?? 100;
+  normalized.injection_trigger = Array.isArray(normalized.injection_trigger) ? normalized.injection_trigger : [];
+  normalized.forbid_overrides = Boolean(normalized.forbid_overrides);
+
+  return normalized as PresetNormalPrompt;
 }
 
 function getDragData(e: DragEvent) {
@@ -324,13 +361,13 @@ async function togglePromptEnabled(prompt: PresetPrompt) {
   if (isPresetPlaceholderPrompt(prompt)) return;
   const nextEnabled = !(prompt.enabled ?? true);
   const ok = await recordPresetChange(`${nextEnabled ? '启用' : '禁用'}条目: ${prompt.name}`, async () => {
-    await store.updatePromptInPreset(prompt.id, { enabled: nextEnabled }, props.panelId);
+    await store.updatePromptInPreset(getPromptKey(prompt), { enabled: nextEnabled }, props.panelId);
   });
   if (ok) toastr.info(nextEnabled ? '条目已启用' : '条目已禁用', '', { timeOut: 1200 });
 }
 
 async function copyPromptToOther(prompt: PresetPrompt) {
-  if (isPresetPlaceholderPrompt(prompt) || !canTransferToOther.value) return;
+  if (!canTransferPromptToOther(prompt)) return;
   if (!confirmRelation(prompt, `复制到${otherPanelLabel.value}`)) return;
 
   const targetPanel = otherPanelId();
@@ -342,7 +379,10 @@ async function copyPromptToOther(prompt: PresetPrompt) {
 }
 
 async function movePromptToOther(prompt: PresetPrompt) {
-  if (isPresetPlaceholderPrompt(prompt) || !canTransferToOther.value) return;
+  if (!canTransferPromptToOther(prompt)) {
+    toastr.warning('系统条目或占位条目不能迁移', '', { timeOut: 1600 });
+    return;
+  }
   if (!confirmRelation(prompt, `迁移到${otherPanelLabel.value}`)) return;
   if (!confirm(`确定将 "${prompt.name}" 迁移到${otherPanelLabel.value}吗？原预设中的该条目会被移除。`)) return;
 
@@ -355,7 +395,7 @@ async function movePromptToOther(prompt: PresetPrompt) {
   const targetBefore = snapshotPreset(targetName);
 
   await store.insertPromptToPreset(normalizePrompt(prompt), targetPanel);
-  await store.removePromptFromPreset(prompt.id, props.panelId);
+  await store.deletePromptEverywhere(getPromptKey(prompt), props.panelId);
 
   const sourceAfter = snapshotPreset(sourceName);
   const targetAfter = snapshotPreset(targetName);
@@ -367,12 +407,26 @@ async function movePromptToOther(prompt: PresetPrompt) {
   toastr.success(`已迁移 "${prompt.name}" 到${otherPanelLabel.value}`, '', { timeOut: 1600 });
 }
 
+async function detachPrompt(prompt: PresetPrompt) {
+  if (!canDeletePrompt(prompt)) return;
+  if (!confirm(`确定将 "${prompt.name}" 移出当前列表吗？它会保留在未使用条目中。`)) return;
+
+  const ok = await recordPresetChange(`移出列表: ${prompt.name}`, async () => {
+    return store.detachPromptFromPreset(getPromptKey(prompt), props.panelId);
+  });
+  if (ok) {
+    if (getPromptKey(editingPrompt.value) === getPromptKey(prompt)) editingPrompt.value = null;
+    if (getPromptKey(zoomPrompt.value) === getPromptKey(prompt)) zoomPrompt.value = null;
+    toastr.info('已移出列表，可从未使用条目中重新添加', '', { timeOut: 1600 });
+  }
+}
+
 async function savePromptEdits(updates: Partial<PresetPrompt>) {
   const prompt = editingPrompt.value;
   if (!prompt || isPresetPlaceholderPrompt(prompt)) return;
 
   const ok = await recordPresetChange(`编辑条目: ${prompt.name}`, async () => {
-    await store.updatePromptInPreset(prompt.id, updates, props.panelId);
+    await store.updatePromptInPreset(getPromptKey(prompt), updates, props.panelId);
   });
   if (ok) {
     editingPrompt.value = null;
@@ -381,17 +435,35 @@ async function savePromptEdits(updates: Partial<PresetPrompt>) {
   }
 }
 
-async function deletePrompt(prompt: PresetPrompt) {
-  if (isPresetPlaceholderPrompt(prompt)) return;
-  if (!confirm(`确定删除条目 "${prompt.name}" 吗？可以通过撤销恢复。`)) return;
+async function restoreSystemPromptDefault(prompt: PresetPrompt) {
+  if (!canRestoreDefaultPrompt(prompt)) return;
+  if (!confirm(`确定将 "${prompt.name}" 恢复为官方默认内容吗？当前启用状态会保留。`)) return;
 
-  const ok = await recordPresetChange(`删除条目: ${prompt.name}`, async () => {
-    await store.removePromptFromPreset(prompt.id, props.panelId);
+  const ok = await recordPresetChange(`恢复默认系统条目: ${prompt.name}`, async () => {
+    return store.restoreSystemPromptDefault(getPromptKey(prompt), props.panelId);
   });
   if (ok) {
-    if (editingPrompt.value?.id === prompt.id) editingPrompt.value = null;
-    if (zoomPrompt.value?.id === prompt.id) zoomPrompt.value = null;
+    if (getPromptKey(editingPrompt.value) === getPromptKey(prompt)) editingPrompt.value = null;
+    if (getPromptKey(zoomPrompt.value) === getPromptKey(prompt)) zoomPrompt.value = null;
+    toastr.success('系统条目已恢复默认内容', '', { timeOut: 1400 });
+  } else {
+    toastr.warning('未找到可恢复的官方默认内容', '', { timeOut: 1600 });
+  }
+}
+
+async function deletePrompt(prompt: PresetPrompt) {
+  if (!canDeletePrompt(prompt)) return;
+  if (!confirm(`确定彻底删除条目 "${prompt.name}" 吗？系统条目和占位条目不能彻底删除，可以通过撤销恢复。`)) return;
+
+  const ok = await recordPresetChange(`删除条目: ${prompt.name}`, async () => {
+    return store.deletePromptEverywhere(getPromptKey(prompt), props.panelId);
+  });
+  if (ok) {
+    if (getPromptKey(editingPrompt.value) === getPromptKey(prompt)) editingPrompt.value = null;
+    if (getPromptKey(zoomPrompt.value) === getPromptKey(prompt)) zoomPrompt.value = null;
     toastr.info('条目已删除', '', { timeOut: 1400 });
+  } else {
+    toastr.warning('系统条目或占位条目不能彻底删除', '', { timeOut: 1600 });
   }
 }
 
@@ -420,6 +492,10 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.preset-panel {
+  position: relative;
+  overflow: hidden;
+}
 .panel-header {
   min-height: 42px;
   display: flex;

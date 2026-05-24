@@ -2,21 +2,82 @@ import { createApp } from 'vue';
 import { createScriptIdIframe, teleportStyle } from '@util/script';
 import App from './App.vue';
 import { CODEX_REFERENCE_METRICS } from './designMetrics';
+import { startParentDrag } from './utils/drag';
+import { getInstanceStorageKey, resolvePresetManagerInstance, type PresetManagerInstanceConfig } from './utils/instanceConfig';
 
 let $iframe: JQuery<HTMLIFrameElement> | null = null;
 let $floatingBtn: JQuery<HTMLDivElement> | null = null;
 let app: ReturnType<typeof createApp> | null = null;
 let styleCleanup: (() => void) | null = null;
+const instance = resolvePresetManagerInstance(readScriptName());
+const FLOATING_BUTTON_SIZE = 48;
+const FLOATING_BUTTON_MARGIN = 8;
 
-function createFloatingButton() {
+type FloatingButtonPosition = { left: number; top: number };
+
+function readScriptName() {
+  try {
+    return getScriptName();
+  } catch {
+    return '';
+  }
+}
+
+function getViewport(parentDoc: Document) {
+  return {
+    width: parentDoc.documentElement.clientWidth || parentDoc.defaultView?.innerWidth || 0,
+    height: parentDoc.documentElement.clientHeight || parentDoc.defaultView?.innerHeight || 0,
+  };
+}
+
+function clampFloatingButtonPosition(parentDoc: Document, position: FloatingButtonPosition): FloatingButtonPosition {
+  const viewport = getViewport(parentDoc);
+  const maxLeft = Math.max(FLOATING_BUTTON_MARGIN, viewport.width - FLOATING_BUTTON_SIZE - FLOATING_BUTTON_MARGIN);
+  const maxTop = Math.max(FLOATING_BUTTON_MARGIN, viewport.height - FLOATING_BUTTON_SIZE - FLOATING_BUTTON_MARGIN);
+
+  return {
+    left: Math.max(FLOATING_BUTTON_MARGIN, Math.min(position.left, maxLeft)),
+    top: Math.max(FLOATING_BUTTON_MARGIN, Math.min(position.top, maxTop)),
+  };
+}
+
+function getDefaultFloatingButtonPosition(parentDoc: Document, config: PresetManagerInstanceConfig) {
+  const viewport = getViewport(parentDoc);
+  return clampFloatingButtonPosition(parentDoc, {
+    left: viewport.width - FLOATING_BUTTON_SIZE - config.defaultPosition.right,
+    top: viewport.height - FLOATING_BUTTON_SIZE - config.defaultPosition.bottom,
+  });
+}
+
+function readFloatingButtonPosition(parentDoc: Document, config: PresetManagerInstanceConfig) {
+  try {
+    const raw = localStorage.getItem(getInstanceStorageKey(config.key, 'FloatingButton'));
+    if (!raw) return getDefaultFloatingButtonPosition(parentDoc, config);
+    const saved = JSON.parse(raw) as FloatingButtonPosition;
+    if (!Number.isFinite(saved.left) || !Number.isFinite(saved.top)) return getDefaultFloatingButtonPosition(parentDoc, config);
+    return clampFloatingButtonPosition(parentDoc, saved);
+  } catch {
+    return getDefaultFloatingButtonPosition(parentDoc, config);
+  }
+}
+
+function saveFloatingButtonPosition(config: PresetManagerInstanceConfig, position: FloatingButtonPosition) {
+  localStorage.setItem(getInstanceStorageKey(config.key, 'FloatingButton'), JSON.stringify(position));
+}
+
+function createFloatingButton(config: PresetManagerInstanceConfig) {
+  const parentDoc = window.parent.document;
+  const initialPosition = readFloatingButtonPosition(parentDoc, config);
   const $btn = $<HTMLDivElement>('<div>')
     .attr('script_id', getScriptId())
+    .attr('data-preset-manager-instance', config.key)
+    .attr('title', config.label)
     .css({
       position: 'fixed',
-      bottom: '80px',
-      right: '20px',
-      width: '48px',
-      height: '48px',
+      top: `${initialPosition.top}px`,
+      left: `${initialPosition.left}px`,
+      width: `${FLOATING_BUTTON_SIZE}px`,
+      height: `${FLOATING_BUTTON_SIZE}px`,
       borderRadius: '50%',
       background: '#0a0a0a',
       color: '#f7f7f5',
@@ -31,7 +92,7 @@ function createFloatingButton() {
       transition: 'transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease',
       userSelect: 'none',
     })
-    .html('<i class="fas fa-sliders-h"></i>')
+    .html(`<i class="fas ${config.iconClass}"></i>`)
     .on('mouseenter', function () {
       $(this).css({ transform: 'scale(1.06)', boxShadow: '0 18px 46px rgba(0,0,0,0.42)', background: '#161616' });
     })
@@ -43,39 +104,44 @@ function createFloatingButton() {
   let isDragging = false;
   let dragStartPos = { x: 0, y: 0 };
   let btnStartPos = { x: 0, y: 0 };
-  const parentDoc = window.parent.document;
 
   $btn.on('mousedown', (e: JQuery.Event) => {
     const evt = (e as any).originalEvent as MouseEvent;
+    evt.preventDefault();
     dragStartPos = { x: evt.clientX, y: evt.clientY };
     const rect = $btn[0].getBoundingClientRect();
     btnStartPos = { x: rect.left, y: rect.top };
     isDragging = false;
 
-    const onMouseMove = (ev: MouseEvent) => {
-      const dx = ev.clientX - dragStartPos.x;
-      const dy = ev.clientY - dragStartPos.y;
-      if (!isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
-        isDragging = true;
-        $btn.css({ transition: 'none' });
-      }
-      if (isDragging) {
-        $btn.css({ left: `${btnStartPos.x + dx}px`, top: `${btnStartPos.y + dy}px`, right: 'auto', bottom: 'auto' });
-      }
-    };
+    startParentDrag(parentDoc, {
+      startEvent: evt,
+      cursor: 'move',
+      onMove: ev => {
+        const dx = ev.clientX - dragStartPos.x;
+        const dy = ev.clientY - dragStartPos.y;
+        if (!isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+          isDragging = true;
+          $btn.css({ transition: 'none' });
+        }
+        if (!isDragging) return;
 
-    const onMouseUp = () => {
-      (parentDoc as any).removeEventListener('mousemove', onMouseMove);
-      (parentDoc as any).removeEventListener('mouseup', onMouseUp);
-      $btn.css({ transition: 'transform 0.15s ease, box-shadow 0.15s ease' });
-      if (!isDragging) {
-        togglePanel();
-      }
-      isDragging = false;
-    };
-
-    (parentDoc as any).addEventListener('mousemove', onMouseMove);
-    (parentDoc as any).addEventListener('mouseup', onMouseUp);
+        const nextPosition = clampFloatingButtonPosition(parentDoc, {
+          left: btnStartPos.x + dx,
+          top: btnStartPos.y + dy,
+        });
+        $btn.css({ left: `${nextPosition.left}px`, top: `${nextPosition.top}px`, right: 'auto', bottom: 'auto' });
+      },
+      onEnd: () => {
+        $btn.css({ transition: 'transform 0.15s ease, box-shadow 0.15s ease' });
+        if (!isDragging) {
+          togglePanel();
+        } else {
+          const nextRect = $btn[0].getBoundingClientRect();
+          saveFloatingButtonPosition(config, clampFloatingButtonPosition(parentDoc, { left: nextRect.left, top: nextRect.top }));
+        }
+        isDragging = false;
+      },
+    });
   });
 
   return $btn;
@@ -121,15 +187,21 @@ function togglePanel() {
     app = createApp(App);
     app.provide('parentDocument', window.parent.document);
     app.provide('iframeElement', $iframe![0]);
+    app.provide('presetManagerInstanceKey', instance.key);
+    app.provide('presetManagerInstanceLabel', instance.label);
     app.mount(mountEl);
   });
 }
 
 $(() => {
-  appendInexistentScriptButtons([{ name: '预设管理器', visible: true }]);
-  eventOn(getButtonEvent('预设管理器'), () => togglePanel());
+  updateScriptButtonsWith(buttons => {
+    const nextButtons = instance.key === 'default' ? buttons : buttons.filter(button => button.name !== '预设管理器');
+    if (nextButtons.some(button => button.name === instance.buttonName)) return nextButtons;
+    return [...nextButtons, { name: instance.buttonName, visible: true }];
+  });
+  eventOn(getButtonEvent(instance.buttonName), () => togglePanel());
 
-  $floatingBtn = createFloatingButton();
+  $floatingBtn = createFloatingButton(instance);
 
   $(window).on('pagehide', () => {
     styleCleanup?.();

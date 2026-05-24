@@ -29,6 +29,8 @@ package.json.tmp
 !/docs/
 /docs/*
 !/docs/roadmap.md
+!/docs/ai-knowledge/
+!/docs/ai-knowledge/*.md
 !/docs/archive/
 /docs/archive/*
 !/docs/archive/README.md

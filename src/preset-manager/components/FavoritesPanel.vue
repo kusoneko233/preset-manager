@@ -1,9 +1,7 @@
 <template>
   <div class="favorites-panel flex flex-col h-full">
     <div class="panel-title flex items-center justify-between px-3 py-2">
-      <span class="panel-label">
-        <i class="fas fa-star" /> 收藏夹
-      </span>
+      <span class="panel-label">收藏</span>
       <button class="add-btn" title="新建收藏夹" @click="store.addFavoriteFolder()">
         <i class="fas fa-plus text-xs" />
       </button>
@@ -51,9 +49,11 @@ function confirmDelete(folder: FavFolderType) {
   align-items: center;
   gap: 7px;
   color: var(--pm-text-subtle);
-  font-size: 12px;
-  font-weight: 640;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   line-height: 1;
+  text-transform: uppercase;
 }
 .add-btn {
   width: 28px;

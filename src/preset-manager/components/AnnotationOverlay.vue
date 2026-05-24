@@ -10,48 +10,57 @@
   >
     <div ref="toolbarRef" class="annotation-toolbar" :class="{ collapsed: toolbarCollapsed }" :style="toolbarStyle" @pointerdown.stop>
       <button class="anno-btn drag-handle" title="拖动工具栏" @pointerdown.prevent="onToolbarDragStart">
-        <i class="fas fa-grip-lines text-xs" />
+        <i class="fas fa-grip-lines text-[10px]" />
       </button>
       <template v-if="!toolbarCollapsed">
-        <button v-for="option in toolOptions" :key="option.kind" class="anno-btn" :class="{ active: tool === option.kind }" :title="option.title" @click="tool = option.kind">
-          <i :class="['fas', option.icon, 'text-xs']" />
-        </button>
+        <div class="anno-group">
+          <button v-for="option in toolOptions" :key="option.kind" class="anno-btn" :class="{ active: tool === option.kind }" :title="option.title" @click="tool = option.kind">
+            <i :class="['fas', option.icon, 'text-[10px]']" />
+          </button>
+        </div>
         <div class="anno-separator" />
-        <button
-          v-for="colorOption in ANNOTATION_COLORS"
-          :key="colorOption.name"
-          class="anno-color-btn"
-          :class="{ active: currentColor.name === colorOption.name }"
-          :title="colorOption.label"
-          :aria-label="`选择${colorOption.label}`"
-          @click="currentColor = colorOption"
-        >
-          <span :style="{ background: colorOption.value }" />
-        </button>
+        <div class="anno-group">
+          <button
+            v-for="colorOption in ANNOTATION_COLORS"
+            :key="colorOption.name"
+            class="anno-color-btn"
+            :class="{ active: currentColor.name === colorOption.name }"
+            :title="colorOption.label"
+            :aria-label="`选择${colorOption.label}`"
+            @click="currentColor = colorOption"
+          >
+            <span :style="{ background: colorOption.value }" />
+          </button>
+        </div>
         <div class="anno-separator" />
-        <button class="anno-btn text-size-btn" title="文字变小" @click="changeTextSize(-2)">
-          <span>A-</span>
-        </button>
-        <span class="text-size-label" :title="`当前文字大小 ${currentTextSize}px`">{{ currentTextSize }}</span>
-        <button class="anno-btn text-size-btn" title="文字变大" @click="changeTextSize(2)">
-          <span>A+</span>
-        </button>
+        <div class="anno-group">
+          <button class="anno-btn text-size-btn" title="文字变小" @click="changeTextSize(-2)">
+            <span>A-</span>
+          </button>
+          <span class="text-size-label" :title="`当前文字大小 ${currentTextSize}px`">{{ currentTextSize }}</span>
+          <button class="anno-btn text-size-btn" title="文字变大" @click="changeTextSize(2)">
+            <span>A+</span>
+          </button>
+        </div>
         <div class="anno-separator" />
-        <button class="anno-btn" title="复制批注信息" @click="copyAnnotations">
-          <i class="fas fa-copy text-xs" />
-        </button>
-        <button class="anno-btn" title="撤销上一条批注" :disabled="!items.length" @click="undoAnnotation">
-          <i class="fas fa-undo text-xs" />
-        </button>
-        <button class="anno-btn" title="清除批注" :disabled="!items.length" @click="clearAnnotations">
-          <i class="fas fa-trash text-xs" />
-        </button>
+        <div class="anno-group">
+          <button class="anno-btn" title="复制批注信息" @click="copyAnnotations">
+            <i class="fas fa-copy text-[10px]" />
+          </button>
+          <button class="anno-btn" title="撤销上一条批注" :disabled="!items.length" @click="undoAnnotation">
+            <i class="fas fa-undo text-[10px]" />
+          </button>
+          <button class="anno-btn" title="清除批注" :disabled="!items.length" @click="clearAnnotations">
+            <i class="fas fa-trash text-[10px]" />
+          </button>
+        </div>
+        <div class="anno-separator" />
       </template>
-      <button class="anno-btn" title="关闭批注模式 Esc" @click="emit('close')">
-        <i class="fas fa-times text-xs" />
-      </button>
       <button class="anno-btn" :title="toolbarCollapsed ? '展开工具栏' : '折叠工具栏'" @click="toolbarCollapsed = !toolbarCollapsed">
-        <i :class="['fas', toolbarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left', 'text-xs']" />
+        <i :class="['fas', toolbarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left', 'text-[10px]']" />
+      </button>
+      <button class="anno-btn close-btn" title="关闭批注模式 Esc" @click="emit('close')">
+        <i class="fas fa-times text-[10px]" />
       </button>
     </div>
 
@@ -752,21 +761,27 @@ function clampToolbarToViewport() {
   display: flex;
   gap: 4px;
   align-items: center;
-  padding: 4px;
-  border: 1px solid var(--pm-border-strong);
+  padding: 4px 6px;
+  border: 1px solid var(--pm-border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--pm-ai-capsule) 88%, transparent);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(20px);
+  background: var(--pm-ai-surface);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
 }
 .annotation-toolbar.collapsed {
-  gap: 3px;
-  padding: 3px;
+  gap: 2px;
+  padding: 3px 4px;
+}
+.anno-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 .anno-btn,
 .anno-color-btn {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -775,24 +790,53 @@ function clampToolbarToViewport() {
   background: transparent;
   color: var(--pm-text-muted);
   cursor: pointer;
+  transition: background 0.12s, color 0.12s;
 }
-.anno-btn i {
-  font-size: 11px;
+.anno-btn:hover,
+.anno-color-btn:hover {
+  color: var(--pm-text);
+  background: var(--pm-btn-hover);
+}
+.anno-btn.active {
+  color: var(--pm-text);
+  background: var(--pm-btn-active);
+}
+.anno-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 .anno-btn span {
   font-size: 10px;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1;
 }
+.anno-separator {
+  width: 1px;
+  height: 14px;
+  margin: 0 2px;
+  background: var(--pm-divider);
+}
 .text-size-btn {
-  width: 28px;
+  width: 24px;
 }
 .text-size-label {
   min-width: 18px;
   color: var(--pm-text-muted);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   text-align: center;
+}
+.anno-color-btn span {
+  width: 12px;
+  height: 12px;
+  display: block;
+  border-radius: 50%;
+}
+.anno-color-btn.active {
+  background: var(--pm-btn-active);
+}
+.close-btn:hover {
+  color: var(--pm-danger);
 }
 .drag-handle {
   cursor: grab;
@@ -800,29 +844,9 @@ function clampToolbarToViewport() {
 .drag-handle:active {
   cursor: grabbing;
 }
-.anno-btn:hover:not(:disabled),
-.anno-btn.active,
-.anno-color-btn:hover,
-.anno-color-btn.active {
-  border-color: var(--pm-border-strong);
-  background: var(--pm-bg-hover);
-  color: var(--pm-text);
-}
 .anno-color-btn span {
-  width: 12px;
-  height: 12px;
   border: 1px solid rgba(0, 0, 0, 0.28);
-  border-radius: 999px;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
-}
-.anno-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-.anno-separator {
-  width: 1px;
-  height: 14px;
-  background: var(--pm-divider);
 }
 .annotation-canvas {
   width: 100%;

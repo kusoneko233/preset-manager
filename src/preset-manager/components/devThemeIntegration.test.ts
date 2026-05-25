@@ -59,8 +59,8 @@ expectIncludes(titleBar, 'clampWindowStateWithVisibleArea');
 expectIncludes(titleBar, "inject<number>('presetManagerWindowMinVisibleRatio', 0.1)");
 expectIncludes(titleBar, '开发者背景面板');
 expectIncludes(titleBar, '开发者检查器');
-expectIncludes(titleBar, 'fa-palette');
-expectIncludes(titleBar, 'fa-crosshairs');
+expectIncludes(titleBar, 'IconButton name="palette"');
+expectIncludes(titleBar, 'IconButton name="crosshair"');
 expectIncludes(titleBar, '@mousedown.stop="onDragStart"');
 expectNotIncludes(titleBar, '@mousedown.stop.prevent="onDragStart"');
 

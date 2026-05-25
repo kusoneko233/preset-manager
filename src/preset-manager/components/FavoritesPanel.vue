@@ -1,21 +1,20 @@
 <template>
-  <div class="favorites-panel flex flex-col h-full">
-    <div class="panel-title flex items-center justify-between px-3 py-2">
-      <span class="panel-label">收藏</span>
-      <button class="add-btn" title="新建收藏夹" @click="store.addFavoriteFolder()">
-        <i class="fas fa-plus text-xs" />
-      </button>
+  <div class="favorites-panel">
+    <div class="sidebar-section-head">
+      <span class="sidebar-section-kicker">收藏</span>
+      <IconButton name="plus" size="sm" title="新建收藏夹" @click="store.addFavoriteFolder()" />
     </div>
 
-    <div class="folder-list flex-1 overflow-y-auto">
+    <div class="folder-list">
       <div v-if="!folders.length" class="empty-hint">
-        点击 + 新建收藏夹
+        <Icon name="bookmark" :size="14" />
+        <span>点击 + 新建收藏夹</span>
       </div>
       <FavoriteFolder
         v-for="folder in folders"
         :key="folder.id"
         :folder="folder"
-        class="mb-1"
+        class="folder-entry"
         @delete="confirmDelete(folder)"
       />
     </div>
@@ -23,6 +22,8 @@
 </template>
 
 <script setup lang="ts">
+import Icon from './Icon.vue';
+import IconButton from './IconButton.vue';
 import FavoriteFolder from './FavoriteFolder.vue';
 import { useManagerStore, type FavoriteFolder as FavFolderType } from '../stores/manager';
 
@@ -39,47 +40,44 @@ function confirmDelete(folder: FavFolderType) {
 </script>
 
 <style scoped>
-.panel-title {
-  min-height: 32px;
-  padding: 7px 4px 6px !important;
-  border-bottom: 0;
+.favorites-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
-.panel-label {
-  display: inline-flex;
+.sidebar-section-head {
+  display: flex;
   align-items: center;
-  gap: 7px;
+  justify-content: space-between;
+  min-height: 32px;
+  padding: 4px 4px 6px;
+}
+.sidebar-section-kicker {
   color: var(--pm-text-subtle);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   line-height: 1;
   text-transform: uppercase;
 }
-.add-btn {
-  width: 28px;
-  height: 28px;
+.folder-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2px 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.empty-hint {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--pm-text-muted);
-  cursor: pointer;
-  transition: all 0.12s;
-}
-.add-btn:hover {
-  background: var(--pm-bg-hover);
-  color: var(--pm-text);
-  border-color: var(--pm-border);
-}
-.folder-list {
-  padding: 0 1px 8px;
-}
-.empty-hint {
+  gap: 8px;
   padding: 14px 8px;
-  color: var(--pm-text-subtle);
+  color: var(--pm-text-faint);
   font-size: 12px;
-  text-align: center;
+}
+.folder-entry {
+  margin: 0;
 }
 </style>

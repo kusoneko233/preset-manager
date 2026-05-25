@@ -34,13 +34,14 @@
 
     <div class="config-row">
       <button class="clear-btn" @click="ai.clearMessages()">
-        <i class="fas fa-trash-alt mr-1" /> 清空对话
+        <Icon name="trash-2" :size="12" /> 清空对话
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import Icon from './Icon.vue';
 import { useAiStore } from '../stores/ai';
 
 const ai = useAiStore();

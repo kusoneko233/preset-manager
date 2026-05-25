@@ -17,20 +17,20 @@
 
             <div class="overlay-topline">
               <button class="ai-btn" title="收起 AI 助手" @click="collapseDrawer">
-                <i class="fas fa-chevron-down text-xs" />
+                <Icon name="chevron-down" :size="13" />
               </button>
               <button class="ai-btn" title="脱出为独立窗口" @click="detach">
-                <i class="fas fa-external-link-alt text-xs" />
+                <Icon name="external-link" :size="13" />
               </button>
               <button class="ai-btn" title="设置" @click="ai.showConfig = !ai.showConfig">
-                <i class="fas fa-cog text-xs" />
+                <Icon name="settings-2" :size="13" />
               </button>
             </div>
 
             <AiConfig v-if="ai.showConfig && !isDrawerCompact" />
 
             <div ref="messagesRef" class="messages-area">
-              <div v-if="!ai.messages.length" class="empty-ai text-slate-600 text-xs">
+              <div v-if="!ai.messages.length" class="empty-ai text-xs text-slate-600">
                 询问预设结构、条目顺序或提示词问题。
               </div>
               <div v-for="msg in ai.messages" :key="msg.id" class="ai-message" :class="msg.role">
@@ -53,20 +53,20 @@
                 @keydown.enter="send"
               />
               <button class="tool-pill icon-only floating-detach" title="独立小窗" @click="detach">
-                <i class="fas fa-external-link-alt text-xs" />
+                <Icon name="external-link" :size="13" />
               </button>
             </div>
 
             <div class="input-tool-row">
               <button class="tool-pill icon-only settings-trigger" title="AI 设置" @click="ai.showConfig = !ai.showConfig">
-                <i class="fas fa-cog text-xs" />
+                <Icon name="settings-2" :size="13" />
               </button>
               <button class="model-pill" title="AI 模型设置" @click="ai.showConfig = !ai.showConfig">
                 <span>{{ modelLabel }}</span>
-                <i class="fas fa-chevron-down text-xs" />
+                <Icon name="chevron-down" :size="12" />
               </button>
               <button class="send-btn" :disabled="!inputText.trim() || ai.isGenerating" @click="send">
-                <i class="fas fa-arrow-up text-xs" />
+                <Icon name="arrow-up" :size="14" :stroke-width="2" />
               </button>
             </div>
           </div>
@@ -89,14 +89,14 @@
       >
         <div class="ai-header" @mousedown.prevent="onDetachedDrag">
           <span class="detached-title">
-            <i class="fas fa-sparkles text-xs" /> AI
+            <Icon name="sparkles" :size="13" /> AI
           </span>
           <div class="ai-actions">
             <button class="ai-btn" title="收回到底部" @click="dock">
-              <i class="fas fa-compress-arrows-alt text-xs" />
+              <Icon name="minimize" :size="13" />
             </button>
             <button class="ai-btn" title="设置" @click="ai.showConfig = !ai.showConfig">
-              <i class="fas fa-cog text-xs" />
+              <Icon name="settings-2" :size="13" />
             </button>
           </div>
         </div>
@@ -104,7 +104,7 @@
         <AiConfig v-if="ai.showConfig" />
 
         <div ref="detachedMsgRef" class="messages-area">
-          <div v-if="!ai.messages.length" class="empty-ai text-slate-600 text-xs">
+          <div v-if="!ai.messages.length" class="empty-ai text-xs text-slate-600">
             输入消息开始对话。
           </div>
           <div v-for="msg in ai.messages" :key="msg.id" class="ai-message" :class="msg.role">
@@ -125,7 +125,7 @@
             @keydown.enter="send"
           />
           <button class="send-btn" :disabled="!inputText.trim() || ai.isGenerating" @click="send">
-            <i class="fas fa-arrow-up text-xs" />
+            <Icon name="arrow-up" :size="14" :stroke-width="2" />
           </button>
         </div>
       </div>
@@ -134,6 +134,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from './Icon.vue';
 import { useAiStore } from '../stores/ai';
 import { useManagerStore } from '../stores/manager';
 import AiConfig from './AiConfig.vue';

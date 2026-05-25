@@ -5,19 +5,27 @@
     @dragleave="onDragLeave"
     @drop.prevent="onDrop"
   >
-    <div v-if="panelId !== 'main'" class="panel-header">
-      <div class="preset-path">
-        <span class="panel-kicker">第二预设</span>
-        <div class="preset-select-wrap">
-          <select v-model="selectedPreset" class="preset-select" @change="onPresetChange">
-            <option value="" disabled>选择预设...</option>
+    <header v-if="panelId === 'main'" class="preset-panel-head">
+      <div class="preset-panel-head-text">
+        <span class="preset-panel-kicker">主预设</span>
+        <h3 class="preset-panel-title">{{ store.presetName || '未选择预设' }}</h3>
+      </div>
+      <span v-if="prompts.length" class="preset-panel-count">{{ prompts.length }} 条</span>
+    </header>
+
+    <header v-else class="preset-panel-head">
+      <div class="preset-panel-head-text">
+        <span class="preset-panel-kicker">第二预设</span>
+        <div class="preset-panel-select-wrap">
+          <select v-model="selectedPreset" class="preset-panel-select" @change="onPresetChange">
+            <option value="" disabled>选择预设…</option>
             <option v-for="name in presetNames" :key="name" :value="name">{{ name }}</option>
           </select>
-          <i class="fas fa-chevron-down text-xs" />
+          <Icon name="chevron-down" :size="12" class="preset-panel-select-chevron" />
         </div>
       </div>
-      <span class="prompt-count">{{ prompts.length }} 条</span>
-    </div>
+      <span v-if="prompts.length" class="preset-panel-count">{{ prompts.length }} 条</span>
+    </header>
 
     <div
       :key="promptListKey"
@@ -26,8 +34,8 @@
       @dragover.prevent="onListDragOver"
     >
       <div v-if="!prompts.length" class="empty-state">
-        <i class="fas fa-inbox mb-2 text-2xl text-slate-600" />
-        <div class="text-xs text-slate-500">{{ selectedPreset ? '预设为空' : '请选择预设' }}</div>
+        <Icon name="file-text" :size="22" class="empty-state-icon" />
+        <div class="empty-state-text">{{ selectedPreset || panelId === 'main' ? '预设为空' : '请选择预设' }}</div>
       </div>
 
       <div
@@ -91,6 +99,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from './Icon.vue';
 import PromptItem from './PromptItem.vue';
 import PromptDetailOverlay from './PromptDetailOverlay.vue';
 import PromptEditDialog from './PromptEditDialog.vue';
@@ -496,76 +505,97 @@ onMounted(() => {
   position: relative;
   overflow: hidden;
 }
-.panel-header {
-  min-height: 42px;
+.preset-panel-head {
+  min-height: 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 7px 14px 6px;
-  border-bottom: 1px solid var(--pm-divider);
-  background: color-mix(in srgb, var(--pm-bg-soft) 32%, transparent);
+  padding: 10px 16px 6px;
+  background: transparent;
 }
-.preset-path {
+.preset-panel-head-text {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
 }
-.panel-kicker {
+.preset-panel-kicker {
   flex-shrink: 0;
   color: var(--pm-text-subtle);
   font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
 }
-.preset-select-wrap {
+.preset-panel-title {
+  margin: 0;
+  min-width: 0;
+  color: var(--pm-text);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.preset-panel-select-wrap {
   position: relative;
   min-width: 0;
   display: flex;
   align-items: center;
 }
-.preset-select-wrap i {
-  position: absolute;
-  right: 2px;
-  color: var(--pm-text-subtle);
-  pointer-events: none;
-}
-.preset-select {
+.preset-panel-select {
   width: min(420px, 52vw);
   min-width: 160px;
-  height: 28px;
-  padding: 0 20px 0 0;
+  height: 24px;
+  padding: 0 22px 0 0;
   border: 0;
-  border-radius: 0;
   background: transparent;
   color: var(--pm-text);
-  font-size: 13px;
-  font-weight: 620;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
   outline: none;
   cursor: pointer;
   appearance: none;
 }
-.preset-select:focus {
-  color: var(--pm-accent);
+.preset-panel-select-chevron {
+  position: absolute;
+  right: 4px;
+  color: var(--pm-text-subtle);
+  pointer-events: none;
 }
-.preset-select option {
+.preset-panel-select option {
   background: var(--pm-bg-elevated);
   color: var(--pm-text);
 }
-.prompt-count {
+.preset-panel-count {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--pm-border);
+  border-radius: 999px;
   color: var(--pm-text-subtle);
-  font-size: 11px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
 }
 .prompt-list {
-  padding: 4px 10px 10px;
+  padding: 4px 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 0;
-  transition: background 0.15s;
+  gap: 2px;
+  transition: background 0.15s ease;
   background: transparent;
 }
 .prompt-list.drop-target {
-  background: color-mix(in srgb, var(--pm-accent) 6%, var(--pm-bg));
+  background: color-mix(in srgb, var(--pm-accent) 5%, var(--pm-bg));
   outline: 1px dashed var(--pm-border-strong);
   outline-offset: -2px;
   border-radius: 10px;
@@ -581,13 +611,13 @@ onMounted(() => {
 .prompt-drop-tail.drop-before::before {
   content: '';
   position: absolute;
-  left: 8px;
-  right: 8px;
+  left: 6px;
+  right: 6px;
   top: -1px;
   height: 2px;
   border-radius: 999px;
   background: var(--pm-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pm-accent) 14%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pm-accent) 16%, transparent);
   pointer-events: none;
   z-index: 2;
 }
@@ -602,6 +632,14 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px 16px;
+  gap: 10px;
+  padding: 48px 16px;
+}
+.empty-state-icon {
+  color: var(--pm-text-faint);
+}
+.empty-state-text {
+  color: var(--pm-text-subtle);
+  font-size: 13px;
 }
 </style>

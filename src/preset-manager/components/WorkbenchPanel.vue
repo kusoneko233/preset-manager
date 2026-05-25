@@ -1,15 +1,14 @@
 <template>
-  <div class="workbench-panel flex flex-col h-full">
-    <div class="panel-title flex items-center justify-between px-3 py-2">
-      <span class="panel-label">草稿</span>
-      <button class="add-btn" title="新建草稿" @click="store.addDraft()">
-        <i class="fas fa-plus text-xs" />
-      </button>
+  <div class="workbench-panel">
+    <div class="sidebar-section-head">
+      <span class="sidebar-section-kicker">草稿</span>
+      <IconButton name="plus" size="sm" title="新建草稿" @click="store.addDraft()" />
     </div>
 
-    <div class="draft-list flex-1 overflow-y-auto">
+    <div class="draft-list">
       <div v-if="!drafts.length" class="empty-hint">
-        点击 + 新建草稿条目
+        <Icon name="file-text" :size="14" />
+        <span>点击 + 新建草稿</span>
       </div>
 
       <div
@@ -19,11 +18,11 @@
         :draggable="true"
         @dragstart="onDragStart($event, draft)"
       >
-        <div class="draft-header" @click="toggleDraft(draft)">
-          <i :class="['fas text-xs text-slate-500 mr-2', draft.collapsed ? 'fa-chevron-right' : 'fa-chevron-down']" />
-          <span class="draft-name flex-1 truncate">{{ draft.name || 'Untitled' }}</span>
-          <button class="del-btn" title="删除" @click.stop="store.removeDraft(draft.id)">
-            <i class="fas fa-times text-xs" />
+        <div class="draft-row" @click="toggleDraft(draft)">
+          <Icon :name="draft.collapsed ? 'chevron-right' : 'chevron-down'" :size="12" class="draft-chevron" />
+          <span class="draft-name">{{ draft.name || 'Untitled' }}</span>
+          <button class="draft-del" title="删除" @click.stop="store.removeDraft(draft.id)">
+            <Icon name="x" :size="12" />
           </button>
         </div>
 
@@ -57,6 +56,8 @@
 </template>
 
 <script setup lang="ts">
+import Icon from './Icon.vue';
+import IconButton from './IconButton.vue';
 import { useManagerStore, type DraftPrompt } from '../stores/manager';
 
 const store = useManagerStore();
@@ -82,107 +83,116 @@ function onDragStart(e: DragEvent, draft: DraftPrompt) {
 </script>
 
 <style scoped>
-.panel-title {
-  min-height: 32px;
-  padding: 2px 4px 6px !important;
-  border-bottom: 0;
+.workbench-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
-.panel-label {
+.sidebar-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  padding: 4px 4px 6px;
+}
+.sidebar-section-kicker {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
   color: var(--pm-text-subtle);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   line-height: 1;
   text-transform: uppercase;
 }
-.add-btn {
-  width: 28px;
-  height: 28px;
+.draft-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2px 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.empty-hint {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--pm-text-muted);
-  cursor: pointer;
-  transition: all 0.12s;
-}
-.add-btn:hover {
-  background: var(--pm-bg-hover);
-  color: var(--pm-text);
-  border-color: var(--pm-border);
-}
-.draft-list {
-  padding: 0 1px 8px;
-}
-.empty-hint {
+  gap: 8px;
   padding: 14px 8px;
-  color: var(--pm-text-subtle);
+  color: var(--pm-text-faint);
   font-size: 12px;
-  text-align: center;
 }
 .draft-item {
-  border: 1px solid transparent;
-  border-bottom-color: transparent;
-  border-radius: 0;
+  border-radius: 8px;
   background: transparent;
   cursor: grab;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background 0.12s ease;
 }
 .draft-item:hover {
-  border-color: transparent;
-  background: var(--pm-bg-hover);
+  background: var(--pm-row-hover);
 }
-.draft-header {
+.draft-row {
   display: flex;
   align-items: center;
-  min-height: 40px;
-  padding: 7px 9px;
+  gap: 8px;
+  min-height: 32px;
+  padding: 6px 8px;
   cursor: pointer;
 }
-.draft-name {
-  font-size: 13px;
-  color: var(--pm-text);
-  font-weight: 520;
+.draft-chevron {
+  flex-shrink: 0;
+  color: var(--pm-text-subtle);
 }
-.del-btn {
+.draft-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--pm-text);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.draft-del {
   width: 20px;
   height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
   border: none;
+  border-radius: 5px;
   background: transparent;
-  color: var(--pm-text-subtle);
+  color: var(--pm-text-faint);
+  opacity: 0;
   cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, opacity 0.12s ease;
 }
-.del-btn:hover {
+.draft-item:hover .draft-del {
+  opacity: 1;
+}
+.draft-del:hover {
+  background: color-mix(in srgb, var(--pm-danger) 14%, transparent);
   color: var(--pm-danger);
-  background: color-mix(in srgb, var(--pm-danger) 13%, transparent);
 }
 .draft-body {
-  padding: 7px 8px 10px;
+  padding: 6px 8px 10px 24px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border-top: 1px solid var(--pm-divider);
-  background: color-mix(in srgb, var(--pm-bg-hover) 42%, transparent);
 }
 .draft-input,
 .draft-select {
   width: 100%;
-  padding: 6px 9px;
-  border-radius: 8px;
+  height: 30px;
+  padding: 0 9px;
   border: 1px solid var(--pm-border);
+  border-radius: 7px;
   background: var(--pm-input-bg);
   color: var(--pm-text);
   font-size: 12px;
   outline: none;
+  transition: border-color 0.12s ease;
 }
 .draft-input:focus,
 .draft-select:focus {
@@ -190,19 +200,21 @@ function onDragStart(e: DragEvent, draft: DraftPrompt) {
 }
 .draft-select option {
   background: var(--pm-bg-elevated);
+  color: var(--pm-text);
 }
 .draft-textarea {
   width: 100%;
-  padding: 8px 9px;
-  border-radius: 8px;
+  min-height: 60px;
+  padding: 7px 9px;
   border: 1px solid var(--pm-border);
+  border-radius: 7px;
   background: var(--pm-input-bg);
   color: var(--pm-text);
   font-size: 12px;
-  resize: vertical;
-  min-height: 60px;
-  outline: none;
   font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.12s ease;
 }
 .draft-textarea:focus {
   border-color: var(--pm-border-strong);

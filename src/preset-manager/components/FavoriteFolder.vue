@@ -1,7 +1,7 @@
 <template>
   <div class="favorite-folder">
-    <div class="folder-header" @click="store.toggleFavoriteFolder(folder.id)">
-      <i :class="['fas mr-1 text-xs text-slate-500', folder.collapsed ? 'fa-chevron-right' : 'fa-chevron-down']" />
+    <div class="folder-row" @click="store.toggleFavoriteFolder(folder.id)">
+      <Icon :name="folder.collapsed ? 'chevron-right' : 'chevron-down'" :size="12" class="folder-chevron" />
 
       <template v-if="isEditing">
         <input
@@ -14,14 +14,16 @@
           @click.stop
         />
       </template>
-      <span v-else class="folder-name flex-1 truncate">{{ folder.name }}</span>
+      <span v-else class="folder-name">{{ folder.name }}</span>
+
+      <span class="folder-count" :class="{ 'is-empty': folder.items.length === 0 }">{{ folder.items.length }}</span>
 
       <div class="folder-actions" @click.stop>
-        <button class="folder-btn" title="重命名" @click="startEdit">
-          <i class="fas fa-pen text-xs" />
+        <button class="folder-action" title="重命名" @click="startEdit">
+          <Icon name="pen-line" :size="12" />
         </button>
-        <button class="folder-btn" title="删除文件夹" @click="$emit('delete')">
-          <i class="fas fa-trash text-xs" />
+        <button class="folder-action folder-action-danger" title="删除文件夹" @click="$emit('delete')">
+          <Icon name="trash-2" :size="12" />
         </button>
       </div>
     </div>
@@ -34,9 +36,7 @@
       @dragleave="isDragOver = false"
       @drop.prevent="onDrop"
     >
-      <div v-if="!folder.items.length" class="empty-folder py-2 text-center text-xs text-slate-600">
-        拖拽条目到此处
-      </div>
+      <div v-if="!folder.items.length" class="empty-folder">拖拽条目到此处</div>
       <div
         v-for="(item, i) in folder.items"
         :key="`${folder.id}-${i}`"
@@ -44,9 +44,10 @@
         :draggable="true"
         @dragstart="onItemDragStart($event, item, i)"
       >
+        <Icon name="dot" :size="14" class="fav-item-dot" />
         <span class="fav-item-name">{{ item.name }}</span>
-        <button class="fav-remove-btn" title="移除" @click="store.removeFromFavorites(folder.id, i)">
-          <i class="fas fa-times text-xs" />
+        <button class="fav-remove" title="移除" @click="store.removeFromFavorites(folder.id, i)">
+          <Icon name="x" :size="11" />
         </button>
       </div>
     </div>
@@ -54,6 +55,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from './Icon.vue';
 import { getPromptKey, useManagerStore, type FavoriteFolder } from '../stores/manager';
 
 const props = defineProps<{
@@ -143,118 +145,164 @@ function onItemDragStart(e: DragEvent, item: PresetNormalPrompt, index: number) 
 
 <style scoped>
 .favorite-folder {
-  border: 1px solid transparent;
-  border-bottom-color: transparent;
-  border-radius: 0;
+  border-radius: 8px;
   background: transparent;
-  overflow: hidden;
 }
-.folder-header {
+.folder-row {
   display: flex;
   align-items: center;
-  min-height: 40px;
-  padding: 7px 9px;
+  gap: 8px;
+  min-height: 32px;
+  padding: 6px 8px;
+  border-radius: 8px;
   cursor: pointer;
-  gap: 4px;
-  transition: background 0.12s;
+  transition: background 0.12s ease;
 }
-.folder-header:hover {
-  background: var(--pm-bg-hover);
+.folder-row:hover {
+  background: var(--pm-row-hover);
+}
+.folder-chevron {
+  flex-shrink: 0;
+  color: var(--pm-text-subtle);
 }
 .folder-name {
-  font-size: 13px;
+  flex: 1;
+  min-width: 0;
   color: var(--pm-text);
-  font-weight: 520;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .folder-name-input {
   flex: 1;
-  padding: 4px 7px;
-  border-radius: 7px;
+  min-width: 0;
+  height: 24px;
+  padding: 0 7px;
   border: 1px solid var(--pm-border-strong);
+  border-radius: 6px;
   background: var(--pm-input-bg);
   color: var(--pm-text);
   font-size: 12px;
   outline: none;
 }
+.folder-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--pm-bg-elevated);
+  color: var(--pm-text-subtle);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+.folder-count.is-empty {
+  color: var(--pm-text-faint);
+  background: transparent;
+}
 .folder-actions {
   display: flex;
+  align-items: center;
   gap: 2px;
   opacity: 0;
-  transition: opacity 0.12s;
+  transition: opacity 0.12s ease;
 }
-.folder-header:hover .folder-actions {
+.folder-row:hover .folder-actions {
   opacity: 1;
 }
-.folder-btn {
-  width: 20px;
-  height: 20px;
+.folder-action {
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
   border: none;
+  border-radius: 5px;
   background: transparent;
   color: var(--pm-text-subtle);
   cursor: pointer;
-  transition: all 0.12s;
+  transition: background 0.12s ease, color 0.12s ease;
 }
-.folder-btn:hover {
+.folder-action:hover {
+  background: var(--pm-pill-bg-hover);
   color: var(--pm-text);
-  background: var(--pm-bg-hover);
+}
+.folder-action.folder-action-danger:hover {
+  background: color-mix(in srgb, var(--pm-danger) 14%, transparent);
+  color: var(--pm-danger);
 }
 .folder-items {
-  padding: 0 6px 8px 24px;
+  padding: 2px 4px 6px 22px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  transition: background 0.15s;
+  gap: 1px;
+  transition: background 0.16s ease;
+  border-radius: 8px;
   min-height: 24px;
 }
 .folder-items.drag-over {
-  background: color-mix(in srgb, var(--pm-accent) 6%, transparent);
+  background: color-mix(in srgb, var(--pm-accent) 10%, transparent);
+}
+.empty-folder {
+  padding: 8px 6px;
+  color: var(--pm-text-faint);
+  font-size: 11.5px;
+  text-align: center;
 }
 .fav-item {
   display: flex;
   align-items: center;
-  min-height: 32px;
-  padding: 5px 8px;
-  border-radius: 7px;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 6px;
   background: transparent;
-  border: 1px solid transparent;
   cursor: grab;
-  gap: 4px;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background 0.12s ease;
 }
 .fav-item:hover {
-  border-color: transparent;
-  background: var(--pm-bg-hover);
+  background: var(--pm-row-hover);
+}
+.fav-item-dot {
+  flex-shrink: 0;
+  color: var(--pm-text-faint);
 }
 .fav-item-name {
   flex: 1;
-  font-size: 12px;
+  min-width: 0;
   color: var(--pm-text);
-  word-break: break-all;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.fav-remove-btn {
+.fav-remove {
   width: 18px;
   height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 3px;
   border: none;
+  border-radius: 4px;
   background: transparent;
-  color: var(--pm-text-subtle);
+  color: var(--pm-text-faint);
+  opacity: 0;
   cursor: pointer;
   flex-shrink: 0;
-  opacity: 0;
-  transition: all 0.12s;
+  transition: background 0.12s ease, color 0.12s ease, opacity 0.12s ease;
 }
-.fav-item:hover .fav-remove-btn {
+.fav-item:hover .fav-remove {
   opacity: 1;
 }
-.fav-remove-btn:hover {
+.fav-remove:hover {
+  background: color-mix(in srgb, var(--pm-danger) 14%, transparent);
   color: var(--pm-danger);
-  background: color-mix(in srgb, var(--pm-danger) 12%, transparent);
 }
 </style>

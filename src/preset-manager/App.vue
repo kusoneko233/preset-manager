@@ -1130,102 +1130,150 @@ html, body {
 
 body[data-pm-theme="dark"],
 .theme-dark {
-  --pm-bg: oklch(0.155 0.008 255);
-  --pm-bg-transparent: oklch(0.155 0.008 255 / 0);
-  --pm-bg-soft: oklch(0.182 0.008 255);
-  --pm-bg-panel: oklch(0.195 0.008 255);
-  --pm-bg-titlebar: #1c1e25;
-  --pm-bg-workspace: #1c1e25;
-  --pm-bg-sidebar: rgba(34, 38, 48, 0.62);
-  --pm-bg-elevated: oklch(0.225 0.008 255);
+  /* Surface ladder — 4 steps from canvas to topmost card, inspired by Raycast */
+  --pm-bg: #15171a;
+  --pm-bg-transparent: rgba(21, 23, 26, 0);
+  --pm-bg-soft: #1a1c20;
+  --pm-bg-panel: #1d2024;
+  --pm-bg-titlebar: #15171a;
+  --pm-bg-workspace: #15171a;
+  --pm-bg-sidebar: #15171a;
+  --pm-bg-elevated: #24272c;
+  --pm-bg-card: #2a2d32;
+
+  /* Rows */
   --pm-row-bg: transparent;
-  --pm-row-hover: rgba(255, 255, 255, 0.035);
-  --pm-row-active: rgba(255, 255, 255, 0.055);
-  --pm-row-border: rgba(255, 255, 255, 0.038);
+  --pm-row-hover: rgba(255, 255, 255, 0.04);
+  --pm-row-active: rgba(255, 255, 255, 0.07);
+  --pm-row-border: transparent;
   --pm-bg-hover: rgba(255, 255, 255, 0.045);
-  --pm-bg-active: rgba(255, 255, 255, 0.065);
+  --pm-bg-active: rgba(255, 255, 255, 0.08);
+
+  /* Hairlines */
   --pm-border: rgba(255, 255, 255, 0.06);
-  --pm-border-strong: rgba(255, 255, 255, 0.10);
-  --pm-text: oklch(0.97 0 0);
-  --pm-text-muted: oklch(0.72 0.01 255);
-  --pm-text-subtle: oklch(0.55 0.01 255);
-  --pm-accent: oklch(0.93 0 0);
-  --pm-accent-text: oklch(0.16 0.008 255);
-  --pm-success: #7bd99a;
-  --pm-warning: #e7b96e;
-  --pm-danger: #f08686;
-  --pm-input-bg: rgba(255, 255, 255, 0.028);
-  --pm-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
+  --pm-border-strong: rgba(255, 255, 255, 0.11);
+  --pm-divider: rgba(255, 255, 255, 0.05);
+  --pm-sidebar-edge: rgba(255, 255, 255, 0.06);
+  --pm-split-line: rgba(255, 255, 255, 0.06);
+  --pm-split-line-hover: rgba(255, 255, 255, 0.18);
+
+  /* Text */
+  --pm-text: #ECEDEF;
+  --pm-text-muted: #B0B3B9;
+  --pm-text-subtle: #8C8F96;
+  --pm-text-faint: #6E7079;
+
+  /* Brand action — white pill */
+  --pm-accent: #F4F5F6;
+  --pm-accent-text: #15171a;
+
+  /* Semantic */
+  --pm-success: #59d499;
+  --pm-warning: #ffc533;
+  --pm-danger: #ff6f6f;
+
+  /* Inputs */
+  --pm-input-bg: #1f2226;
+
+  /* Shadow rarely used; depth comes from surface ladder */
+  --pm-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+
+  /* AI dock */
+  --pm-ai-surface: #1d2024;
+  --pm-ai-capsule: rgba(36, 39, 44, 0.92);
+  --pm-control-highlight: rgba(255, 255, 255, 0.05);
+  --pm-control-highlight-hover: rgba(255, 255, 255, 0.09);
+  --pm-send-bg: #F4F5F6;
+  --pm-send-fg: #15171a;
+
+  /* Pill / icon button tokens (consumed by PillButton.vue and IconButton.vue) */
+  --pm-pill-primary-bg: #F4F5F6;
+  --pm-pill-primary-bg-hover: #ffffff;
+  --pm-pill-primary-fg: #15171a;
+  --pm-pill-border: rgba(255, 255, 255, 0.11);
+  --pm-pill-border-hover: rgba(255, 255, 255, 0.18);
+  --pm-pill-bg-hover: rgba(255, 255, 255, 0.06);
+  --pm-pill-bg-active: rgba(255, 255, 255, 0.10);
+
+  /* Legacy aliases kept for unmigrated components */
   --pm-sidebar-glow: rgba(255, 255, 255, 0);
   --pm-sidebar-glow-soft: rgba(255, 255, 255, 0);
   --pm-sidebar-shadow: rgba(0, 0, 0, 0.22);
-  --pm-sidebar-edge: rgba(255, 255, 255, 0.08);
-  --pm-divider: rgba(255, 255, 255, 0.05);
-  --pm-split-line: rgba(255, 255, 255, 0.075);
-  --pm-split-line-hover: rgba(255, 255, 255, 0.20);
-  --pm-ai-surface: rgba(28, 32, 42, 0.92);
-  --pm-ai-capsule: rgba(28, 32, 42, 0.78);
-  --pm-control-highlight: rgba(255, 255, 255, 0.05);
-  --pm-control-highlight-hover: rgba(255, 255, 255, 0.085);
-  --pm-send-bg: oklch(0.97 0 0);
-  --pm-send-fg: oklch(0.16 0.008 255);
-  --pm-btn-radius: 6px;
+  --pm-btn-radius: 8px;
   --pm-btn-radius-pill: 999px;
   --pm-btn-size: 30px;
   --pm-btn-size-sm: 26px;
-  --pm-btn-hover: rgba(255, 255, 255, 0.05);
-  --pm-btn-active: rgba(255, 255, 255, 0.07);
-  --pm-btn-active-border: rgba(255, 255, 255, 0.10);
+  --pm-btn-hover: var(--pm-pill-bg-hover);
+  --pm-btn-active: var(--pm-pill-bg-active);
+  --pm-btn-active-border: var(--pm-pill-border-hover);
 }
 
 body[data-pm-theme="light"],
 .theme-light {
-  --pm-bg: #f6f6f2;
-  --pm-bg-transparent: rgba(246, 246, 242, 0);
-  --pm-bg-soft: #ffffff;
-  --pm-bg-panel: #fbfbf8;
-  --pm-bg-titlebar: #f6f6f2;
-  --pm-bg-workspace: #f6f6f2;
-  --pm-bg-sidebar: rgba(252, 252, 248, 0.62);
+  --pm-bg: #f5f5f4;
+  --pm-bg-transparent: rgba(245, 245, 244, 0);
+  --pm-bg-soft: #fafaf9;
+  --pm-bg-panel: #ffffff;
+  --pm-bg-titlebar: #f5f5f4;
+  --pm-bg-workspace: #f5f5f4;
+  --pm-bg-sidebar: #f5f5f4;
   --pm-bg-elevated: #ffffff;
+  --pm-bg-card: #fafaf9;
+
   --pm-row-bg: transparent;
-  --pm-row-hover: rgba(20, 24, 31, 0.038);
-  --pm-row-active: rgba(20, 24, 31, 0.058);
-  --pm-row-border: rgba(20, 24, 31, 0.05);
-  --pm-bg-hover: rgba(20, 24, 31, 0.045);
-  --pm-bg-active: rgba(20, 24, 31, 0.07);
-  --pm-border: rgba(20, 24, 31, 0.07);
-  --pm-border-strong: rgba(20, 24, 31, 0.12);
-  --pm-text: #16181d;
-  --pm-text-muted: #5d636e;
-  --pm-text-subtle: #8a9099;
-  --pm-accent: #1d1e22;
+  --pm-row-hover: rgba(15, 17, 21, 0.04);
+  --pm-row-active: rgba(15, 17, 21, 0.06);
+  --pm-row-border: transparent;
+  --pm-bg-hover: rgba(15, 17, 21, 0.045);
+  --pm-bg-active: rgba(15, 17, 21, 0.08);
+
+  --pm-border: rgba(15, 17, 21, 0.07);
+  --pm-border-strong: rgba(15, 17, 21, 0.12);
+  --pm-divider: rgba(15, 17, 21, 0.06);
+  --pm-sidebar-edge: rgba(15, 17, 21, 0.07);
+  --pm-split-line: rgba(15, 17, 21, 0.07);
+  --pm-split-line-hover: rgba(15, 17, 21, 0.18);
+
+  --pm-text: #15171a;
+  --pm-text-muted: #555960;
+  --pm-text-subtle: #82868c;
+  --pm-text-faint: #a1a4aa;
+
+  --pm-accent: #15171a;
   --pm-accent-text: #ffffff;
-  --pm-danger: #c74444;
+
   --pm-success: #197a36;
   --pm-warning: #9b6b00;
-  --pm-shadow: 0 28px 80px rgba(24, 31, 44, 0.18);
+  --pm-danger: #c64545;
+
   --pm-input-bg: #ffffff;
+  --pm-shadow: 0 24px 80px rgba(24, 31, 44, 0.16);
+
+  --pm-ai-surface: #ffffff;
+  --pm-ai-capsule: rgba(255, 255, 255, 0.92);
+  --pm-control-highlight: rgba(15, 17, 21, 0.045);
+  --pm-control-highlight-hover: rgba(15, 17, 21, 0.085);
+  --pm-send-bg: #15171a;
+  --pm-send-fg: #ffffff;
+
+  --pm-pill-primary-bg: #15171a;
+  --pm-pill-primary-bg-hover: #000000;
+  --pm-pill-primary-fg: #ffffff;
+  --pm-pill-border: rgba(15, 17, 21, 0.13);
+  --pm-pill-border-hover: rgba(15, 17, 21, 0.22);
+  --pm-pill-bg-hover: rgba(15, 17, 21, 0.05);
+  --pm-pill-bg-active: rgba(15, 17, 21, 0.09);
+
   --pm-sidebar-glow: rgba(255, 255, 255, 0);
   --pm-sidebar-glow-soft: rgba(255, 255, 255, 0);
   --pm-sidebar-shadow: rgba(126, 143, 174, 0.16);
-  --pm-sidebar-edge: rgba(20, 24, 31, 0.08);
-  --pm-divider: rgba(20, 24, 31, 0.05);
-  --pm-split-line: rgba(20, 24, 31, 0.08);
-  --pm-split-line-hover: rgba(20, 24, 31, 0.20);
-  --pm-ai-surface: rgba(255, 255, 255, 0.92);
-  --pm-ai-capsule: rgba(255, 255, 255, 0.78);
-  --pm-control-highlight: rgba(20, 24, 31, 0.045);
-  --pm-control-highlight-hover: rgba(20, 24, 31, 0.085);
-  --pm-send-bg: #1d1e22;
-  --pm-send-fg: #ffffff;
-  --pm-btn-radius: 6px;
+  --pm-btn-radius: 8px;
   --pm-btn-radius-pill: 999px;
   --pm-btn-size: 30px;
   --pm-btn-size-sm: 26px;
-  --pm-btn-hover: rgba(20, 24, 31, 0.055);
-  --pm-btn-active: rgba(20, 24, 31, 0.085);
-  --pm-btn-active-border: rgba(20, 24, 31, 0.13);
+  --pm-btn-hover: var(--pm-pill-bg-hover);
+  --pm-btn-active: var(--pm-pill-bg-active);
+  --pm-btn-active-border: var(--pm-pill-border-hover);
 }
 
 button,
@@ -1233,6 +1281,7 @@ input,
 select,
 textarea {
   font: inherit;
+  font-feature-settings: 'calt', 'kern', 'liga', 'ss03';
 }
 
 button {
@@ -1240,7 +1289,7 @@ button {
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--pm-accent) 22%, transparent);
+  background: color-mix(in srgb, var(--pm-accent) 24%, transparent);
 }
 
 ::-webkit-scrollbar {
@@ -1292,6 +1341,9 @@ button {
 .app-root textarea,
 .app-root button {
   font-size: var(--pm-font-size, 13px);
+  font-family: 'Inter Variable', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-feature-settings: 'calt', 'kern', 'liga', 'ss03';
+  letter-spacing: 0;
 }
 
 .app-root .text-xs,
@@ -1320,33 +1372,16 @@ button {
   flex-direction: column;
   height: 100vh;
   position: relative;
-  background: var(--pm-bg-transparent);
+  background: var(--pm-bg);
   color: var(--pm-text);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Inter Variable', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   overflow: hidden;
   border: 1px solid var(--pm-border);
-  border-radius: 14px;
+  border-radius: 12px;
   box-shadow: var(--pm-shadow);
 }
-.app-root::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: var(--pm-left-rail-width, 240px);
-  pointer-events: none;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent 38%),
-    var(--pm-bg-sidebar);
-  backdrop-filter: blur(32px) saturate(140%);
-  -webkit-backdrop-filter: blur(32px) saturate(140%);
-  box-shadow: inset -0.8px 0 0 var(--pm-sidebar-edge);
-  z-index: 0;
-}
+.app-root::before,
 .app-root::after {
-  display: none;
-}
-.app-root.left-collapsed::before,
-.app-root.left-collapsed::after {
   display: none;
 }
 .app-root.fullscreen {

@@ -9,7 +9,7 @@
               <div class="dialog-subtitle">{{ prompt.name }}</div>
             </div>
             <button type="button" class="icon-btn" title="关闭" @click="$emit('close')">
-              <i class="fas fa-times text-xs" />
+              <Icon name="x" :size="13" />
             </button>
           </div>
 
@@ -101,6 +101,8 @@
 </template>
 
 <script setup lang="ts">
+import Icon from './Icon.vue';
+
 type PromptRole = 'system' | 'user' | 'assistant';
 type PromptPositionType = 'relative' | 'in_chat';
 type PromptEditDraft = {

@@ -10,7 +10,7 @@
   >
     <div ref="toolbarRef" class="annotation-toolbar" :class="{ collapsed: toolbarCollapsed }" :style="toolbarStyle" @pointerdown.stop>
       <button class="anno-btn drag-handle" title="拖动工具栏" @pointerdown.prevent="onToolbarDragStart">
-        <i class="fas fa-grip-lines text-[10px]" />
+        <Icon name="grip-vertical" :size="12" />
       </button>
       <template v-if="!toolbarCollapsed">
         <div class="anno-group">
@@ -45,22 +45,22 @@
         <div class="anno-separator" />
         <div class="anno-group">
           <button class="anno-btn" title="复制批注信息" @click="copyAnnotations">
-            <i class="fas fa-copy text-[10px]" />
+            <Icon name="copy" :size="12" />
           </button>
           <button class="anno-btn" title="撤销上一条批注" :disabled="!items.length" @click="undoAnnotation">
-            <i class="fas fa-undo text-[10px]" />
+            <Icon name="corner-up-left" :size="12" />
           </button>
           <button class="anno-btn" title="清除批注" :disabled="!items.length" @click="clearAnnotations">
-            <i class="fas fa-trash text-[10px]" />
+            <Icon name="trash-2" :size="12" />
           </button>
         </div>
         <div class="anno-separator" />
       </template>
       <button class="anno-btn" :title="toolbarCollapsed ? '展开工具栏' : '折叠工具栏'" @click="toolbarCollapsed = !toolbarCollapsed">
-        <i :class="['fas', toolbarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left', 'text-[10px]']" />
+        <Icon :name="toolbarCollapsed ? 'chevron-right' : 'chevron-left'" :size="12" />
       </button>
       <button class="anno-btn close-btn" title="关闭批注模式 Esc" @click="emit('close')">
-        <i class="fas fa-times text-[10px]" />
+        <Icon name="x" :size="12" />
       </button>
     </div>
 
@@ -140,6 +140,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from './Icon.vue';
 import { ANNOTATION_COLORS, clampAnnotationToolbarPosition, formatAnnotationExport, getNextAnnotationLabel, normalizeAnnotationRect, type AnnotationColor, type AnnotationItem, type AnnotationPoint, type AnnotationTool } from '../utils/annotationTools';
 
 const emit = defineEmits<{ close: [] }>();
@@ -724,7 +725,9 @@ function loadToolbarPosition() {
         { width: 360, height: 36 },
       );
     }
-  } catch {}
+  } catch {
+    // Ignore malformed saved toolbar state and fall back to the default position.
+  }
   return { x: 16, y: 10 };
 }
 

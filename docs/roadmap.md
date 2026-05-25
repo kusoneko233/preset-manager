@@ -41,6 +41,11 @@
 
 目标：基于 `ui/codex-polish` 分支继续推进 UI 视觉，与 Codex 在 `D:\tavern_helper_template-feature` 工作区的功能开发并行。
 
+- [x] 新 UI 同步为 Codex/Raycast 方向 surface ladder：暗色和亮色统一 `--pm-bg`、`--pm-bg-card`、侧栏、标题栏、工作区和按钮令牌。
+- [x] 新增 `Icon`、`IconButton`、`PillButton`、`PanelHeader` 基础 UI 原语，标题栏、工作台、收藏夹和条目操作开始使用统一图标/胶囊按钮。
+- [x] 新增 Lucide 风格内联图标注册表，替换标题栏、AI 助手、收藏夹、工作台和预设条目中的 Font Awesome 图标。
+- [x] 预设条目、收藏夹、工作台和第二预设头部同步为更克制的列表/胶囊布局，减少噪音按钮和厚重边框。
+- [x] 同步更新 `visualPolish.test.ts`，覆盖新 surface 令牌、Lucide 图标层、UI 原语组件和条目/侧栏关键结构。
 - [x] 将 `AiAssistant.vue` drawer 与 detached 模式输入框 placeholder 同步为 `Ask Codex anything`，与 `visualPolish.test.ts` 期望对齐。
 - [x] 将 drawer 中 input 后的独立小窗按钮 class 由 `detach-trigger` 改为 `floating-detach`，应用既有 hover 浮现样式。
 - [x] 全部测试绿灯：`designMetrics`、`annotationTools`、`panelLayout`、`promptRelations`、`visualPolish`。

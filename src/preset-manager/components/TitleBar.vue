@@ -1,18 +1,16 @@
 <template>
   <div
-    class="title-bar flex items-center select-none"
+    class="title-bar"
     :class="{ 'left-collapsed': leftCollapsed }"
     @mousedown.stop="onDragStart"
   >
-    <div class="title-left flex min-w-0 items-center">
-      <button
-        class="sidebar-toggle"
-        :class="{ collapsed: leftCollapsed }"
+    <div class="title-left">
+      <IconButton
+        :name="leftCollapsed ? 'panel-left-open' : 'panel-left-close'"
+        size="md"
         :title="leftCollapsed ? '展开侧栏' : '折叠侧栏'"
         @click="$emit('toggleLeftSidebar')"
-      >
-        <span class="sidebar-glyph" />
-      </button>
+      />
     </div>
 
     <div class="title-actions">
@@ -25,9 +23,7 @@
             @click.stop="togglePresetMenu"
           >
             <span class="preset-title-text">{{ currentPresetName || '选择预设' }}</span>
-            <span class="preset-title-arrow">
-              <i class="fas fa-chevron-down text-xs" />
-            </span>
+            <Icon name="chevron-down" :size="13" class="preset-title-arrow" />
           </button>
 
           <Transition name="preset-menu-pop">
@@ -40,130 +36,112 @@
                 @click="selectPreset(name)"
               >
                 <span>{{ name }}</span>
-                <i v-if="name === currentPresetName" class="fas fa-check text-xs" />
+                <Icon v-if="name === currentPresetName" name="check" :size="13" />
               </button>
               <div v-if="presetNames.length === 0" class="preset-menu-empty">暂无预设</div>
             </div>
           </Transition>
         </div>
-        <span v-if="currentPresetName" class="preset-meta">{{ promptCount }} 条</span>
-        <span v-if="currentPresetName && tokenEstimate" class="preset-meta">约 {{ tokenLabel }} tokens</span>
+
+        <div class="preset-meta-group">
+          <span v-if="currentPresetName" class="preset-meta-chip">{{ promptCount }} 条</span>
+          <span v-if="currentPresetName && tokenEstimate" class="preset-meta-chip">约 {{ tokenLabel }} tokens</span>
+        </div>
       </div>
 
-      <div class="title-controls flex items-center gap-1">
-        <button
-          class="title-btn"
-          title="撤回 (Ctrl+Z)"
-          :disabled="!canUndo"
-          @click="$emit('undo')"
-        >
-          <i class="fas fa-undo text-xs" />
-        </button>
-        <button
-          class="title-btn"
-          title="重做 (Ctrl+Shift+Z)"
-          :disabled="!canRedo"
-          @click="$emit('redo')"
-        >
-          <i class="fas fa-redo text-xs" />
-        </button>
-        <button
-          class="title-btn"
-          :class="{ active: annotationVisible }"
-          title="UI 批注模式"
-          @click="$emit('toggleAnnotation')"
-        >
-          <i class="fas fa-highlighter text-xs" />
-        </button>
-        <button
-          class="title-btn"
-          :class="{ active: codeInspectorEnabled }"
-          title="开发者检查器"
-          @click="$emit('toggleCodeInspector')"
-        >
-          <i class="fas fa-crosshairs text-xs" />
-        </button>
-        <button
-          class="title-btn"
-          title="开发者背景面板"
-          @click="$emit('toggleDevThemePanel')"
-        >
-          <i class="fas fa-palette text-xs" />
-        </button>
+      <div class="title-controls">
+        <IconButton name="corner-up-left" size="md" :disabled="!canUndo" title="撤回 (Ctrl+Z)" @click="$emit('undo')" />
+        <IconButton name="corner-up-right" size="md" :disabled="!canRedo" title="重做 (Ctrl+Shift+Z)" @click="$emit('redo')" />
+        <IconButton name="highlighter" size="md" :active="annotationVisible" title="UI 批注模式" @click="$emit('toggleAnnotation')" />
+        <IconButton name="crosshair" size="md" :active="codeInspectorEnabled" title="开发者检查器" @click="$emit('toggleCodeInspector')" />
+        <IconButton name="palette" size="md" title="开发者背景面板" @click="$emit('toggleDevThemePanel')" />
+
         <div ref="moreMenuRef" class="more-menu-wrap">
-          <button
-            class="title-btn"
-            :class="{ active: moreMenuOpen }"
+          <IconButton
+            name="more-horizontal"
+            size="md"
+            :active="moreMenuOpen"
             title="更多"
-            @click.stop="toggleMoreMenu"
-          >
-            <i class="fas fa-ellipsis text-xs" />
-          </button>
+            @click="onMoreButtonClick"
+          />
 
           <Transition name="title-menu-pop">
             <div v-if="moreMenuOpen" class="title-more-menu" @mousedown.stop>
               <button class="title-more-item" @click="runMoreAction('history')">
-                <i class="fas fa-clock-rotate-left text-xs" />
+                <Icon name="history" :size="14" />
                 <span>历史备份</span>
               </button>
               <button class="title-more-item" @click="runMoreAction('createPreset')">
-                <i class="fas fa-folder-plus text-xs" />
+                <Icon name="folder" :size="14" />
                 <span>新建预设</span>
               </button>
               <button class="title-more-item" @click="runMoreAction('renamePreset')">
-                <i class="fas fa-pen text-xs" />
+                <Icon name="pen-line" :size="14" />
                 <span>重命名预设</span>
               </button>
               <button class="title-more-item danger" @click="runMoreAction('deletePreset')">
-                <i class="fas fa-trash text-xs" />
+                <Icon name="trash-2" :size="14" />
                 <span>删除预设</span>
               </button>
-              <button class="title-more-item" @click="runMoreAction('createPrompt')">
-                <i class="fas fa-plus text-xs" />
-                <span>新建条目</span>
-              </button>
+              <div class="title-more-divider" />
               <button class="title-more-item" @click="runMoreAction('appendUnusedPrompt')">
-                <i class="fas fa-inbox text-xs" />
+                <Icon name="list" :size="14" />
                 <span>添加未使用条目</span>
               </button>
               <button class="title-more-item" @click="runMoreAction('importPrompts')">
-                <i class="fas fa-file-import text-xs" />
+                <Icon name="upload" :size="14" />
                 <span>导入条目</span>
               </button>
               <button class="title-more-item" @click="runMoreAction('exportPrompts')">
-                <i class="fas fa-file-export text-xs" />
+                <Icon name="download" :size="14" />
                 <span>导出条目</span>
               </button>
               <button class="title-more-item" @click="runMoreAction('resetPromptOrder')">
-                <i class="fas fa-arrow-down-wide-short text-xs" />
+                <Icon name="refresh-cw" :size="14" />
                 <span>重置顺序</span>
               </button>
+              <div class="title-more-divider" />
               <button class="title-more-item" @click="runMoreAction('ui')">
-                <i class="fas fa-sliders text-xs" />
+                <Icon name="sliders-horizontal" :size="14" />
                 <span>界面比例</span>
               </button>
               <button class="title-more-item" @click="runMoreAction('theme')">
-                <i :class="['fas text-xs', theme === 'dark' ? 'fa-sun' : 'fa-moon']" />
+                <Icon :name="theme === 'dark' ? 'sun' : 'moon'" :size="14" />
                 <span>{{ theme === 'dark' ? '白天模式' : '黑夜模式' }}</span>
               </button>
             </div>
           </Transition>
         </div>
 
+        <PillButton
+          variant="primary"
+          size="sm"
+          leading-icon="plus"
+          class="title-cta"
+          title="新建条目"
+          @click="$emit('createPrompt')"
+        >
+          新建条目
+        </PillButton>
+
         <div class="title-separator" />
 
-        <button class="title-btn" :title="isFullscreen ? '还原' : '全屏'" @click="$emit('toggleFullscreen')">
-          <i :class="['fas text-xs', isFullscreen ? 'fa-compress' : 'fa-expand']" />
-        </button>
-        <button class="title-btn close-btn" title="关闭" @click="$emit('close')">
-          <i class="fas fa-times text-xs" />
-        </button>
+        <IconButton
+          :name="isFullscreen ? 'minimize-2' : 'maximize-2'"
+          size="md"
+          :title="isFullscreen ? '还原' : '全屏'"
+          @click="$emit('toggleFullscreen')"
+        />
+        <IconButton name="x" size="md" danger title="关闭" @click="$emit('close')" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import Icon from './Icon.vue';
+import IconButton from './IconButton.vue';
+import PillButton from './PillButton.vue';
 import { startParentDrag } from '../utils/drag';
 import { clampWindowStateWithVisibleArea, type WindowState } from '../utils/panelLayout';
 
@@ -225,6 +203,11 @@ function togglePresetMenu() {
 function toggleMoreMenu() {
   moreMenuOpen.value = !moreMenuOpen.value;
   if (moreMenuOpen.value) presetMenuOpen.value = false;
+}
+
+function onMoreButtonClick(event: MouseEvent) {
+  event.stopPropagation();
+  toggleMoreMenu();
 }
 
 function runMoreAction(
@@ -356,37 +339,25 @@ onUnmounted(() => {
 
 <style scoped>
 .title-bar {
-  height: var(--pm-titlebar-height, 52px);
+  display: flex;
+  align-items: stretch;
+  height: var(--pm-titlebar-height, 56px);
   padding: 0;
   background: var(--pm-bg-titlebar);
-  border-bottom: 0;
+  border-bottom: 1px solid var(--pm-divider);
   cursor: move;
+  user-select: none;
 }
 .title-left {
   position: relative;
   align-self: stretch;
   flex: 0 0 var(--pm-left-rail-width, 240px);
-  justify-content: flex-end;
-  padding: 0 12px 0 18px;
-  background: transparent;
-  border-right: 0;
-}
-.sidebar-toggle {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
-  border-radius: var(--pm-btn-radius, 8px);
+  justify-content: flex-end;
+  padding: 0 14px 0 20px;
   background: transparent;
-  color: var(--pm-text-muted);
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.12s;
-}
-.sidebar-toggle.collapsed {
-  transform: translateX(12px);
+  border-right: 0;
 }
 .title-bar.left-collapsed .title-left {
   flex-basis: 0;
@@ -394,37 +365,12 @@ onUnmounted(() => {
   padding: 0;
   overflow: visible;
 }
-.title-bar.left-collapsed .sidebar-toggle.collapsed {
+.title-bar.left-collapsed .title-left :deep(.icon-btn) {
   position: absolute;
-  top: 10px;
-  left: 18px;
+  top: 50%;
+  left: 14px;
   z-index: 3;
-  transform: none;
-}
-.sidebar-toggle:hover {
-  background: var(--pm-btn-hover);
-  color: var(--pm-text);
-}
-.sidebar-toggle.collapsed {
-  color: var(--pm-text);
-}
-.sidebar-glyph {
-  width: 14px;
-  height: 13px;
-  position: relative;
-  display: block;
-  border: 1.3px solid currentColor;
-  border-radius: 4px;
-}
-.sidebar-glyph::before {
-  content: '';
-  position: absolute;
-  top: 1px;
-  bottom: 1px;
-  left: 4px;
-  width: 1px;
-  background: currentColor;
-  opacity: 0.75;
+  transform: translateY(-50%);
 }
 .title-actions {
   flex: 1;
@@ -433,74 +379,64 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 0 14px 0 22px;
+  gap: 16px;
+  padding: 0 16px 0 22px;
   background: transparent;
-  border-bottom: 0;
 }
 .title-bar.left-collapsed .title-actions {
-  padding-left: 66px;
+  padding-left: 60px;
 }
 .title-main {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 .preset-title-wrap {
   position: relative;
   min-width: 0;
-  max-width: min(48vw, 560px);
+  max-width: min(46vw, 520px);
   display: inline-flex;
   align-items: center;
 }
 .preset-title-button {
   min-width: 0;
   max-width: 100%;
-  height: 34px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 0;
+  gap: 8px;
+  padding: 0 10px;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: 8px;
   background: transparent;
   color: var(--pm-text);
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 .preset-title-button:hover,
 .preset-title-button.open {
-  background: color-mix(in srgb, var(--pm-bg-hover) 42%, transparent);
+  background: var(--pm-pill-bg-hover);
 }
 .preset-title-text {
   min-width: 0;
-  max-width: min(38vw, 470px);
+  max-width: min(38vw, 460px);
   overflow: hidden;
   color: var(--pm-text);
   font-size: 14px;
-  font-weight: 660;
+  font-weight: 600;
+  letter-spacing: -0.005em;
   line-height: 20px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .preset-title-arrow {
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--pm-border);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--pm-bg-hover) 48%, transparent);
+  flex-shrink: 0;
   color: var(--pm-text-muted);
-  transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.12s;
+  transition: transform 0.16s ease, color 0.12s ease;
 }
 .preset-title-button:hover .preset-title-arrow,
 .preset-title-button.open .preset-title-arrow {
-  border-color: var(--pm-border-strong);
-  background: color-mix(in srgb, var(--pm-bg-hover) 82%, transparent);
   color: var(--pm-text);
 }
 .preset-title-button.open .preset-title-arrow {
@@ -508,21 +444,19 @@ onUnmounted(() => {
 }
 .preset-menu {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 6px);
   left: 0;
   z-index: 900;
   width: max-content;
   min-width: min(320px, 72vw);
   max-width: min(520px, 84vw);
   max-height: 320px;
-  padding: 6px;
+  padding: 4px;
   overflow: auto;
   border: 1px solid var(--pm-border-strong);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--pm-bg-elevated) 92%, transparent);
-  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.32);
-  backdrop-filter: blur(24px) saturate(112%);
-  -webkit-backdrop-filter: blur(24px) saturate(112%);
+  border-radius: 10px;
+  background: var(--pm-bg-elevated);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
 }
 .preset-menu-item {
   width: 100%;
@@ -530,14 +464,15 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 0 9px;
+  gap: 10px;
+  padding: 0 10px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--pm-text-muted);
   cursor: pointer;
   text-align: left;
+  font-size: 13px;
 }
 .preset-menu-item span {
   min-width: 0;
@@ -547,124 +482,110 @@ onUnmounted(() => {
 }
 .preset-menu-item:hover,
 .preset-menu-item.active {
-  background: var(--pm-bg-hover);
+  background: var(--pm-pill-bg-hover);
   color: var(--pm-text);
 }
-.preset-menu-item.active {
-  border-color: var(--pm-border);
-}
 .preset-menu-empty {
-  padding: 9px 12px;
+  padding: 8px 12px;
   color: var(--pm-text-subtle);
   font-size: 12px;
 }
 .preset-menu-pop-enter-active,
 .preset-menu-pop-leave-active {
-  transition: opacity 0.12s ease, transform 0.12s ease;
+  transition: opacity 0.14s ease, transform 0.14s ease;
 }
 .preset-menu-pop-enter-from,
 .preset-menu-pop-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-3px);
 }
-.preset-meta {
-  flex-shrink: 0;
+.preset-meta-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.preset-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--pm-border);
+  border-radius: 999px;
   color: var(--pm-text-subtle);
-  font-size: 12px;
-  line-height: 20px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
 }
 .title-controls {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.title-cta {
+  margin-left: 4px;
 }
 .title-separator {
   width: 1px;
-  height: 16px;
-  margin: 0 4px;
+  height: 18px;
+  margin: 0 6px;
   background: var(--pm-divider);
 }
 .more-menu-wrap {
   position: relative;
 }
-.title-btn {
-  width: var(--pm-btn-size, 30px);
-  height: var(--pm-btn-size, 30px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--pm-btn-radius, 8px);
-  color: var(--pm-text-muted);
-  background: transparent;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: background 0.14s, border-color 0.14s, color 0.14s, opacity 0.14s;
-}
-.title-btn:hover:not(:disabled) {
-  background: var(--pm-btn-hover);
-  border-color: transparent;
-  color: var(--pm-text);
-}
-.title-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-.title-btn.active {
-  color: var(--pm-text);
-  background: var(--pm-btn-active);
-  border-color: var(--pm-btn-active-border);
-}
-.title-btn.close-btn:hover:not(:disabled) {
-  color: var(--pm-danger);
-  background: color-mix(in srgb, var(--pm-danger) 14%, transparent);
-  border-color: color-mix(in srgb, var(--pm-danger) 30%, transparent);
-}
 .title-more-menu {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 6px);
   right: 0;
   z-index: 900;
-  width: 164px;
-  padding: 6px;
+  width: 184px;
+  padding: 4px;
   border: 1px solid var(--pm-border-strong);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--pm-bg-elevated) 92%, transparent);
-  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.32);
-  backdrop-filter: blur(24px) saturate(112%);
-  -webkit-backdrop-filter: blur(24px) saturate(112%);
+  border-radius: 10px;
+  background: var(--pm-bg-elevated);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
 }
 .title-more-item {
   width: 100%;
   min-height: 32px;
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 0 9px;
+  gap: 10px;
+  padding: 0 10px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--pm-text-muted);
   cursor: pointer;
   text-align: left;
+  font-size: 13px;
 }
 .title-more-item:hover {
-  background: var(--pm-bg-hover);
+  background: var(--pm-pill-bg-hover);
   color: var(--pm-text);
+}
+.title-more-item.danger {
+  color: var(--pm-danger);
 }
 .title-more-item.danger:hover {
   color: var(--pm-danger);
-  background: color-mix(in srgb, var(--pm-danger) 12%, transparent);
+  background: color-mix(in srgb, var(--pm-danger) 14%, transparent);
 }
-.title-more-item i {
-  width: 14px;
-  color: inherit;
-  text-align: center;
+.title-more-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--pm-divider);
 }
 .title-menu-pop-enter-active,
 .title-menu-pop-leave-active {
-  transition: opacity 0.12s ease, transform 0.12s ease;
+  transition: opacity 0.14s ease, transform 0.14s ease;
 }
 .title-menu-pop-enter-from,
 .title-menu-pop-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-3px);
 }
 </style>

@@ -6,13 +6,13 @@
           <div class="panel-header">
             <div>
               <div class="panel-title">
-                <i class="fas fa-history" />
+                <Icon name="history" :size="15" />
                 <span>历史与备份</span>
               </div>
               <div class="panel-subtitle">回到操作记录，或管理预设快照</div>
             </div>
             <button class="close-btn" title="关闭" @click="$emit('close')">
-              <i class="fas fa-times" />
+              <Icon name="x" :size="14" />
             </button>
           </div>
 
@@ -32,7 +32,7 @@
                     <span class="record-meta">{{ recordPresetLabel(item.record) }} · {{ formatDateTime(item.record.timestamp) }}</span>
                   </div>
                   <button class="icon-btn" title="回到此处" @click="restoreOperation(item.index, item.record.description)">
-                    <i class="fas fa-undo" />
+                    <Icon name="corner-up-left" :size="13" />
                   </button>
                 </div>
               </div>
@@ -42,7 +42,7 @@
               <div class="section-title">
                 <span>快照备份</span>
                 <button class="snapshot-btn" @click="createManualSnapshot">
-                  <i class="fas fa-camera" />
+                  <Icon name="camera" :size="13" />
                   <span>创建快照</span>
                 </button>
               </div>
@@ -60,13 +60,13 @@
                   </div>
                   <div class="snap-actions">
                     <button class="icon-btn" title="重命名" @click="renameSnapshot(snap)">
-                      <i class="fas fa-pen" />
+                      <Icon name="pen-line" :size="13" />
                     </button>
                     <button class="icon-btn" title="恢复快照" @click="restoreSnapshot(snap.id, snap.name)">
-                      <i class="fas fa-undo" />
+                      <Icon name="corner-up-left" :size="13" />
                     </button>
                     <button class="icon-btn danger" title="删除快照" @click="deleteSnapshot(snap.id, snap.name)">
-                      <i class="fas fa-trash" />
+                      <Icon name="trash-2" :size="13" />
                     </button>
                   </div>
                 </div>
@@ -80,6 +80,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from './Icon.vue';
 import type { Snapshot } from '../stores/history';
 import type { OperationRecord } from '../stores/history';
 import { useHistoryStore } from '../stores/history';

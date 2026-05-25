@@ -4,19 +4,19 @@
       <div v-if="visible" class="overlay-backdrop" @click.self="$emit('close')">
         <div class="overlay-card">
           <div class="overlay-header">
-            <div class="flex items-center gap-2 min-w-0 flex-1">
+            <div class="flex min-w-0 flex-1 items-center gap-2">
               <span class="role-badge" :class="prompt.role">{{ prompt.role }}</span>
               <span class="overlay-title">{{ prompt.name }}</span>
             </div>
             <div class="flex items-center gap-1">
               <button class="overlay-btn" title="复制内容" @click="copyContent">
-                <i class="fas fa-copy text-xs" />
+                <Icon name="copy" :size="13" />
                 <Transition name="fade">
                   <span v-if="copied" class="copy-toast">已复制</span>
                 </Transition>
               </button>
               <button class="overlay-btn hover:!text-red-400" title="关闭" @click="$emit('close')">
-                <i class="fas fa-times text-xs" />
+                <Icon name="x" :size="13" />
               </button>
             </div>
           </div>
@@ -27,10 +27,10 @@
 
           <div v-if="showActions" class="overlay-footer">
             <button class="footer-btn" @click="$emit('edit')">
-              <i class="fas fa-edit text-xs" /> 编辑
+              <Icon name="pen-line" :size="13" /> 编辑
             </button>
             <button class="footer-btn" @click="$emit('toggleFavorite')">
-              <i :class="['text-xs', isFavorited ? 'fas fa-star text-amber-400' : 'far fa-star']" />
+              <Icon name="star" :size="13" :class="isFavorited ? 'is-favorited' : ''" />
               {{ isFavorited ? '取消收藏' : '收藏' }}
             </button>
           </div>
@@ -41,6 +41,8 @@
 </template>
 
 <script setup lang="ts">
+import Icon from './Icon.vue';
+
 const props = defineProps<{
   visible: boolean;
   prompt: PresetPrompt;

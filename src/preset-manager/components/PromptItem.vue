@@ -6,27 +6,31 @@
     @dragstart="onDragStart"
     @dragend="onDragEnd"
   >
-    <div class="prompt-header" @click="toggle">
-      <div class="flex min-w-0 flex-1 items-center gap-2">
-        <i v-if="isPlaceholder" class="fas fa-grip-lines flex-shrink-0 text-xs text-slate-600" />
+    <div class="prompt-row" @click="toggle">
+      <span class="prompt-role-dot" :class="`role-${prompt.role}`" :title="prompt.role || ''" />
 
-        <span class="prompt-name">{{ prompt.name }}</span>
-        <span v-if="relationLabel" class="relation-badge">{{ relationLabel }}</span>
-      </div>
+      <span class="prompt-name">{{ prompt.name }}</span>
+      <span v-if="relationLabel" class="prompt-relation">{{ relationLabel }}</span>
 
-      <div class="flex flex-shrink-0 items-center gap-1">
-        <button
-          v-if="'enabled' in prompt"
-          class="status-toggle"
-          :class="{ enabled: prompt.enabled }"
-          :disabled="isPlaceholder"
-          :title="prompt.enabled ? '禁用条目' : '启用条目'"
-          @click.stop="!isPlaceholder && $emit('toggleEnabled')"
-        >
-          <span class="status-dot" />
-        </button>
-        <span class="expand-chevron" :class="{ expanded }" aria-hidden="true" />
-      </div>
+      <span class="prompt-row-spacer" />
+
+      <button
+        v-if="'enabled' in prompt"
+        class="status-toggle"
+        :class="{ on: prompt.enabled }"
+        :disabled="isPlaceholder"
+        :title="prompt.enabled ? '禁用条目' : '启用条目'"
+        @click.stop="!isPlaceholder && $emit('toggleEnabled')"
+      >
+        <span class="status-dot" />
+      </button>
+
+      <Icon
+        :name="expanded ? 'chevron-up' : 'chevron-down'"
+        :size="13"
+        class="prompt-chevron"
+        :class="{ expanded }"
+      />
     </div>
 
     <div v-if="!expanded && prompt.content" class="prompt-preview">
@@ -35,46 +39,30 @@
 
     <div v-if="expanded" class="prompt-body">
       <div class="prompt-meta">
-        <span class="role-badge" :class="prompt.role">{{ prompt.role }}</span>
-        <span v-if="triggerLabel" class="meta-badge">{{ triggerLabel }}</span>
-        <span v-if="positionLabel" class="meta-badge">{{ positionLabel }}</span>
+        <span class="role-pill" :class="`role-${prompt.role}`">{{ prompt.role }}</span>
+        <span v-if="triggerLabel" class="meta-pill">{{ triggerLabel }}</span>
+        <span v-if="positionLabel" class="meta-pill">{{ positionLabel }}</span>
       </div>
-      <div v-if="prompt.content" class="content-preview expanded-content">{{ prompt.content }}</div>
-      <div v-else class="text-xs text-slate-500 italic">[无内容]</div>
+
+      <div v-if="prompt.content" class="prompt-content">{{ prompt.content }}</div>
+      <div v-else class="prompt-empty">[无内容]</div>
 
       <div class="prompt-actions">
-        <button v-if="!isPlaceholder" class="action-btn" title="编辑条目" @click.stop="$emit('edit')">
-          <i class="fas fa-edit text-xs" />
-        </button>
-        <button
-          v-if="!isPlaceholder"
-          class="action-btn"
-          :title="prompt.enabled ? '禁用条目' : '启用条目'"
-          @click.stop="$emit('toggleEnabled')"
-        >
-          <i :class="['fas text-xs', prompt.enabled ? 'fa-toggle-on' : 'fa-toggle-off']" />
-        </button>
-        <button v-if="canTransfer" class="action-btn transfer" :title="`复制到${transferTargetLabel}`" @click.stop="$emit('copyToOther')">
-          <i class="fas fa-copy text-xs" />
-        </button>
-        <button v-if="canTransfer" class="action-btn transfer" :title="`迁移到${transferTargetLabel}`" @click.stop="$emit('moveToOther')">
-          <i class="fas fa-arrow-right-arrow-left text-xs" />
-        </button>
-        <button v-if="canDetach" class="action-btn" title="移出列表" @click.stop="$emit('detach')">
-          <i class="fas fa-minus-circle text-xs" />
-        </button>
-        <button v-if="canRestoreDefault" class="action-btn" title="恢复默认" @click.stop="$emit('restoreDefault')">
-          <i class="fas fa-rotate-left text-xs" />
-        </button>
-        <button v-if="canDelete" class="action-btn danger" title="删除条目" @click.stop="$emit('delete')">
-          <i class="fas fa-trash text-xs" />
-        </button>
+        <IconButton v-if="!isPlaceholder" name="pen-line" size="sm" title="编辑条目" @click.stop="$emit('edit')" />
+        <IconButton v-if="canTransfer" name="copy" size="sm" :title="`复制到${transferTargetLabel}`" @click.stop="$emit('copyToOther')" />
+        <IconButton v-if="canTransfer" name="arrow-right" size="sm" :title="`迁移到${transferTargetLabel}`" @click.stop="$emit('moveToOther')" />
+        <IconButton v-if="canDetach" name="minus" size="sm" title="移出列表" @click.stop="$emit('detach')" />
+        <IconButton v-if="canRestoreDefault" name="refresh-cw" size="sm" title="恢复默认" @click.stop="$emit('restoreDefault')" />
+        <IconButton v-if="canDelete" name="trash-2" size="sm" danger title="删除条目" @click.stop="$emit('delete')" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import Icon from './Icon.vue';
+import IconButton from './IconButton.vue';
+
 const props = defineProps<{
   prompt: PresetPrompt;
   isFavorited?: boolean;
@@ -156,240 +144,199 @@ defineExpose({ expanded });
 <style scoped>
 .prompt-item {
   position: relative;
-  border: 0;
-  border-bottom: 1px solid var(--pm-row-border);
-  border-radius: 0;
-  background: var(--pm-row-bg);
-  transition: background 0.12s, opacity 0.12s;
-  cursor: grab;
-}
-.prompt-item::before {
-  content: '';
-  position: absolute;
-  inset: 6px auto 6px 0;
-  width: 2px;
-  border-radius: 999px;
+  border-radius: 8px;
   background: transparent;
-  transition: background 0.12s;
+  cursor: grab;
+  transition: background 0.12s ease, opacity 0.12s ease;
 }
 .prompt-item:hover {
   background: var(--pm-row-hover);
 }
 .prompt-item.expanded {
-  border: 0;
-  border-top: 1px solid var(--pm-divider);
-  border-bottom: 1px solid var(--pm-divider);
-  border-radius: 0;
   background: var(--pm-row-active);
-  margin: 0;
-}
-.prompt-item.expanded::before {
-  background: var(--pm-text-muted);
 }
 .prompt-item.dragging {
   opacity: 0.5;
   cursor: grabbing;
 }
 .prompt-item.disabled {
-  opacity: 0.62;
+  opacity: 0.55;
 }
 .prompt-item.is-placeholder {
   cursor: default;
-  border: 0;
-  border-bottom: 1px dashed var(--pm-row-border);
-  border-radius: 0;
-  opacity: 0.7;
+  opacity: 0.6;
 }
-.prompt-header {
+.prompt-row {
   display: flex;
   align-items: center;
-  min-height: var(--pm-prompt-row-min, 44px);
-  padding: var(--pm-prompt-pad-y, 8px) calc(var(--pm-prompt-pad-x, 10px) + 2px);
+  gap: 10px;
+  min-height: var(--pm-prompt-row-min, 40px);
+  padding: var(--pm-prompt-pad-y, 7px) calc(var(--pm-prompt-pad-x, 12px));
   cursor: pointer;
-  gap: 8px;
+}
+.prompt-role-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--pm-text-faint);
+  transition: background 0.12s ease;
+}
+.prompt-role-dot.role-system {
+  background: color-mix(in srgb, var(--pm-text-muted) 60%, transparent);
+}
+.prompt-role-dot.role-user {
+  background: var(--pm-success);
+}
+.prompt-role-dot.role-assistant {
+  background: var(--pm-warning);
 }
 .prompt-name {
+  min-width: 0;
   color: var(--pm-text);
-  word-break: break-all;
   font-weight: 500;
+  letter-spacing: -0.005em;
   line-height: 1.35;
-  letter-spacing: 0;
+  word-break: break-all;
 }
-.relation-badge {
+.prompt-relation {
   flex-shrink: 0;
-  padding: 1px 6px;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
   border: 1px solid var(--pm-border);
-  border-radius: 6px;
+  border-radius: 999px;
   color: var(--pm-text-subtle);
-  font-size: 10px;
-  line-height: 1.5;
-  background: color-mix(in srgb, var(--pm-bg-elevated) 48%, transparent);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+.prompt-row-spacer {
+  flex: 1;
+  min-width: 0;
+}
+.prompt-chevron {
+  flex-shrink: 0;
+  color: var(--pm-text-subtle);
+  transition: color 0.12s ease;
+}
+.prompt-row:hover .prompt-chevron {
+  color: var(--pm-text);
 }
 .prompt-preview {
   display: -webkit-box;
-  margin: calc(-1 * var(--pm-prompt-pad-y, 8px) + 1px) calc(var(--pm-prompt-pad-x, 10px) + 48px) var(--pm-prompt-pad-y, 8px) calc(var(--pm-prompt-pad-x, 10px) + var(--pm-prompt-icon-size, 22px) + 8px);
+  margin: calc(-1 * var(--pm-prompt-pad-y, 7px) + 1px) calc(var(--pm-prompt-pad-x, 12px) + 64px) var(--pm-prompt-pad-y, 7px) calc(var(--pm-prompt-pad-x, 12px) + 16px);
   color: var(--pm-text-subtle);
+  font-size: 12.5px;
   line-height: 1.45;
   word-break: break-all;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: var(--pm-prompt-preview-lines, 1);
 }
-.expand-chevron {
-  width: 15px;
-  height: 15px;
-  position: relative;
-  flex: 0 0 15px;
-  opacity: 0.56;
-  transition: opacity 0.12s, transform 0.12s;
-}
-.expand-chevron::before {
-  content: '';
-  position: absolute;
-  left: 4px;
-  top: 4px;
-  width: 6px;
-  height: 6px;
-  border-right: 1.2px solid var(--pm-text-muted);
-  border-bottom: 1.2px solid var(--pm-text-muted);
-  transform: rotate(45deg);
-}
-.expand-chevron.expanded::before {
-  top: 6px;
-  transform: rotate(225deg);
-}
-.prompt-header:hover .expand-chevron {
-  opacity: 0.9;
-}
-.role-badge {
-  font-size: 10px;
-  min-width: 0;
-  padding: 1px 6px;
-  border-radius: 999px;
-  font-weight: 500;
-  text-align: center;
-  text-transform: uppercase;
-  border: 1px solid var(--pm-border);
-}
-.role-badge.system {
-  background: color-mix(in srgb, var(--pm-bg-elevated) 68%, transparent);
-  color: var(--pm-text);
-}
-.role-badge.user {
-  background: color-mix(in srgb, var(--pm-success) 12%, transparent);
-  color: var(--pm-success);
-}
-.role-badge.assistant {
-  background: color-mix(in srgb, var(--pm-warning) 12%, transparent);
-  color: var(--pm-warning);
-}
+
+/* Status toggle — small Codex-style pill switch */
 .status-toggle {
-  width: 30px;
-  height: 18px;
+  width: 28px;
+  height: 16px;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  padding: 2px;
-  border: 1px solid color-mix(in srgb, var(--pm-border) 68%, transparent);
+  padding: 1.5px;
+  border: 1px solid var(--pm-border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--pm-text-subtle) 12%, transparent);
-  color: var(--pm-text-subtle);
+  background: color-mix(in srgb, var(--pm-text-faint) 22%, transparent);
   cursor: pointer;
-  transition: opacity 0.14s;
+  transition: background 0.14s ease, border-color 0.14s ease;
+  flex-shrink: 0;
 }
 .status-toggle:hover:not(:disabled) {
-  background: var(--pm-bg-hover);
   border-color: var(--pm-border-strong);
 }
-.status-toggle.enabled {
-  background: color-mix(in srgb, var(--pm-text-subtle) 12%, transparent);
-  border-color: color-mix(in srgb, var(--pm-border) 68%, transparent);
+.status-toggle.on {
+  background: color-mix(in srgb, var(--pm-success) 55%, transparent);
+  border-color: color-mix(in srgb, var(--pm-success) 55%, transparent);
 }
 .status-toggle:disabled {
-  cursor: default;
+  cursor: not-allowed;
 }
 .status-dot {
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--pm-text-subtle) 88%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pm-border-strong) 50%, transparent);
-  transition: transform 0.14s, background 0.14s;
+  background: var(--pm-text-muted);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 0.16s ease, background 0.16s ease;
 }
-.status-toggle.enabled .status-dot {
-  background: var(--pm-success);
-  box-shadow: none;
-  transform: translateX(12px);
+.status-toggle.on .status-dot {
+  background: #ffffff;
+  transform: translateX(11px);
 }
+
+/* Expanded body */
 .prompt-body {
-  padding: 0 var(--pm-prompt-pad-x, 10px) var(--pm-prompt-pad-y, 8px);
-  border-top: 1px solid var(--pm-divider);
-  margin-top: 0;
-  padding-top: var(--pm-prompt-pad-y, 8px);
+  padding: 0 var(--pm-prompt-pad-x, 12px) var(--pm-prompt-pad-y, 7px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .prompt-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 7px;
+  gap: 5px;
 }
-.meta-badge {
-  min-width: 0;
-  padding: 1px 6px;
+.role-pill,
+.meta-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 8px;
   border: 1px solid var(--pm-border);
   border-radius: 999px;
   color: var(--pm-text-subtle);
-  font-size: 10px;
-  line-height: 1.5;
-  background: color-mix(in srgb, var(--pm-bg-elevated) 42%, transparent);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-transform: uppercase;
 }
-.content-preview {
-  font-size: var(--pm-prompt-preview-font-size, 13px);
+.role-pill.role-user {
+  border-color: color-mix(in srgb, var(--pm-success) 32%, transparent);
+  background: color-mix(in srgb, var(--pm-success) 14%, transparent);
+  color: var(--pm-success);
+}
+.role-pill.role-assistant {
+  border-color: color-mix(in srgb, var(--pm-warning) 32%, transparent);
+  background: color-mix(in srgb, var(--pm-warning) 14%, transparent);
+  color: var(--pm-warning);
+}
+.role-pill.role-system {
   color: var(--pm-text-muted);
-  line-height: 1.5;
-  max-height: 120px;
+}
+.prompt-content {
+  max-height: clamp(220px, 34vh, 460px);
+  padding: 10px 12px;
+  border: 1px solid var(--pm-border);
+  border-radius: 8px;
+  background: var(--pm-bg-elevated);
+  color: var(--pm-text-muted);
+  font-size: var(--pm-prompt-preview-font-size, 13px);
+  line-height: 1.55;
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
-  background: color-mix(in srgb, var(--pm-input-bg) 70%, transparent);
-  border: 1px solid var(--pm-divider);
-  border-radius: 7px;
-  padding: var(--pm-prompt-pad-y, 8px);
 }
-.expanded-content {
-  max-height: clamp(220px, 34vh, 460px);
+.prompt-empty {
+  color: var(--pm-text-faint);
+  font-size: 12px;
+  font-style: italic;
 }
 .prompt-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: var(--pm-prompt-pad-y, 8px);
-}
-.action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--pm-text-subtle);
-  font-size: 11px;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-}
-.action-btn:hover {
-  background: var(--pm-bg-hover);
-  color: var(--pm-text);
-}
-.action-btn.danger:hover {
-  color: var(--pm-danger);
-  background: color-mix(in srgb, var(--pm-danger) 10%, transparent);
-}
-.action-btn.transfer:hover {
-  color: var(--pm-text);
-  background: color-mix(in srgb, var(--pm-accent) 10%, transparent);
+  gap: 2px;
+  padding-top: 2px;
 }
 </style>

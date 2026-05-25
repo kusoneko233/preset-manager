@@ -36,9 +36,22 @@
 - [x] P2 滚动条收窄：宽高从 10px 收到 6px，去除背景剪裁和边框，玻璃容器内更安静。
 - [x] P2 Tailwind 警告清理：移除 `hover:!bg-red-500/30` 等内联危险样式，替换为 scoped CSS。
 - [x] 同步更新 `visualPolish.test.ts` 断言以覆盖新令牌、滚动条 6px、面板小标题 uppercase、AI 占位符、`floating-detach`、条目去卡片边线、批注 `.anno-group` 与 22px 按钮等。
-- [x] 从 UI 工作区同步开发者背景调试面板：支持本地背景图、毛玻璃、遮罩、渐变、噪点、内阴影、边缘高光、区域开关、预设保存和导入导出。
-- [x] 新增 `devThemeCss/devThemeIO` 工具、Pinia 持久化 store、动态样式注入器和面板入口，覆盖 sidebar/workspace/panel 三个调试区域。
-- [x] 新增 `devThemeCss.test.ts`、`devThemeIO.test.ts`、`devThemeIntegration.test.ts`，防止背景 CSS 生成、导入导出和 UI 挂载点回退。
+
+## 当前节点：UI v2 接续修复（与 Codex 功能并行）
+
+目标：基于 `ui/codex-polish` 分支继续推进 UI 视觉，与 Codex 在 `D:\tavern_helper_template-feature` 工作区的功能开发并行。
+
+- [x] 将 `AiAssistant.vue` drawer 与 detached 模式输入框 placeholder 同步为 `Ask Codex anything`，与 `visualPolish.test.ts` 期望对齐。
+- [x] 将 drawer 中 input 后的独立小窗按钮 class 由 `detach-trigger` 改为 `floating-detach`，应用既有 hover 浮现样式。
+- [x] 全部测试绿灯：`designMetrics`、`annotationTools`、`panelLayout`、`promptRelations`、`visualPolish`。
+- [x] 背景重做：顶栏与主区改为实色暗灰画布（`--pm-bg-titlebar` / `--pm-bg-workspace` 统一为 `#1c1e25`）；侧栏保留毛玻璃但提高底色不透明度到 `rgba(34, 38, 48, 0.62)` 让酒馆背景图只透出微微蓝紫调；侧栏右侧加 `0.8px` `--pm-sidebar-edge` 极细分隔线对齐 Codex。
+- [x] 按钮克制化：`PromptItem` 启用胶囊去掉绿色 glow + 绿色背景，启用态只有内圆点变绿、底色保持灰；`action-btn` / `star-btn` hover 取消 1px 边框只换底色；全局按钮圆角令牌 `--pm-btn-radius` 由 `8px` 收到 `6px`。
+- [x] 条目简洁化：删除条目左侧 `star-btn` 收藏按钮和展开后 `action-btn` 收藏/取消收藏项，条目内不再混杂收藏交互（保留外层收藏面板入口）。
+- [x] 同步 `visualPolish.test.ts` 断言：覆盖 `--pm-bg-titlebar`、`--pm-bg-workspace`、新版 `--pm-bg-sidebar` / `--pm-ai-capsule` / `--pm-sidebar-edge` 取值，以及新增的侧栏右边线 `box-shadow inset` 与 `--pm-btn-radius: 6px`。
+- [x] 修复 `code-inspector-plugin` 在预设管理器 UI iframe 内无响应：引入本项目生成的 inspector client 字符串模块，在 `createScriptIdIframe()` 加载完成后把 `code-inspector-component` 注入真实可视 UI iframe，并保留旧 watch/旧包下的 DefinePlugin 常量防御。
+- [x] 修复 inspector 热键模式：预设管理器 UI iframe 内 `Alt+Shift` 改为按一次切换一次，松开按键不再自动隐藏，便于停留遮罩后截图。
+- [x] 修复 inspector 仍表现为长按模式：禁用注入 iframe 内 inspector 的内部 `hotKeys` 按住判断，并在 `mousemove` 捕获阶段执行本项目自己的 `Alt+Shift` 切换逻辑。
+- [x] 修复 inspector 点击不跳转代码：打开态点击高亮元素时由预设管理器直接向 `localhost:5678` 发起定位请求，并保留 `trackCode()` 事件链路，避免 iframe 内点击事件或 XHR 兜底失效导致编辑器不响应。
 
 ## 已完成节点：Codex 参考尺寸标准化
 
@@ -85,10 +98,6 @@
 - [x] 只有展开项使用轻微卡片化背景。
 - [x] 标题、预览、状态点、收藏、展开箭头统一视觉轴线。
 - [x] 条目右侧启用状态点改为胶囊开关，开启时带轻微绿色高亮。
-- [x] 按批注取消展开项右侧的“放大/编辑”快捷图标，减少标题行按钮噪音。
-- [x] 展开内容阅读区加高，方便直接查看完整提示词内容。
-- [x] 展开底部操作区去掉和标题行重复的“禁用/收藏”，只保留编辑、复制/迁移、删除等低频操作。
-- [x] 编辑弹窗从 `body` 传送改为面板内部浮层，避免点击编辑后预设列表视觉上消失或层级异常。
 - [x] 标准模式继续以 `106%` 条目比例为基准。
 - [x] UI 比例设置继续保留，可保存用户自定义比例并恢复默认。
 
@@ -102,7 +111,18 @@
 - [x] AI 输入框背景进一步降实体感，按钮改为白色半透明高亮层，发送按钮改为明确高亮圆按钮。
 - [x] 去掉笨重上栏，消息区域轻量浮出。
 - [x] 设置、模型、发送按钮按 Codex 风格重新排布。
-- [ ] 独立小窗模式保留，但拖动、吸附、收回和视觉反馈放到后续节点。
+- [ ] 独立小窗模式保留，但拖动、收回、跨插件/酒馆页面覆盖和视觉反馈放到后续节点；当前先用开发者背景面板验证通用父页面浮层方案，不做自动弹出。
+
+## 当前功能节点：跨插件浮层小窗
+
+目标：让插件内需要临时展开的工具窗可以手动覆盖到插件窗口和酒馆页面之上，节省插件内部空间。
+
+- [x] 开发者背景面板打开后直接挂载到酒馆父页面浮层，不再使用插件内/父页面两套模式，也不做拖到边缘后自动弹出的触发。
+- [x] 在主应用中创建父页面浮层根节点，浮层根节点 `pointer-events: none`，实际小窗 `pointer-events: auto`，避免遮住酒馆页面其它区域。
+- [x] 面板拖动和四角缩放统一监听酒馆父页面 `document`，拖动时临时让浮层接管指针事件，松开后恢复穿透，保证能跨插件窗口和酒馆页面无缝拖动。
+- [x] 面板使用父页面 viewport 做边界夹取。
+- [x] 给父页面浮层注入开发者背景面板必要样式，解决 Vue Teleport 跨 iframe 后 scoped CSS 不生效的问题。
+- [ ] 抽象为通用父页面浮窗宿主，再接入 AI 独立小窗、历史备份等其它可拖小窗。
 
 ## 当前功能节点：AI 预设写作知识库与操作代理
 
@@ -118,22 +138,6 @@
 - [ ] 动作执行前写入历史快照，支持撤销。
 - [ ] 第一版只开放低风险动作：切换当前预设、插入 AI 写好的条目、修改已有条目、移动条目、开关启用状态、复制到第二预设。
 - [ ] 高风险动作暂缓：批量删除、自动清空、跨预设大规模重排。
-
-## 当前功能节点：官方 Prompt Manager 兼容
-
-目标：把插件的预设条目操作对齐 SillyTavern 官方 Prompt Manager，避免导入导出、未使用条目和系统条目处理出现格式偏差。
-
-- [x] 新增 `officialPromptManager.ts`，统一处理官方 `identifier`、`prompt_order`、导入导出、默认顺序和系统/占位条目判定。
-- [x] 官方导出格式改为 `{ version, type, data: { prompts, prompt_order } }`，其中 `prompts` 排除系统/占位条目，`prompt_order` 保留当前列表顺序和启用状态。
-- [x] 官方导入支持 `data.prompts` 与 `data.prompt_order`，按 `identifier` 合并条目并应用启用状态和顺序。
-- [x] 预设主列表只显示 `prompts`，`prompts_unused` 不再在主列表为空时混入显示。
-- [x] 顶栏更多菜单新增“添加未使用条目”，可把 `prompts_unused` 中的条目移回当前列表，默认禁用并插到列表开头。
-- [x] 条目操作拆分为“移出列表”和“删除”：移出列表保留条目到未使用池，删除才从 active/unused 中彻底删除。
-- [x] 系统/占位条目禁止彻底删除、移出列表和跨预设迁移，避免破坏官方默认结构。
-- [x] 插入、复制、迁移普通条目时重新生成 `id/identifier`，防止跨预设或重复插入造成官方 key 冲突。
-- [x] 新增 `officialPromptManager.test.ts`、扩展 `promptOfficialTools.test.ts` 和 `promptOfficialFields.test.ts` 覆盖官方兼容行为。
-- [x] 补齐预设级操作：新建预设、重命名预设、删除预设；复制预设底层保留，前端不显示。
-- [x] 补齐系统提示词“恢复默认内容”能力，从 `default_preset` 恢复官方系统条目内容并保留当前启用状态。
 
 ## 下一节点：UI 批注系统完善
 

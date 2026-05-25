@@ -1,4 +1,6 @@
-export type DevThemeTarget = 'sidebar' | 'workspace' | 'panel';
+import { buildSelectedExtraStyleDeclarations } from './devThemeControls';
+
+export type DevThemeTarget = 'sidebar' | 'workspace' | 'panel' | 'selected';
 
 export type DevThemeBackground = {
   imageDataUrl: string | null;
@@ -18,12 +20,31 @@ export type DevThemeBackground = {
   innerShadowEnabled: boolean;
   innerShadowCss: string;
   edgeHighlightEnabled: boolean;
+  textColorEnabled: boolean;
+  textColor: string;
+  fontSizeEnabled: boolean;
+  fontSizePx: number;
+  fontWeightEnabled: boolean;
+  fontWeight: number;
+  lineHeightEnabled: boolean;
+  lineHeight: number;
+  paddingEnabled: boolean;
+  paddingPx: number;
+  marginEnabled: boolean;
+  marginPx: number;
+  widthEnabled: boolean;
+  widthPx: number;
+  heightEnabled: boolean;
+  heightPx: number;
+  borderRadiusEnabled: boolean;
+  borderRadiusPx: number;
 };
 
 export type DevThemeCssState = {
   enabled: boolean;
   targets: Record<DevThemeTarget, boolean>;
   background: DevThemeBackground;
+  selectedPaths?: string[];
 };
 
 export function createDefaultDevThemeBackground(): DevThemeBackground {
@@ -45,6 +66,24 @@ export function createDefaultDevThemeBackground(): DevThemeBackground {
     innerShadowEnabled: false,
     innerShadowCss: 'inset 0 1px 0 rgba(255,255,255,0.12)',
     edgeHighlightEnabled: false,
+    textColorEnabled: false,
+    textColor: '#ffffff',
+    fontSizeEnabled: false,
+    fontSizePx: 14,
+    fontWeightEnabled: false,
+    fontWeight: 500,
+    lineHeightEnabled: false,
+    lineHeight: 1.5,
+    paddingEnabled: false,
+    paddingPx: 8,
+    marginEnabled: false,
+    marginPx: 8,
+    widthEnabled: false,
+    widthPx: 200,
+    heightEnabled: false,
+    heightPx: 80,
+    borderRadiusEnabled: false,
+    borderRadiusPx: 8,
   };
 }
 
@@ -129,6 +168,52 @@ function buildBlock(selector: string, background: DevThemeBackground) {
 }`;
 }
 
+function escapeAttributeValue(value: string) {
+  return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+}
+
+function buildSelectedSelectors(paths: string[]) {
+  const seen = new Set<string>();
+  const cleaned = paths.filter(path => {
+    if (!path) return false;
+    if (seen.has(path)) return false;
+    seen.add(path);
+    return true;
+  });
+  if (!cleaned.length) return '';
+  return cleaned
+    .flatMap(path => {
+      const escaped = escapeAttributeValue(path);
+      const escapedWithColon = escapeAttributeValue(`${path}:`);
+      return [
+        `[data-insp-path="${escaped}"]`,
+        `[data-insp-path^="${escapedWithColon}"]`,
+        `[data-v-inspector="${escaped}"]`,
+        `[data-v-inspector^="${escapedWithColon}"]`,
+        `[data-preset-manager-selected-source="${escaped}"]`,
+      ];
+    })
+    .join(',\n');
+}
+
+function buildExtraStyleDeclarations(background: DevThemeBackground) {
+  return buildSelectedExtraStyleDeclarations(background);
+}
+
+function buildSelectedBlock(paths: string[], background: DevThemeBackground) {
+  const selector = buildSelectedSelectors(paths);
+  if (!selector) return '';
+
+  const blocks: string[] = [];
+  blocks.push(buildBlock(selector, background));
+
+  const extras = buildExtraStyleDeclarations(background);
+  if (extras.length) {
+    blocks.push(`${selector} {\n  ${extras.join('\n  ')}\n}`);
+  }
+  return blocks.join('\n\n');
+}
+
 export function buildDevThemeCss(state: DevThemeCssState) {
   if (!state.enabled) return '';
 
@@ -136,6 +221,10 @@ export function buildDevThemeCss(state: DevThemeCssState) {
   if (state.targets.sidebar) blocks.push(buildBlock('.app-root[data-dev-sidebar="on"]::before', state.background));
   if (state.targets.workspace) blocks.push(buildBlock('.app-root[data-dev-workspace="on"] .preset-workspace', state.background));
   if (state.targets.panel) blocks.push(buildBlock('.app-root[data-dev-panel="on"] .ui-settings-panel', state.background));
+  if (state.targets.selected && state.selectedPaths && state.selectedPaths.length) {
+    const selectedBlock = buildSelectedBlock(state.selectedPaths, state.background);
+    if (selectedBlock) blocks.push(selectedBlock);
+  }
 
   return blocks.join('\n\n');
 }

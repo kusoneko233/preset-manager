@@ -1,4 +1,4 @@
-import type { DevThemeBackground, DevThemeTarget } from './devThemeCss';
+import { createDefaultDevThemeBackground, type DevThemeBackground, type DevThemeTarget } from './devThemeCss';
 
 export type DevThemeExportConfig = {
   name: string;
@@ -10,27 +10,7 @@ export type DevThemeExportConfig = {
 
 export type DevThemeExportInput = Omit<DevThemeExportConfig, 'version'>;
 
-export const DEV_THEME_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
-
-const DEFAULT_DEV_THEME_BACKGROUND: DevThemeBackground = {
-  imageDataUrl: null,
-  imageFit: 'cover',
-  imageScale: 1,
-  opacity: 0.96,
-  blur: 24,
-  saturate: 1.4,
-  brightness: 1,
-  contrast: 1,
-  maskColor: '#161A22',
-  maskOpacity: 0.45,
-  gradientEnabled: false,
-  gradientCss: 'linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0))',
-  noiseEnabled: false,
-  noiseOpacity: 0.06,
-  innerShadowEnabled: false,
-  innerShadowCss: 'inset 0 1px 0 rgba(255,255,255,0.12)',
-  edgeHighlightEnabled: false,
-};
+export const DEV_THEME_IMAGE_MAX_BYTES = 20 * 1024 * 1024;
 
 export function sanitizePresetFileName(name: string) {
   return name
@@ -43,7 +23,7 @@ export function sanitizePresetFileName(name: string) {
 
 export function validateImageFileLike(file: Pick<File, 'type' | 'size'>) {
   if (!file.type.startsWith('image/')) return '请选择图片文件';
-  if (file.size > DEV_THEME_IMAGE_MAX_BYTES) return '图片不能超过 5MB';
+  if (file.size > DEV_THEME_IMAGE_MAX_BYTES) return '图片不能超过 20MB';
   return null;
 }
 
@@ -100,7 +80,7 @@ export function parseDevThemeConfig(raw: string): DevThemeExportConfig {
     throw new Error('这个不是背景预设配置文件');
   }
 
-  const defaults = DEFAULT_DEV_THEME_BACKGROUND;
+  const defaults = createDefaultDevThemeBackground();
   const source = parsed.background ?? {};
 
   return {
@@ -111,6 +91,7 @@ export function parseDevThemeConfig(raw: string): DevThemeExportConfig {
       sidebar: asBoolean(parsed.targets?.sidebar, true),
       workspace: asBoolean(parsed.targets?.workspace, true),
       panel: asBoolean(parsed.targets?.panel, true),
+      selected: asBoolean(parsed.targets?.selected, false),
     },
     background: {
       imageDataUrl: null,
@@ -130,6 +111,24 @@ export function parseDevThemeConfig(raw: string): DevThemeExportConfig {
       innerShadowEnabled: asBoolean(source.innerShadowEnabled, defaults.innerShadowEnabled),
       innerShadowCss: asString(source.innerShadowCss, defaults.innerShadowCss),
       edgeHighlightEnabled: asBoolean(source.edgeHighlightEnabled, defaults.edgeHighlightEnabled),
+      textColorEnabled: asBoolean(source.textColorEnabled, defaults.textColorEnabled),
+      textColor: asString(source.textColor, defaults.textColor),
+      fontSizeEnabled: asBoolean(source.fontSizeEnabled, defaults.fontSizeEnabled),
+      fontSizePx: asNumber(source.fontSizePx, defaults.fontSizePx),
+      fontWeightEnabled: asBoolean(source.fontWeightEnabled, defaults.fontWeightEnabled),
+      fontWeight: asNumber(source.fontWeight, defaults.fontWeight),
+      lineHeightEnabled: asBoolean(source.lineHeightEnabled, defaults.lineHeightEnabled),
+      lineHeight: asNumber(source.lineHeight, defaults.lineHeight),
+      paddingEnabled: asBoolean(source.paddingEnabled, defaults.paddingEnabled),
+      paddingPx: asNumber(source.paddingPx, defaults.paddingPx),
+      marginEnabled: asBoolean(source.marginEnabled, defaults.marginEnabled),
+      marginPx: asNumber(source.marginPx, defaults.marginPx),
+      widthEnabled: asBoolean(source.widthEnabled, defaults.widthEnabled),
+      widthPx: asNumber(source.widthPx, defaults.widthPx),
+      heightEnabled: asBoolean(source.heightEnabled, defaults.heightEnabled),
+      heightPx: asNumber(source.heightPx, defaults.heightPx),
+      borderRadiusEnabled: asBoolean(source.borderRadiusEnabled, defaults.borderRadiusEnabled),
+      borderRadiusPx: asNumber(source.borderRadiusPx, defaults.borderRadiusPx),
     },
   };
 }

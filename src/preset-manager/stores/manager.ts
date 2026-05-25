@@ -36,18 +36,29 @@ interface ManagerState {
 }
 
 const STORAGE_KEY = 'preset_manager';
+const unloadablePresetNames = new Set<string>();
+const warnedUnloadablePresetNames = new Set<string>();
 
-function tryGetPreset(name: string): Preset | null {
+function tryGetPreset(name: string, options: { silent?: boolean } = {}): Preset | null {
   try {
-    return getPreset(name);
+    const preset = getPreset(name);
+    unloadablePresetNames.delete(name);
+    return preset;
   } catch (e) {
-    console.warn('[PresetManager] preset name is not loadable:', name, e);
+    unloadablePresetNames.add(name);
+    if (!options.silent && !warnedUnloadablePresetNames.has(name)) {
+      warnedUnloadablePresetNames.add(name);
+      console.warn('[PresetManager] preset name is not loadable:', name, e);
+    }
     return null;
   }
 }
 
 function getLoadablePresetNames(): string[] {
-  return getPresetNames().filter(name => !!tryGetPreset(name));
+  return getPresetNames().filter(name => {
+    if (unloadablePresetNames.has(name)) return false;
+    return !!tryGetPreset(name, { silent: true });
+  });
 }
 
 function clonePreset(preset: Preset): Preset {

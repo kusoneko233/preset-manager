@@ -2,7 +2,7 @@
   <div
     class="title-bar flex items-center select-none"
     :class="{ 'left-collapsed': leftCollapsed }"
-    @mousedown.stop.prevent="onDragStart"
+    @mousedown.stop="onDragStart"
   >
     <div class="title-left flex min-w-0 items-center">
       <button
@@ -77,6 +77,14 @@
         </button>
         <button
           class="title-btn"
+          :class="{ active: codeInspectorEnabled }"
+          title="开发者检查器"
+          @click="$emit('toggleCodeInspector')"
+        >
+          <i class="fas fa-crosshairs text-xs" />
+        </button>
+        <button
+          class="title-btn"
           title="开发者背景面板"
           @click="$emit('toggleDevThemePanel')"
         >
@@ -94,6 +102,10 @@
 
           <Transition name="title-menu-pop">
             <div v-if="moreMenuOpen" class="title-more-menu" @mousedown.stop>
+              <button class="title-more-item" @click="runMoreAction('history')">
+                <i class="fas fa-clock-rotate-left text-xs" />
+                <span>历史备份</span>
+              </button>
               <button class="title-more-item" @click="runMoreAction('createPreset')">
                 <i class="fas fa-folder-plus text-xs" />
                 <span>新建预设</span>
@@ -102,7 +114,7 @@
                 <i class="fas fa-pen text-xs" />
                 <span>重命名预设</span>
               </button>
-              <button class="title-more-item danger-item" @click="runMoreAction('deletePreset')">
+              <button class="title-more-item danger" @click="runMoreAction('deletePreset')">
                 <i class="fas fa-trash text-xs" />
                 <span>删除预设</span>
               </button>
@@ -111,7 +123,7 @@
                 <span>新建条目</span>
               </button>
               <button class="title-more-item" @click="runMoreAction('appendUnusedPrompt')">
-                <i class="fas fa-list-check text-xs" />
+                <i class="fas fa-inbox text-xs" />
                 <span>添加未使用条目</span>
               </button>
               <button class="title-more-item" @click="runMoreAction('importPrompts')">
@@ -123,12 +135,8 @@
                 <span>导出条目</span>
               </button>
               <button class="title-more-item" @click="runMoreAction('resetPromptOrder')">
-                <i class="fas fa-arrow-down-a-z text-xs" />
+                <i class="fas fa-arrow-down-wide-short text-xs" />
                 <span>重置顺序</span>
-              </button>
-              <button class="title-more-item" @click="runMoreAction('history')">
-                <i class="fas fa-clock-rotate-left text-xs" />
-                <span>历史备份</span>
               </button>
               <button class="title-more-item" @click="runMoreAction('ui')">
                 <i class="fas fa-sliders text-xs" />
@@ -157,12 +165,14 @@
 
 <script setup lang="ts">
 import { startParentDrag } from '../utils/drag';
+import { clampWindowStateWithVisibleArea, type WindowState } from '../utils/panelLayout';
 
 const props = defineProps<{
   isFullscreen: boolean;
   canUndo: boolean;
   canRedo: boolean;
   annotationVisible: boolean;
+  codeInspectorEnabled: boolean;
   theme: 'dark' | 'light';
   leftCollapsed: boolean;
   currentPresetName: string;
@@ -179,12 +189,13 @@ const emit = defineEmits<{
   toggleUiSettings: [];
   toggleAnnotation: [];
   toggleDevThemePanel: [];
+  toggleCodeInspector: [];
   toggleLeftSidebar: [];
   selectPreset: [name: string];
+  createPrompt: [];
   createPreset: [];
   renamePreset: [];
   deletePreset: [];
-  createPrompt: [];
   appendUnusedPrompt: [];
   importPrompts: [];
   exportPrompts: [];
@@ -198,6 +209,7 @@ const iframeEl = inject<HTMLIFrameElement>('iframeElement')!;
 const windowStateKey = inject<string>('presetManagerWindowStateKey', 'presetManagerWindowState');
 const windowStateVersionKey = inject<string>('presetManagerWindowStateVersionKey', 'presetManagerWindowStateVersion');
 const windowStateVersion = inject<string>('presetManagerWindowStateVersion', '');
+const windowMinVisibleRatio = inject<number>('presetManagerWindowMinVisibleRatio', 0.1);
 
 const presetMenuOpen = ref(false);
 const moreMenuOpen = ref(false);
@@ -215,15 +227,28 @@ function toggleMoreMenu() {
   if (moreMenuOpen.value) presetMenuOpen.value = false;
 }
 
-function runMoreAction(action: 'history' | 'theme' | 'ui' | 'createPreset' | 'renamePreset' | 'deletePreset' | 'createPrompt' | 'appendUnusedPrompt' | 'importPrompts' | 'exportPrompts' | 'resetPromptOrder') {
+function runMoreAction(
+  action:
+    | 'history'
+    | 'theme'
+    | 'ui'
+    | 'createPrompt'
+    | 'createPreset'
+    | 'renamePreset'
+    | 'deletePreset'
+    | 'appendUnusedPrompt'
+    | 'importPrompts'
+    | 'exportPrompts'
+    | 'resetPromptOrder',
+) {
   moreMenuOpen.value = false;
   if (action === 'history') emit('toggleHistory');
   if (action === 'theme') emit('toggleTheme');
   if (action === 'ui') emit('toggleUiSettings');
+  if (action === 'createPrompt') emit('createPrompt');
   if (action === 'createPreset') emit('createPreset');
   if (action === 'renamePreset') emit('renamePreset');
   if (action === 'deletePreset') emit('deletePreset');
-  if (action === 'createPrompt') emit('createPrompt');
   if (action === 'appendUnusedPrompt') emit('appendUnusedPrompt');
   if (action === 'importPrompts') emit('importPrompts');
   if (action === 'exportPrompts') emit('exportPrompts');
@@ -260,21 +285,59 @@ function onDragStart(e: MouseEvent) {
   const startY = e.screenY;
   const startTop = parseFloat(style.top) || 0;
   const startLeft = parseFloat(style.left) || 0;
+  const startWidth = iframe.getBoundingClientRect().width;
+  const startHeight = iframe.getBoundingClientRect().height;
+
+  const getParentViewportSize = () => ({
+    width: parentDoc.documentElement.clientWidth || parentDoc.defaultView?.innerWidth || startWidth,
+    height: parentDoc.documentElement.clientHeight || parentDoc.defaultView?.innerHeight || startHeight,
+  });
+
+  const clampDraggedWindowState = (state: WindowState) => {
+    const viewport = getParentViewportSize();
+    return clampWindowStateWithVisibleArea(
+      state,
+      viewport.width,
+      viewport.height,
+      640,
+      420,
+      windowMinVisibleRatio,
+    );
+  };
+
+  const applyDraggedWindowState = (state: WindowState) => {
+    style.transform = '';
+    style.right = '';
+    style.bottom = '';
+    style.top = `${state.top}px`;
+    style.left = `${state.left}px`;
+    style.width = `${state.width}px`;
+    style.height = `${state.height}px`;
+    style.maxWidth = 'none';
+    style.maxHeight = 'none';
+    style.borderRadius = '12px';
+  };
 
   startParentDrag(parentDoc, {
     startEvent: e,
     cursor: 'move',
     onMove: ev => {
-      style.top = `${startTop + ev.screenY - startY}px`;
-      style.left = `${startLeft + ev.screenX - startX}px`;
+      applyDraggedWindowState(clampDraggedWindowState({
+        top: startTop + ev.screenY - startY,
+        left: startLeft + ev.screenX - startX,
+        width: startWidth,
+        height: startHeight,
+      }));
     },
     onEnd: () => {
-      localStorage.setItem(windowStateKey, JSON.stringify({
+      const nextState = clampDraggedWindowState({
         top: iframe.getBoundingClientRect().top,
         left: iframe.getBoundingClientRect().left,
         width: iframe.getBoundingClientRect().width,
         height: iframe.getBoundingClientRect().height,
-      }));
+      });
+      applyDraggedWindowState(nextState);
+      localStorage.setItem(windowStateKey, JSON.stringify(nextState));
       if (windowStateVersion) {
         localStorage.setItem(windowStateVersionKey, windowStateVersion);
       }
@@ -586,9 +649,9 @@ onUnmounted(() => {
   background: var(--pm-bg-hover);
   color: var(--pm-text);
 }
-.title-more-item.danger-item:hover {
+.title-more-item.danger:hover {
   color: var(--pm-danger);
-  background: color-mix(in srgb, var(--pm-danger) 10%, transparent);
+  background: color-mix(in srgb, var(--pm-danger) 12%, transparent);
 }
 .title-more-item i {
   width: 14px;

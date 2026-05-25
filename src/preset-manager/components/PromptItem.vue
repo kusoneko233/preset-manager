@@ -8,16 +8,7 @@
   >
     <div class="prompt-header" @click="toggle">
       <div class="flex min-w-0 flex-1 items-center gap-2">
-        <button
-          v-if="!isPlaceholder"
-          class="star-btn"
-          :class="{ favorited: isFavorited }"
-          title="收藏"
-          @click.stop="$emit('toggleFavorite')"
-        >
-          <i :class="['text-xs', isFavorited ? 'fas fa-star' : 'far fa-star']" />
-        </button>
-        <i v-else class="fas fa-grip-lines flex-shrink-0 text-xs text-slate-600" />
+        <i v-if="isPlaceholder" class="fas fa-grip-lines flex-shrink-0 text-xs text-slate-600" />
 
         <span class="prompt-name">{{ prompt.name }}</span>
         <span v-if="relationLabel" class="relation-badge">{{ relationLabel }}</span>
@@ -45,9 +36,8 @@
     <div v-if="expanded" class="prompt-body">
       <div class="prompt-meta">
         <span class="role-badge" :class="prompt.role">{{ prompt.role }}</span>
-        <span class="meta-badge">{{ positionLabel }}</span>
-        <span class="meta-badge">{{ triggerLabel }}</span>
-        <span v-if="forbidOverrides" class="meta-badge lock">锁定</span>
+        <span v-if="triggerLabel" class="meta-badge">{{ triggerLabel }}</span>
+        <span v-if="positionLabel" class="meta-badge">{{ positionLabel }}</span>
       </div>
       <div v-if="prompt.content" class="content-preview expanded-content">{{ prompt.content }}</div>
       <div v-else class="text-xs text-slate-500 italic">[无内容]</div>
@@ -55,27 +45,29 @@
       <div class="prompt-actions">
         <button v-if="!isPlaceholder" class="action-btn" title="编辑条目" @click.stop="$emit('edit')">
           <i class="fas fa-edit text-xs" />
-          <span>编辑</span>
         </button>
-        <button v-if="canRestoreDefault" class="action-btn" title="恢复官方默认内容" @click.stop="$emit('restoreDefault')">
-          <i class="fas fa-rotate-left text-xs" />
-          <span>恢复默认</span>
+        <button
+          v-if="!isPlaceholder"
+          class="action-btn"
+          :title="prompt.enabled ? '禁用条目' : '启用条目'"
+          @click.stop="$emit('toggleEnabled')"
+        >
+          <i :class="['fas text-xs', prompt.enabled ? 'fa-toggle-on' : 'fa-toggle-off']" />
         </button>
-        <button v-if="canCopyToOther" class="action-btn transfer" :title="`复制到${transferTargetLabel}`" @click.stop="$emit('copyToOther')">
+        <button v-if="canTransfer" class="action-btn transfer" :title="`复制到${transferTargetLabel}`" @click.stop="$emit('copyToOther')">
           <i class="fas fa-copy text-xs" />
-          <span>复制到{{ transferTargetLabel }}</span>
         </button>
-        <button v-if="canMoveToOther" class="action-btn transfer" :title="`迁移到${transferTargetLabel}`" @click.stop="$emit('moveToOther')">
+        <button v-if="canTransfer" class="action-btn transfer" :title="`迁移到${transferTargetLabel}`" @click.stop="$emit('moveToOther')">
           <i class="fas fa-arrow-right-arrow-left text-xs" />
-          <span>迁移到{{ transferTargetLabel }}</span>
         </button>
-        <button v-if="canDetach" class="action-btn" title="移出当前列表，保留在未使用条目中" @click.stop="$emit('detach')">
-          <i class="fas fa-box-archive text-xs" />
-          <span>移出列表</span>
+        <button v-if="canDetach" class="action-btn" title="移出列表" @click.stop="$emit('detach')">
+          <i class="fas fa-minus-circle text-xs" />
+        </button>
+        <button v-if="canRestoreDefault" class="action-btn" title="恢复默认" @click.stop="$emit('restoreDefault')">
+          <i class="fas fa-rotate-left text-xs" />
         </button>
         <button v-if="canDelete" class="action-btn danger" title="删除条目" @click.stop="$emit('delete')">
           <i class="fas fa-trash text-xs" />
-          <span>删除</span>
         </button>
       </div>
     </div>
@@ -102,8 +94,8 @@ defineEmits<{
   edit: [];
   toggleFavorite: [];
   toggleEnabled: [];
-  detach: [];
   delete: [];
+  detach: [];
   restoreDefault: [];
   copyToOther: [];
   moveToOther: [];
@@ -113,23 +105,24 @@ const expanded = ref(false);
 const isDragging = ref(false);
 
 const isPlaceholder = computed(() => isPresetPlaceholderPrompt(props.prompt));
-const canCopyToOther = computed(() => Boolean(props.canTransfer) && !isPlaceholder.value);
-const canMoveToOther = computed(() => canCopyToOther.value && Boolean(props.canDelete));
-const positionLabel = computed(() => {
-  const position = (props.prompt as any).injection_position;
-  const inChat = position === 1 || (props.prompt as any).position?.type === 'in_chat';
-  if (!inChat) return '相对';
+const promptAny = computed(() => props.prompt as any);
 
-  const depth = (props.prompt as any).injection_depth ?? (props.prompt as any).position?.depth ?? 4;
-  const order = (props.prompt as any).injection_order ?? (props.prompt as any).position?.order ?? 100;
-  return `聊天@${depth}/${order}`;
-});
 const triggerLabel = computed(() => {
-  const triggers = (props.prompt as any).injection_trigger;
-  if (!Array.isArray(triggers) || triggers.length === 0) return '全部触发';
-  return `${triggers.length}种触发`;
+  const triggers = promptAny.value.injection_trigger ?? promptAny.value.triggers;
+  if (!Array.isArray(triggers) || triggers.length === 0) return '';
+  return `触发 ${triggers.length}`;
 });
-const forbidOverrides = computed(() => Boolean((props.prompt as any).forbid_overrides));
+
+const positionLabel = computed(() => {
+  const position = promptAny.value.position;
+  const injectionPosition = promptAny.value.injection_position;
+  if (position?.type === 'in_chat' || injectionPosition === 1) {
+    const depth = position?.depth ?? promptAny.value.injection_depth;
+    const order = position?.order ?? promptAny.value.injection_order;
+    return `聊天中 D${depth ?? '-'} / O${order ?? '-'}`;
+  }
+  return '相对位置';
+});
 
 function toggle() {
   expanded.value = !expanded.value;
@@ -231,27 +224,6 @@ defineExpose({ expanded });
   font-size: 10px;
   line-height: 1.5;
   background: color-mix(in srgb, var(--pm-bg-elevated) 48%, transparent);
-}
-.star-btn {
-  width: var(--pm-prompt-icon-size, 22px);
-  height: var(--pm-prompt-icon-size, 22px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  color: var(--pm-text-subtle);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all 0.15s;
-}
-.star-btn:hover {
-  color: var(--pm-warning);
-  background: color-mix(in srgb, var(--pm-warning) 12%, transparent);
-}
-.star-btn.favorited {
-  color: var(--pm-warning);
 }
 .prompt-preview {
   display: -webkit-box;
@@ -358,27 +330,24 @@ defineExpose({ expanded });
 .prompt-meta {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 5px;
+  gap: 6px;
   margin-bottom: 7px;
 }
 .meta-badge {
+  min-width: 0;
   padding: 1px 6px;
   border: 1px solid var(--pm-border);
   border-radius: 999px;
   color: var(--pm-text-subtle);
   font-size: 10px;
   line-height: 1.5;
-  background: color-mix(in srgb, var(--pm-bg-elevated) 44%, transparent);
-}
-.meta-badge.lock {
-  color: var(--pm-warning);
+  background: color-mix(in srgb, var(--pm-bg-elevated) 42%, transparent);
 }
 .content-preview {
   font-size: var(--pm-prompt-preview-font-size, 13px);
   color: var(--pm-text-muted);
   line-height: 1.5;
-  max-height: clamp(220px, 34vh, 460px);
+  max-height: 120px;
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
@@ -386,6 +355,9 @@ defineExpose({ expanded });
   border: 1px solid var(--pm-divider);
   border-radius: 7px;
   padding: var(--pm-prompt-pad-y, 8px);
+}
+.expanded-content {
+  max-height: clamp(220px, 34vh, 460px);
 }
 .prompt-actions {
   display: flex;
@@ -396,8 +368,10 @@ defineExpose({ expanded });
 .action-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 5px 9px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border-radius: 6px;
   border: 1px solid transparent;
   background: transparent;

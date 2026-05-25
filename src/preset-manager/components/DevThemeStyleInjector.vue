@@ -1,47 +1,74 @@
 <script setup lang="ts">
-import { useDevThemeStore } from '../stores/devTheme';
+import { computed, inject } from 'vue';
 import { buildDevThemeCss } from '../utils/devThemeCss';
+import { useDevThemeStore } from '../stores/devTheme';
 
 const store = useDevThemeStore();
-let styleEl: HTMLStyleElement | null = null;
+const parentDoc = inject<Document | null>('parentDocument', null);
+const styleEls = new Map<Document, HTMLStyleElement>();
 
-function ensureStyleElement() {
-  if (styleEl) return styleEl;
-  styleEl = document.getElementById('pm-dev-theme') as HTMLStyleElement | null;
+const selectedPaths = computed(() => {
+  if (!store.currentTargets.selected) return [] as string[];
+  return store.selectedElement?.path ? [store.selectedElement.path] : [];
+});
+
+const livePreviewTargets = computed(() => ({
+  ...store.currentTargets,
+  selected: store.currentTargets.selected || Boolean(store.selectedElement),
+}));
+
+const livePreviewSelectedPaths = computed(() => {
+  if (!livePreviewTargets.value.selected) return [] as string[];
+  return store.selectedElement?.path ? [store.selectedElement.path] : [];
+});
+
+function styleIdFor(styleDocument: Document) {
+  return styleDocument === parentDoc ? 'pm-dev-theme-parent' : 'pm-dev-theme-iframe';
+}
+
+function ensureStyleElement(styleDocument: Document) {
+  const existing = styleEls.get(styleDocument);
+  if (existing?.ownerDocument === styleDocument) return existing;
+  const styleId = styleIdFor(styleDocument);
+  let styleEl = styleDocument.getElementById(styleId) as HTMLStyleElement | null;
   if (!styleEl) {
-    styleEl = document.createElement('style');
-    styleEl.id = 'pm-dev-theme';
-    document.head.appendChild(styleEl);
+    styleEl = styleDocument.createElement('style');
+    styleEl.id = styleId;
+    styleDocument.head.appendChild(styleEl);
   }
+  styleEls.set(styleDocument, styleEl);
   return styleEl;
+}
+
+function syncStyleElement(styleDocument: Document, css: string) {
+  ensureStyleElement(styleDocument).textContent = css;
 }
 
 function syncStyle() {
   const css = buildDevThemeCss({
     enabled: store.enabled,
-    targets: store.currentTargets,
+    targets: store.livePreviewActive ? livePreviewTargets.value : store.currentTargets,
     background: store.currentDraft,
+    selectedPaths: store.livePreviewActive ? livePreviewSelectedPaths.value : selectedPaths.value,
   });
-  ensureStyleElement().textContent = css;
+  syncStyleElement(document, css);
+  if (parentDoc && parentDoc !== document) syncStyleElement(parentDoc, css);
 }
 
 watch(
-  () => [store.enabled, store.currentTargets, store.currentDraft],
+  () => [store.enabled, store.currentTargets, store.currentDraft, store.livePreviewActive, selectedPaths.value, livePreviewSelectedPaths.value],
   syncStyle,
   { deep: true, immediate: true },
 );
 
 onUnmounted(() => {
-  if (styleEl) styleEl.textContent = '';
+  styleEls.forEach(styleEl => {
+    styleEl.textContent = '';
+  });
+  styleEls.clear();
 });
 </script>
 
 <template>
-  <span class="dev-theme-style-injector" aria-hidden="true" />
+  <span hidden aria-hidden="true"></span>
 </template>
-
-<style scoped>
-.dev-theme-style-injector {
-  display: none;
-}
-</style>

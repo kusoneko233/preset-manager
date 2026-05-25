@@ -18,33 +18,27 @@
       :preset-names="manager.presetNames"
       :prompt-count="manager.mainPrompts.length"
       :token-estimate="mainPresetTokenEstimate"
+      :code-inspector-enabled="codeInspectorEnabled"
       @undo="doUndo"
       @redo="doRedo"
       @toggle-history="showHistory = !showHistory"
       @toggle-theme="toggleTheme"
       @toggle-ui-settings="showUiSettings = !showUiSettings"
       @toggle-annotation="showAnnotation = !showAnnotation"
-      @toggle-dev-theme-panel="devTheme.togglePanel"
+      @toggle-dev-theme-panel="devTheme.togglePanel()"
+      @toggle-code-inspector="toggleCodeInspector"
       @toggle-left-sidebar="leftCollapsed = !leftCollapsed"
       @select-preset="selectMainPreset"
+      @create-prompt="createOfficialPrompt"
       @create-preset="createOfficialPreset"
       @rename-preset="renameOfficialPreset"
       @delete-preset="deleteOfficialPreset"
-      @create-prompt="createOfficialPrompt"
-      @append-unused-prompt="openUnusedPromptPicker"
-      @import-prompts="openOfficialPromptImport"
+      @append-unused-prompt="showUnusedPromptPicker = true"
+      @import-prompts="officialPromptImportInput?.click()"
       @export-prompts="downloadPresetPromptExport"
       @reset-prompt-order="resetOfficialPromptOrder"
       @toggle-fullscreen="toggleFullscreen"
       @close="closePanel"
-    />
-
-    <input
-      ref="officialPromptImportInput"
-      class="hidden-file-input"
-      type="file"
-      accept=".json,application/json"
-      @change="handleImportPromptsFile"
     />
 
     <SplitHandle
@@ -90,32 +84,42 @@
 
     <AnnotationOverlay v-if="showAnnotation" @close="showAnnotation = false" />
 
-    <Transition name="unused-picker-pop">
-      <div v-if="showUnusedPromptPicker" class="unused-picker-backdrop" @click.self="showUnusedPromptPicker = false">
-        <div class="unused-picker-card">
-          <div class="unused-picker-head">
-            <div>
-              <div class="unused-picker-title">添加未使用条目</div>
-              <div class="unused-picker-subtitle">{{ manager.mainUnusedPrompts.length }} 个可添加条目</div>
-            </div>
-            <button class="unused-picker-close" title="关闭" @click="showUnusedPromptPicker = false">
-              <i class="fas fa-times text-xs" />
-            </button>
-          </div>
+    <input
+      ref="officialPromptImportInput"
+      class="hidden-file-input"
+      type="file"
+      accept="application/json,.json"
+      @change="handleImportPromptsFile"
+    />
 
-          <div v-if="!manager.mainUnusedPrompts.length" class="unused-picker-empty">
-            当前预设没有未使用条目
-          </div>
-          <div v-else class="unused-picker-list">
-            <button
-              v-for="prompt in manager.mainUnusedPrompts"
-              :key="getPromptKey(prompt)"
-              class="unused-picker-item"
-              @click="appendOfficialUnusedPrompt(prompt)"
-            >
-              <span class="unused-picker-name">{{ prompt.name }}</span>
-              <span class="unused-picker-role">{{ prompt.role }}</span>
-            </button>
+    <Transition name="settings-pop">
+      <div v-if="showUnusedPromptPicker" class="unused-prompt-picker">
+        <div class="settings-head">
+          <span>添加未使用条目</span>
+          <button class="settings-close" title="关闭" @click="showUnusedPromptPicker = false">
+            <i class="fas fa-times text-xs" />
+          </button>
+        </div>
+
+        <input
+          v-model="unusedPromptSearch"
+          class="unused-prompt-search"
+          type="search"
+          placeholder="搜索条目"
+        />
+
+        <div class="unused-prompt-list">
+          <button
+            v-for="prompt in filteredOfficialUnusedPrompts"
+            :key="getPromptKey(prompt)"
+            class="unused-prompt-item"
+            @click="appendOfficialUnusedPrompt(prompt)"
+          >
+            <span>{{ prompt.name || getPromptKey(prompt) }}</span>
+            <small>{{ (prompt as any).role || 'system' }}</small>
+          </button>
+          <div v-if="filteredOfficialUnusedPrompts.length === 0" class="unused-prompt-empty">
+            暂无可添加条目
           </div>
         </div>
       </div>
@@ -215,13 +219,19 @@ import PresetPanel from './components/PresetPanel.vue';
 import AiAssistant from './components/AiAssistant.vue';
 import HistoryPanel from './components/HistoryPanel.vue';
 import AnnotationOverlay from './components/AnnotationOverlay.vue';
-import DevThemePanel from './components/DevThemePanel.vue';
 import DevThemeStyleInjector from './components/DevThemeStyleInjector.vue';
+import DevThemePanel from './components/DevThemePanel.vue';
 import { useDevThemeStore } from './stores/devTheme';
 import { getPromptKey, useManagerStore } from './stores/manager';
 import { useHistoryStore } from './stores/history';
 import { startParentDrag } from './utils/drag';
-import { clampSecondPresetWidth, getSecondPresetBounds } from './utils/panelLayout';
+import {
+  clampSecondPresetWidth,
+  clampWindowState,
+  clampWindowStateWithVisibleArea,
+  getSecondPresetBounds,
+  type WindowState,
+} from './utils/panelLayout';
 import { CODEX_REFERENCE_METRICS } from './designMetrics';
 import { getInstanceStorageKey, type PresetManagerInstanceKey } from './utils/instanceConfig';
 
@@ -238,7 +248,12 @@ const leftCollapsed = ref(false);
 const leftWidth = ref(CODEX_REFERENCE_METRICS.sidebar.width);
 const rightWidth = ref(280);
 const presetWorkspaceRef = ref<HTMLElement>();
+const officialPromptImportInput = ref<HTMLInputElement | null>(null);
+const unusedPromptSearch = ref('');
 const instanceKey = inject<PresetManagerInstanceKey>('presetManagerInstanceKey', 'default');
+const codeInspectorControls = inject<CodeInspectorControls | null>('presetManagerCodeInspector', null);
+const codeInspectorEnabled = ref(codeInspectorControls?.isEnabled() ?? false);
+let removeCodeInspectorSelectListener: (() => void) | null = null;
 
 const WINDOW_STATE_KEY = getInstanceStorageKey(instanceKey, 'WindowState');
 const WINDOW_STATE_VERSION_KEY = getInstanceStorageKey(instanceKey, 'WindowStateVersion');
@@ -248,15 +263,26 @@ const UI_SCALE_KEY = getInstanceStorageKey(instanceKey, 'UiScale');
 const PROMPT_SCALE_KEY = getInstanceStorageKey(instanceKey, 'PromptScale');
 const PROMPT_PREVIEW_LINES_KEY = getInstanceStorageKey(instanceKey, 'PromptPreviewLines');
 const UI_PRESETS_KEY = getInstanceStorageKey(instanceKey, 'UiPresets');
-type WindowState = { top: number; left: number; width: number; height: number };
 type AppTheme = 'dark' | 'light';
 type UiPresetKey = 'compact' | 'standard' | 'large';
 type UiPresetConfig = { uiScale: number; promptScale: number; promptPreviewLines: number };
 type UiPresetMap = Record<UiPresetKey, UiPresetConfig>;
+type CodeInspectorSelectPayload = {
+  path: string;
+  label: string;
+  tag: string;
+  matchedCount: number;
+};
+type CodeInspectorControls = {
+  isEnabled: () => boolean;
+  toggle: () => boolean;
+  onSelect?: (listener: (payload: CodeInspectorSelectPayload) => void) => () => void;
+};
 let lastWindowState: WindowState | null = null;
 type WindowResizeDirection = 'top' | 'right' | 'bottom' | 'left' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 const MIN_WINDOW_WIDTH = 640;
 const MIN_WINDOW_HEIGHT = 420;
+const WINDOW_MIN_VISIBLE_RATIO = 0.1;
 const DEFAULT_WINDOW_WIDTH = CODEX_REFERENCE_METRICS.window.width;
 const DEFAULT_WINDOW_HEIGHT = CODEX_REFERENCE_METRICS.window.height;
 
@@ -276,7 +302,6 @@ const startLeftWidth = ref(CODEX_REFERENCE_METRICS.sidebar.width);
 const startRightWidth = ref(280);
 const theme = ref<AppTheme>(readTheme());
 const showUiSettings = ref(false);
-const officialPromptImportInput = ref<HTMLInputElement>();
 const uiScale = ref(readUiScale());
 const promptScale = ref(readPromptScale());
 const promptPreviewLines = ref(readPromptPreviewLines());
@@ -328,33 +353,22 @@ const favoritedIds = computed(() => {
   const ids = new Set<string>();
   for (const folder of manager.favorites) {
     for (const item of folder.items) {
-      ids.add(getPromptKey(item));
+      ids.add(item.id);
     }
   }
   return ids;
 });
 
-function normalizePromptForCollection(prompt: PresetPrompt): PresetNormalPrompt {
-  const promptKey = getPromptKey(prompt) || prompt.id;
-  const stored = {
-    ...klona(prompt as any),
-    id: prompt.id || promptKey,
-    identifier: promptKey,
-    name: prompt.name,
-    enabled: prompt.enabled ?? true,
-    position: (prompt as any).position ?? { type: 'relative' as const },
-    role: prompt.role,
-    content: (prompt as any).content ?? '',
-  };
-  stored.injection_position = stored.injection_position
-    ?? (stored.position?.type === 'in_chat' ? 1 : 0);
-  stored.injection_depth = stored.injection_depth ?? stored.position?.depth ?? 4;
-  stored.injection_order = stored.injection_order ?? stored.position?.order ?? 100;
-  stored.injection_trigger = Array.isArray(stored.injection_trigger) ? stored.injection_trigger : [];
-  stored.forbid_overrides = Boolean(stored.forbid_overrides);
-
-  return stored as PresetNormalPrompt;
-}
+const filteredOfficialUnusedPrompts = computed(() => {
+  const keyword = unusedPromptSearch.value.trim().toLowerCase();
+  if (!keyword) return manager.mainUnusedPrompts;
+  return manager.mainUnusedPrompts.filter(prompt => {
+    const name = String(prompt.name ?? '').toLowerCase();
+    const key = getPromptKey(prompt).toLowerCase();
+    const role = String((prompt as any).role ?? '').toLowerCase();
+    return name.includes(keyword) || key.includes(keyword) || role.includes(keyword);
+  });
+});
 
 function onLeftDragStart() {
   startLeftWidth.value = leftWidth.value;
@@ -384,181 +398,138 @@ function selectMainPreset(name: string) {
   }
 }
 
-function getMainPresetSnapshot() {
-  return manager.presetName ? klona(getPreset(manager.presetName)) : null;
+function snapshotMainPreset(): Preset | null {
+  if (!manager.presetName) return null;
+  return klona(getPreset(manager.presetName));
 }
 
-function getUniquePresetName(baseName: string) {
-  const base = baseName.trim() || '新预设';
-  if (!manager.presetNames.includes(base)) return base;
-
-  let index = 2;
-  while (manager.presetNames.includes(`${base} ${index}`)) {
-    index += 1;
+async function recordMainOfficialChange<T>(description: string, operation: () => Promise<T>): Promise<T | null> {
+  const presetName = manager.presetName;
+  if (!presetName) {
+    toastr.warning('请先选择一个预设', '', { timeOut: 1600 });
+    return null;
   }
-  return `${base} ${index}`;
+
+  const before = snapshotMainPreset();
+  if (!before) return null;
+
+  const result = await operation();
+  if (result === false || result === null || result === 0) return result;
+
+  const after = snapshotMainPreset();
+  if (after) history.recordOperation(presetName, before, after, description);
+  manager.refreshMainPreset();
+  return result;
+}
+
+async function createOfficialPrompt() {
+  const created = await recordMainOfficialChange('新建条目', () => manager.createPromptInPreset('main'));
+  if (created) toastr.success('条目已新建', '', { timeOut: 1400 });
 }
 
 async function createOfficialPreset() {
-  const defaultName = getUniquePresetName('新预设');
-  const name = prompt('输入新预设名称', defaultName)?.trim();
-  if (!name) return;
+  const name = prompt('新预设名称');
+  if (!name?.trim()) return;
 
   const created = await manager.createPresetByName(name);
   if (created) {
-    history.createSnapshot(name, undefined, true);
-    toastr.success(`已新建预设 "${name}"`, '', { timeOut: 1600 });
+    history.createSnapshot(manager.presetName, undefined, true);
+    toastr.success('预设已新建', '', { timeOut: 1400 });
   } else {
-    toastr.warning('新建失败：名称为空、重复或不可用', '', { timeOut: 1800 });
+    toastr.warning('预设名称不可用或已存在', '', { timeOut: 1600 });
   }
 }
 
 async function renameOfficialPreset() {
-  if (!manager.presetName) {
-    toastr.warning('请先选择主预设', '', { timeOut: 1400 });
+  const currentName = manager.presetName;
+  if (!currentName) {
+    toastr.warning('请先选择一个预设', '', { timeOut: 1600 });
     return;
   }
 
-  const oldName = manager.presetName;
-  const name = prompt('输入新的预设名称', oldName)?.trim();
-  if (!name || name === oldName) return;
+  const name = prompt('新的预设名称', currentName);
+  if (!name?.trim() || name.trim() === currentName) return;
 
-  const renamed = await manager.renamePresetByName(oldName, name);
+  const renamed = await manager.renamePresetByName(currentName, name);
   if (renamed) {
-    history.createSnapshot(name, undefined, true);
-    toastr.success(`已重命名为 "${name}"`, '', { timeOut: 1600 });
+    history.createSnapshot(manager.presetName, undefined, true);
+    toastr.success('预设已重命名', '', { timeOut: 1400 });
   } else {
-    toastr.warning('重命名失败：名称为空、重复或不可用', '', { timeOut: 1800 });
+    toastr.warning('重命名失败，可能是名称已存在', '', { timeOut: 1800 });
   }
 }
 
 async function deleteOfficialPreset() {
-  if (!manager.presetName) {
-    toastr.warning('请先选择主预设', '', { timeOut: 1400 });
+  const presetName = manager.presetName;
+  if (!presetName) {
+    toastr.warning('请先选择一个预设', '', { timeOut: 1600 });
     return;
   }
+  if (!confirm(`确定删除预设 "${presetName}" 吗？此操作无法用撤回恢复。`)) return;
 
-  const name = manager.presetName;
-  if (!confirm(`确定删除预设 "${name}" 吗？此操作会删除酒馆中的预设文件，不能通过插件历史撤销。`)) return;
-
-  const deleted = await manager.deletePresetByName(name);
-  if (deleted) {
-    toastr.info(`已删除预设 "${name}"`, '', { timeOut: 1600 });
-  } else {
-    toastr.warning('删除失败：预设不存在或不可删除', '', { timeOut: 1800 });
-  }
-}
-
-async function createOfficialPrompt() {
-  if (!manager.presetName) {
-    toastr.warning('请先选择主预设', '', { timeOut: 1400 });
-    return;
-  }
-
-  const before = getMainPresetSnapshot();
-  const prompt = await manager.createPromptInPreset('main');
-  const after = getMainPresetSnapshot();
-  if (before && after && prompt) {
-    history.recordOperation(manager.presetName, before, after, `新建条目: ${prompt.name}`);
-    toastr.success('已新建条目', '', { timeOut: 1400 });
-  }
-}
-
-function openUnusedPromptPicker() {
-  if (!manager.presetName) {
-    toastr.warning('请先选择主预设', '', { timeOut: 1400 });
-    return;
-  }
-  if (!manager.mainUnusedPrompts.length) {
-    toastr.info('当前预设没有未使用条目', '', { timeOut: 1400 });
-    return;
-  }
-  showUnusedPromptPicker.value = true;
+  const deleted = await manager.deletePresetByName(presetName);
+  if (deleted) toastr.info('预设已删除', '', { timeOut: 1400 });
+  else toastr.warning('删除预设失败', '', { timeOut: 1600 });
 }
 
 async function appendOfficialUnusedPrompt(prompt: PresetPrompt) {
-  if (!manager.presetName) return;
+  const key = getPromptKey(prompt);
+  const appended = await recordMainOfficialChange(`添加未使用条目: ${prompt.name || key}`, () => {
+    return manager.appendUnusedPromptToPreset(key, 'main');
+  });
 
-  const before = getMainPresetSnapshot();
-  const appended = await manager.appendUnusedPromptToPreset(getPromptKey(prompt), 'main');
-  const after = getMainPresetSnapshot();
-  if (appended && before && after) {
-    history.recordOperation(manager.presetName, before, after, `添加未使用条目: ${prompt.name}`);
-    showUnusedPromptPicker.value = false;
-    toastr.success(`已添加 "${prompt.name}"`, '', { timeOut: 1400 });
+  if (appended) {
+    toastr.success('条目已添加到当前预设', '', { timeOut: 1400 });
+    if (manager.mainUnusedPrompts.length === 0) showUnusedPromptPicker.value = false;
+  } else {
+    toastr.warning('条目无法添加，可能已经在列表中', '', { timeOut: 1600 });
   }
-}
-
-function openOfficialPromptImport() {
-  if (!manager.presetName) {
-    toastr.warning('请先选择主预设', '', { timeOut: 1400 });
-    return;
-  }
-  officialPromptImportInput.value?.click();
 }
 
 async function handleImportPromptsFile(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
-  input.value = '';
-  if (!file || !manager.presetName) return;
+  if (!file) return;
 
   try {
-    const text = await file.text();
-    const importData = JSON.parse(text);
-    const before = getMainPresetSnapshot();
-    const count = await manager.importPromptsToPreset(importData, 'main');
-    const after = getMainPresetSnapshot();
-    if (!count) {
-      toastr.warning('未找到可导入的条目', '', { timeOut: 1600 });
-      return;
-    }
-    if (before && after) {
-      history.recordOperation(manager.presetName, before, after, `导入条目: ${count} 个`);
-    }
-    toastr.success(`已导入 ${count} 个条目`, '', { timeOut: 1600 });
-  } catch (e) {
-    console.error('[PresetManager] import prompts failed:', e);
-    toastr.error('导入失败，请检查 JSON 格式', '', { timeOut: 2200 });
-  }
-}
+    const parsed = JSON.parse(await file.text()) as unknown;
+    const imported = await recordMainOfficialChange(`导入条目: ${file.name}`, () => {
+      return manager.importPromptsToPreset(parsed, 'main');
+    });
 
-function getFormattedDateForFile() {
-  const date = new Date();
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`;
+    if (imported) toastr.success(`已导入 ${imported} 个条目`, '', { timeOut: 1600 });
+    else toastr.warning('导入文件里没有可用条目', '', { timeOut: 1800 });
+  } catch (error) {
+    console.error('[PresetManager] import prompts failed:', error);
+    toastr.error('导入失败，请确认文件是有效 JSON', '', { timeOut: 2200 });
+  } finally {
+    input.value = '';
+  }
 }
 
 function downloadPresetPromptExport() {
   const exportData = manager.exportPromptsFromPreset('main');
-  if (!exportData || !manager.presetName) {
-    toastr.warning('请先选择主预设', '', { timeOut: 1400 });
+  if (!exportData) {
+    toastr.warning('请先选择一个预设', '', { timeOut: 1600 });
     return;
   }
 
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  const safeName = (manager.presetName || 'preset').replace(/[\\/:*?"<>|]+/g, '_');
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${manager.presetName}-prompts-${getFormattedDateForFile()}.json`;
+  link.download = `${safeName}-prompts.json`;
   link.click();
   URL.revokeObjectURL(url);
 }
 
 async function resetOfficialPromptOrder() {
-  if (!manager.presetName) {
-    toastr.warning('请先选择主预设', '', { timeOut: 1400 });
-    return;
-  }
-  if (!confirm('确定按注入顺序重排当前预设条目吗？可以通过撤销恢复。')) return;
+  if (!confirm('确定按官方默认顺序重置当前预设的条目吗？')) return;
 
-  const before = getMainPresetSnapshot();
-  const changed = await manager.resetPromptOrder('main');
-  const after = getMainPresetSnapshot();
-  if (changed && before && after) {
-    history.recordOperation(manager.presetName, before, after, '重置预设顺序');
-    toastr.success('已重置条目顺序', '', { timeOut: 1400 });
-  }
+  const reset = await recordMainOfficialChange('重置条目顺序', () => manager.resetPromptOrder('main'));
+  if (reset) toastr.success('条目顺序已重置', '', { timeOut: 1400 });
+  else toastr.warning('重置顺序失败', '', { timeOut: 1600 });
 }
 
 function getPresetWorkspaceWidth() {
@@ -578,9 +549,229 @@ watch(showSecondPreset, visible => {
 
 const parentDoc = inject<Document>('parentDocument')!;
 const iframeEl = inject<HTMLIFrameElement>('iframeElement')!;
+const parentFloatingRoot = createParentFloatingRoot();
 provide('presetManagerWindowStateKey', WINDOW_STATE_KEY);
 provide('presetManagerWindowStateVersionKey', WINDOW_STATE_VERSION_KEY);
 provide('presetManagerWindowStateVersion', WINDOW_STATE_VERSION);
+provide('presetManagerWindowMinVisibleRatio', WINDOW_MIN_VISIBLE_RATIO);
+provide('presetManagerParentFloatingRoot', parentFloatingRoot);
+
+function createParentFloatingRoot() {
+  const root = parentDoc.createElement('div');
+  root.setAttribute('data-preset-manager-floating-root', String(instanceKey));
+  const style = parentDoc.createElement('style');
+  style.setAttribute('data-preset-manager-floating-root-style', String(instanceKey));
+  style.textContent = `
+    [data-preset-manager-floating-root="${instanceKey}"] {
+      --pm-bg-panel: #1f232b;
+      --pm-bg-soft: rgba(255,255,255,0.045);
+      --pm-bg-hover: rgba(255,255,255,0.065);
+      --pm-input-bg: rgba(255,255,255,0.04);
+      --pm-border: rgba(255,255,255,0.08);
+      --pm-border-strong: rgba(255,255,255,0.14);
+      --pm-divider: rgba(255,255,255,0.075);
+      --pm-text: #f4f4f5;
+      --pm-text-muted: rgba(244,244,245,0.74);
+      --pm-text-subtle: rgba(244,244,245,0.48);
+      --pm-shadow: 0 28px 80px rgba(0,0,0,0.45);
+      font: 13px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--pm-text);
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] * {
+      box-sizing: border-box;
+    }
+    [data-preset-manager-floating-panel] {
+      pointer-events: auto;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel {
+      position: fixed;
+      z-index: 1;
+      min-width: 320px;
+      min-height: 360px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid var(--pm-border-strong);
+      border-radius: 16px;
+      background: color-mix(in srgb, var(--pm-bg-panel) 92%, transparent);
+      color: var(--pm-text);
+      box-shadow: var(--pm-shadow);
+      backdrop-filter: blur(28px) saturate(135%);
+      -webkit-backdrop-filter: blur(28px) saturate(135%);
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-head {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px 8px 12px;
+      border-bottom: 1px solid var(--pm-divider);
+      cursor: move;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-head strong,
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-head small {
+      display: block;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-head small {
+      margin-top: 2px;
+      color: var(--pm-text-subtle);
+      font-size: 11px;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-head-actions,
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-body {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 10px;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-section {
+      display: grid;
+      gap: 8px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--pm-divider);
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-section h3 {
+      margin: 0;
+      color: var(--pm-text-muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel button,
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel select,
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel input,
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel textarea {
+      border: 1px solid var(--pm-border);
+      border-radius: 8px;
+      background: var(--pm-input-bg);
+      color: var(--pm-text);
+      font: inherit;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel button {
+      min-height: 28px;
+      padding: 0 9px;
+      cursor: pointer;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-icon-btn {
+      min-width: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel button:hover:not(:disabled) {
+      border-color: var(--pm-border-strong);
+      background: var(--pm-bg-hover);
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-switch,
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-check,
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-field {
+      display: grid;
+      gap: 5px;
+      color: var(--pm-text-muted);
+      font-size: 12px;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-check,
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-switch {
+      display: flex;
+      align-items: center;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-field span {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-field code {
+      color: var(--pm-text-subtle);
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-field b {
+      color: var(--pm-text);
+      font-weight: 600;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-drop {
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 1px dashed var(--pm-border-strong);
+      border-radius: 12px;
+      background: var(--pm-bg-hover);
+      color: var(--pm-text-subtle);
+      cursor: pointer;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-drop img {
+      width: 100%;
+      height: 140px;
+      object-fit: cover;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-file {
+      display: none;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-section pre {
+      max-height: 160px;
+      margin: 0;
+      padding: 8px;
+      overflow: auto;
+      border-radius: 10px;
+      background: var(--pm-bg-soft);
+      color: var(--pm-text-muted);
+      font-size: 11px;
+      white-space: pre-wrap;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-resize {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      z-index: 2;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-resize-top-left {
+      top: 0;
+      left: 0;
+      cursor: nwse-resize;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-resize-top-right {
+      top: 0;
+      right: 0;
+      cursor: nesw-resize;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-resize-bottom-left {
+      bottom: 0;
+      left: 0;
+      cursor: nesw-resize;
+    }
+    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-resize-bottom-right {
+      right: 0;
+      bottom: 0;
+      cursor: nwse-resize;
+    }
+  `;
+  Object.assign(root.style, {
+    position: 'fixed',
+    inset: '0',
+    zIndex: '2147483002',
+    pointerEvents: 'none',
+  } satisfies Partial<CSSStyleDeclaration>);
+  parentDoc.head.appendChild(style);
+  parentDoc.body.appendChild(root);
+  return root;
+}
+
+function toggleCodeInspector() {
+  codeInspectorEnabled.value = codeInspectorControls?.toggle() ?? false;
+  toastr.info(codeInspectorEnabled.value ? '开发者检查器已开启，移动鼠标查看元素，Alt+Shift+点击定位代码' : '开发者检查器已关闭', '', {
+    timeOut: 1400,
+  });
+}
 
 function readTheme(): AppTheme {
   return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
@@ -714,23 +905,53 @@ function readWindowState(): WindowState | null {
 function saveWindowState() {
   if (isFullscreen.value) return;
   const rect = iframeEl.getBoundingClientRect();
-  lastWindowState = { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+  lastWindowState = clampLooseWindowState({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+  applyWindowStyle(lastWindowState);
   localStorage.setItem(WINDOW_STATE_KEY, JSON.stringify(lastWindowState));
   localStorage.setItem(WINDOW_STATE_VERSION_KEY, WINDOW_STATE_VERSION);
 }
 
-function applyWindowState(state: WindowState) {
+function applyWindowStyle(state: WindowState) {
   const style = iframeEl.style;
   style.transform = '';
   style.right = '';
   style.bottom = '';
-  style.top = `${Math.max(0, state.top)}px`;
-  style.left = `${Math.max(0, state.left)}px`;
-  style.width = `${Math.max(MIN_WINDOW_WIDTH, state.width)}px`;
-  style.height = `${Math.max(MIN_WINDOW_HEIGHT, state.height)}px`;
+  style.top = `${state.top}px`;
+  style.left = `${state.left}px`;
+  style.width = `${state.width}px`;
+  style.height = `${state.height}px`;
   style.maxWidth = 'none';
   style.maxHeight = 'none';
   style.borderRadius = '12px';
+}
+
+function getParentViewportSize() {
+  const viewport = parentDoc.documentElement;
+  return {
+    width: viewport.clientWidth || parentDoc.defaultView?.innerWidth || DEFAULT_WINDOW_WIDTH,
+    height: viewport.clientHeight || parentDoc.defaultView?.innerHeight || DEFAULT_WINDOW_HEIGHT,
+  };
+}
+
+function clampWindowStateInsideViewport(state: WindowState) {
+  const viewport = getParentViewportSize();
+  return clampWindowState(state, viewport.width, viewport.height, MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT);
+}
+
+function clampLooseWindowState(state: WindowState) {
+  const viewport = getParentViewportSize();
+  return clampWindowStateWithVisibleArea(
+    state,
+    viewport.width,
+    viewport.height,
+    MIN_WINDOW_WIDTH,
+    MIN_WINDOW_HEIGHT,
+    WINDOW_MIN_VISIBLE_RATIO,
+  );
+}
+
+function applyWindowState(state: WindowState) {
+  applyWindowStyle(clampWindowStateInsideViewport(state));
 }
 
 function getDefaultWindowState(): WindowState {
@@ -807,11 +1028,7 @@ function onWindowResizeStart(e: MouseEvent, direction: WindowResizeDirection) {
         nextTop = startTop + startH - nextH;
       }
 
-      style.transform = '';
-      style.left = `${nextLeft}px`;
-      style.top = `${nextTop}px`;
-      style.width = `${nextW}px`;
-      style.height = `${nextH}px`;
+      applyWindowStyle(clampLooseWindowState({ top: nextTop, left: nextLeft, width: nextW, height: nextH }));
     },
     onEnd: saveWindowState,
   });
@@ -845,13 +1062,19 @@ function onFavorite(prompt: PresetPrompt) {
     manager.addFavoriteFolder('收藏夹 1');
   }
   const firstFolder = manager.favorites[0];
-  const promptKey = getPromptKey(prompt);
-  const existingIdx = firstFolder.items.findIndex(i => getPromptKey(i) === promptKey);
+  const existingIdx = firstFolder.items.findIndex(i => i.id === prompt.id);
   if (existingIdx >= 0) {
     manager.removeFromFavorites(firstFolder.id, existingIdx);
     toastr.info('已取消收藏', '', { timeOut: 1200 });
   } else {
-    manager.addToFavorites(firstFolder.id, normalizePromptForCollection(prompt));
+    manager.addToFavorites(firstFolder.id, {
+      id: prompt.id,
+      name: prompt.name,
+      enabled: prompt.enabled ?? true,
+      position: (prompt as any).position ?? { type: 'relative' as const },
+      role: prompt.role,
+      content: (prompt as any).content ?? '',
+    });
     toastr.success('已收藏', '', { timeOut: 1200 });
   }
 }
@@ -862,6 +1085,20 @@ onMounted(() => {
   const savedState = readWindowState();
   if (savedState) applyWindowState(savedState);
 
+  removeCodeInspectorSelectListener = codeInspectorControls?.onSelect?.(detail => {
+    devTheme.setSelectedElement(detail);
+  }) ?? null;
+
+  document.addEventListener('preset-manager-code-inspector-state', event => {
+    codeInspectorEnabled.value = Boolean((event as CustomEvent<{ enabled: boolean }>).detail?.enabled);
+  });
+
+  document.addEventListener('preset-manager-code-inspector-select', event => {
+    const detail = (event as CustomEvent<{ path: string; label: string; tag: string; matchedCount: number }>).detail;
+    if (!detail?.path) return;
+    devTheme.setSelectedElement(detail);
+  });
+
   document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
       e.preventDefault();
@@ -871,6 +1108,13 @@ onMounted(() => {
       doRedo();
     }
   });
+});
+
+onUnmounted(() => {
+  removeCodeInspectorSelectListener?.();
+  removeCodeInspectorSelectListener = null;
+  parentFloatingRoot?.remove();
+  parentDoc.querySelector(`[data-preset-manager-floating-root-style="${instanceKey}"]`)?.remove();
 });
 </script>
 
@@ -1403,110 +1647,5 @@ button {
 .settings-pop-leave-to {
   opacity: 0;
   transform: translateY(-4px);
-}
-.unused-picker-backdrop {
-  position: absolute;
-  inset: var(--pm-titlebar-height, 52px) 0 0;
-  z-index: 820;
-  display: flex;
-  justify-content: center;
-  padding-top: 18px;
-  background: color-mix(in srgb, var(--pm-bg) 34%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-.unused-picker-card {
-  width: min(420px, calc(100% - 32px));
-  max-height: min(520px, calc(100% - 36px));
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--pm-border-strong);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--pm-bg-elevated) 92%, transparent);
-  color: var(--pm-text);
-  box-shadow: var(--pm-shadow);
-  backdrop-filter: blur(22px) saturate(116%);
-  -webkit-backdrop-filter: blur(22px) saturate(116%);
-}
-.unused-picker-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 13px 14px;
-  border-bottom: 1px solid var(--pm-border);
-}
-.unused-picker-title {
-  font-weight: 670;
-}
-.unused-picker-subtitle {
-  margin-top: 3px;
-  color: var(--pm-text-subtle);
-  font-size: 12px;
-}
-.unused-picker-close {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
-  border-radius: var(--pm-btn-radius, 8px);
-  background: transparent;
-  color: var(--pm-text-muted);
-  cursor: pointer;
-}
-.unused-picker-close:hover {
-  background: var(--pm-btn-hover);
-  color: var(--pm-text);
-}
-.unused-picker-list {
-  overflow-y: auto;
-  padding: 6px;
-}
-.unused-picker-item {
-  width: 100%;
-  min-height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 0 9px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--pm-text-muted);
-  cursor: pointer;
-  text-align: left;
-}
-.unused-picker-item:hover {
-  background: var(--pm-bg-hover);
-  color: var(--pm-text);
-}
-.unused-picker-name {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--pm-text);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.unused-picker-role {
-  flex-shrink: 0;
-  color: var(--pm-text-subtle);
-  font-size: 11px;
-}
-.unused-picker-empty {
-  padding: 28px 18px;
-  color: var(--pm-text-subtle);
-  text-align: center;
-}
-.unused-picker-pop-enter-active,
-.unused-picker-pop-leave-active {
-  transition: opacity 0.12s ease;
-}
-.unused-picker-pop-enter-from,
-.unused-picker-pop-leave-to {
-  opacity: 0;
 }
 </style>

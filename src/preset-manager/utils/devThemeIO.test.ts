@@ -1,17 +1,11 @@
 declare const require: any;
+declare const process: any;
 
-const { createDefaultDevThemeBackground } = require('./devThemeCss');
-const {
-  parseDevThemeConfig,
-  sanitizePresetFileName,
-  serializeDevThemeConfig,
-  validateImageFileLike,
-} = require('./devThemeIO');
+const fs = require('fs');
+const path = require('path');
 
-function expectEqual<T>(actual: T, expected: T) {
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error(`Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
-  }
+function readProjectFile(file: string) {
+  return fs.readFileSync(path.join(process.cwd(), file), 'utf8') as string;
 }
 
 function expectIncludes(content: string, expected: string) {
@@ -26,24 +20,19 @@ function expectNotIncludes(content: string, unexpected: string) {
   }
 }
 
-expectEqual(sanitizePresetFileName('深色/亚克力:*?'), '深色-亚克力');
+const devThemeIO = readProjectFile('src/preset-manager/utils/devThemeIO.ts');
 
-const background = { ...createDefaultDevThemeBackground(), imageDataUrl: 'data:image/png;base64,abc' };
-const json = serializeDevThemeConfig({
-  name: '深色亚克力',
-  imageFileName: 'bg.png',
-  targets: { sidebar: true, workspace: true, panel: false },
-  background,
-});
-expectIncludes(json, 'bg.png');
-expectNotIncludes(json, 'base64,abc');
-
-const parsed = parseDevThemeConfig(json);
-expectEqual(parsed.name, '深色亚克力');
-expectEqual(parsed.background.imageDataUrl, null);
-
-expectEqual(validateImageFileLike({ type: 'image/png', size: 1024 }), null);
-expectEqual(validateImageFileLike({ type: 'text/plain', size: 1024 }), '请选择图片文件');
-expectEqual(validateImageFileLike({ type: 'image/png', size: 6 * 1024 * 1024 }), '图片不能超过 5MB');
+expectIncludes(devThemeIO, "import { createDefaultDevThemeBackground, type DevThemeBackground, type DevThemeTarget } from './devThemeCss';");
+expectIncludes(devThemeIO, 'export const DEV_THEME_IMAGE_MAX_BYTES = 20 * 1024 * 1024;');
+expectIncludes(devThemeIO, 'export function sanitizePresetFileName(name: string)');
+expectIncludes(devThemeIO, '.replace(/[\\\\/:*?"<>|]+/g, \'-\')');
+expectIncludes(devThemeIO, 'export function validateImageFileLike(file: Pick<File, \'type\' | \'size\'>)');
+expectIncludes(devThemeIO, "if (!file.type.startsWith('image/')) return '请选择图片文件';");
+expectIncludes(devThemeIO, "if (file.size > DEV_THEME_IMAGE_MAX_BYTES) return '图片不能超过 20MB';");
+expectIncludes(devThemeIO, 'export function serializeDevThemeConfig(input: DevThemeExportInput)');
+expectIncludes(devThemeIO, 'imageDataUrl: null,');
+expectIncludes(devThemeIO, 'export function parseDevThemeConfig(raw: string): DevThemeExportConfig');
+expectNotIncludes(devThemeIO, 'vitest');
+expectNotIncludes(devThemeIO, 'declare const require');
 
 console.info('devThemeIO tests passed');

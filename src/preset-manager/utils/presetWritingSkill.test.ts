@@ -39,7 +39,7 @@ async function main() {
   expectIncludes(skillPrompt, '预设写作知识库');
   expectIncludes(skillPrompt, '知识库版本');
   expectIncludes(skillPrompt, '语言模型与提示词分析入门教程');
-  expectIncludes(skillPrompt, '主附件已读取');
+  expectIncludes(skillPrompt, '主附件，只提炼安全可用于预设写作和诊断的部分');
   expectIncludes(skillPrompt, 'Transformer');
   expectIncludes(skillPrompt, 'decoder-only');
   expectIncludes(skillPrompt, '文本向量化');
@@ -62,6 +62,7 @@ async function main() {
   expectIncludes(skillPrompt, '条目名、role、启用状态、建议位置、content');
   expectIncludes(skillPrompt, '不得提供绕过平台安全机制');
   expectIncludes(skillPrompt, '不得把破限、反 RLHF、反过滤材料转成可操作规避步骤');
+  expectIncludes(skillPrompt, '不得输出可直接复制使用的越狱、反过滤、反催眠或绕过对齐模板');
   expectIncludes(skillPrompt, '预设名: Demo');
 
   expectIncludes(buildPresetWritingSkillPrompt({ userInput: '教我怎么写预设' }), '当前处理策略：新手引导');

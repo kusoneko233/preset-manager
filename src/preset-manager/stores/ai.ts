@@ -1,4 +1,14 @@
 import { buildPresetWritingSkillPrompt, shouldUsePresetWritingSkill } from '../utils/presetWritingSkill';
+import {
+  addModelToProfile,
+  buildAiCustomApi,
+  createAiApiProfile,
+  flattenAiModelOptions,
+  getActiveAiApiProfile,
+  normalizeAiConfig,
+  type AiApiProfile,
+  type AiConfigShape,
+} from '../utils/aiApiConfig';
 
 export interface AiMessage {
   id: string;
@@ -7,32 +17,16 @@ export interface AiMessage {
   timestamp: number;
 }
 
-export interface AiConfig {
-  apiUrl: string;
-  key: string;
-  model: string;
-  source: string;
-  useProxyPreset: boolean;
-  proxyPreset: string;
-}
+export type AiConfig = AiConfigShape;
 
 const STORAGE_KEY = 'preset_manager';
 
 function loadAiConfig(): AiConfig {
   try {
     const vars = getVariables({ type: 'script' });
-    return (
-      vars?.[STORAGE_KEY]?.aiConfig ?? {
-        apiUrl: '',
-        key: '',
-        model: '',
-        source: 'openai',
-        useProxyPreset: false,
-        proxyPreset: '',
-      }
-    );
+    return normalizeAiConfig(vars?.[STORAGE_KEY]?.aiConfig);
   } catch {
-    return { apiUrl: '', key: '', model: '', source: 'openai', useProxyPreset: false, proxyPreset: '' };
+    return normalizeAiConfig(null);
   }
 }
 
@@ -62,8 +56,64 @@ const aiStore = reactive({
   snappedEdge: null as 'top' | 'bottom' | 'left' | 'right' | null,
   visible: true,
 
+  get activeApiProfile() {
+    return getActiveAiApiProfile(this.config);
+  },
+
+  get modelOptions() {
+    return flattenAiModelOptions(this.config.apiProfiles);
+  },
+
   saveConfig() {
+    this.config = normalizeAiConfig(this.config);
     saveAiConfig(this.config);
+  },
+
+  createApiProfile() {
+    const profile = createAiApiProfile({ name: `API ${this.config.apiProfiles.length + 1}` });
+    this.config.apiProfiles.push(profile);
+    this.config.activeProfileId = profile.id;
+    this.config.useProxyPreset = false;
+    this.saveConfig();
+  },
+
+  deleteApiProfile(id: string) {
+    this.config.apiProfiles = this.config.apiProfiles.filter(profile => profile.id !== id);
+    if (this.config.activeProfileId === id) {
+      this.config.activeProfileId = this.config.apiProfiles[0]?.id ?? '';
+    }
+    this.saveConfig();
+  },
+
+  selectApiProfile(id: string) {
+    this.config.activeProfileId = id;
+    this.config.useProxyPreset = false;
+    this.saveConfig();
+  },
+
+  setActiveApiProfilePatch(patch: Partial<Omit<AiApiProfile, 'id' | 'models'>>) {
+    const profile = getActiveAiApiProfile(this.config);
+    if (!profile) return;
+    Object.assign(profile, patch);
+    this.saveConfig();
+  },
+
+  addModelToActiveProfile(name: string, group?: string) {
+    const profile = getActiveAiApiProfile(this.config);
+    if (!profile) return;
+    const model = addModelToProfile(profile, name, group || profile.group);
+    if (model) this.config.model = model.name;
+    this.saveConfig();
+  },
+
+  removeModelFromActiveProfile(modelId: string) {
+    const profile = getActiveAiApiProfile(this.config);
+    if (!profile) return;
+    profile.models = profile.models.filter(model => model.id !== modelId);
+    if (this.config.model && !this.modelOptions.some(option => option.name === this.config.model)) {
+      this.config.model = '';
+    }
+    this.saveConfig();
   },
 
   toggleVisible() {
@@ -121,15 +171,7 @@ const aiStore = reactive({
         content: m.content,
       }));
 
-      const customApi: Record<string, any> = {};
-      if (this.config.useProxyPreset && this.config.proxyPreset) {
-        customApi.proxy_preset = this.config.proxyPreset;
-      } else if (this.config.apiUrl) {
-        customApi.apiurl = this.config.apiUrl;
-        if (this.config.key) customApi.key = this.config.key;
-        if (this.config.source) customApi.source = this.config.source;
-      }
-      if (this.config.model) customApi.model = this.config.model;
+      const customApi = buildAiCustomApi(this.config);
 
       const result = await generateRaw({
         should_silence: true,

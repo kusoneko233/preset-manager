@@ -8,7 +8,10 @@ export type DevThemePreset = {
   targets: Record<DevThemeTarget, boolean>;
   createdAt: number;
   updatedAt: number;
+  builtin?: boolean;
 };
+
+export const BUILTIN_CODEX_V1_PRESET_ID = 'builtin-codex-minimal-v1';
 
 export type DevThemePanelRect = {
   top: number;
@@ -22,6 +25,7 @@ export type DevThemeSelectedElement = {
   label: string;
   tag: string;
   matchedCount: number;
+  rect?: { width: number; height: number };
 };
 
 type PersistedDevThemeState = {
@@ -52,6 +56,26 @@ function defaultPanelRect(): DevThemePanelRect {
   return { top: 88, left: 520, width: 360, height: 620 };
 }
 
+function createBuiltinCodexV1Preset(): DevThemePreset {
+  const now = Date.now();
+  return {
+    id: BUILTIN_CODEX_V1_PRESET_ID,
+    name: 'Codex 极简 v1（内置基线）',
+    imageFileName: null,
+    background: createDefaultDevThemeBackground(),
+    targets: defaultTargets(),
+    createdAt: now,
+    updatedAt: now,
+    builtin: true,
+  };
+}
+
+function ensureBuiltinPresets(presets: DevThemePreset[]): DevThemePreset[] {
+  const merged = presets.map(preset => (preset.id === BUILTIN_CODEX_V1_PRESET_ID ? { ...preset, builtin: true } : preset));
+  if (merged.some(p => p.id === BUILTIN_CODEX_V1_PRESET_ID)) return merged;
+  return [createBuiltinCodexV1Preset(), ...merged];
+}
+
 function readPersisted(): PersistedDevThemeState | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -65,13 +89,14 @@ function readPersisted(): PersistedDevThemeState | null {
 }
 
 const persisted = readPersisted();
-const firstPreset = persisted?.presets.find(p => p.id === persisted.activePresetId) ?? persisted?.presets[0];
+const initialPresets = ensureBuiltinPresets(persisted?.presets ?? []);
+const firstPreset = initialPresets.find(p => p.id === persisted?.activePresetId) ?? initialPresets[0];
 
 const devThemeStore = reactive({
-  enabled: persisted?.enabled ?? false,
+  enabled: false,
   panelOpen: false,
   activePresetId: firstPreset?.id ?? null,
-  presets: persisted?.presets ?? [] as DevThemePreset[],
+  presets: initialPresets,
   currentDraft: cloneBackground(firstPreset?.background ?? createDefaultDevThemeBackground()),
   currentTargets: normalizeTargets(firstPreset?.targets),
   panelRect: defaultPanelRect(),
@@ -81,7 +106,7 @@ const devThemeStore = reactive({
 
   persist() {
     const payload: PersistedDevThemeState = {
-      enabled: this.enabled,
+      enabled: false,
       activePresetId: this.activePresetId,
       presets: this.presets,
     };
@@ -143,7 +168,7 @@ const devThemeStore = reactive({
   },
   overwriteCurrentPreset() {
     const preset = this.presets.find(item => item.id === this.activePresetId);
-    if (!preset) return;
+    if (!preset || preset.builtin) return;
     preset.background = cloneBackground(this.currentDraft);
     preset.targets = normalizeTargets(this.currentTargets);
     preset.updatedAt = Date.now();
@@ -151,12 +176,14 @@ const devThemeStore = reactive({
   },
   renamePreset(id: string, name: string) {
     const preset = this.presets.find(item => item.id === id);
-    if (!preset) return;
+    if (!preset || preset.builtin) return;
     preset.name = name.trim() || preset.name;
     preset.updatedAt = Date.now();
     this.persist();
   },
   deletePreset(id: string) {
+    const target = this.presets.find(item => item.id === id);
+    if (!target || target.builtin) return;
     this.presets = this.presets.filter(item => item.id !== id);
     if (this.activePresetId === id) {
       const next = this.presets[0];

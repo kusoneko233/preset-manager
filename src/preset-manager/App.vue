@@ -1,7 +1,10 @@
 <template>
   <div
     class="app-root"
-    :class="[`theme-${theme}`, { fullscreen: isFullscreen, 'hide-prompt-preview': promptPreviewLines === 0, 'left-collapsed': leftCollapsed }]"
+    :class="[
+      `theme-${theme}`,
+      { fullscreen: isFullscreen, 'hide-prompt-preview': promptPreviewLines === 0, 'left-collapsed': leftCollapsed },
+    ]"
     :style="uiVars"
     :data-dev-sidebar="devTheme.enabled && devTheme.currentTargets.sidebar ? 'on' : undefined"
     :data-dev-workspace="devTheme.enabled && devTheme.currentTargets.workspace ? 'on' : undefined"
@@ -54,29 +57,35 @@
       <LeftSidebar :width="leftWidth" :collapsed="leftCollapsed" />
 
       <div ref="presetWorkspaceRef" class="preset-workspace">
-        <div class="preset-panels">
-          <div class="center-area" style="flex: 1; min-width: 200px">
-            <PresetPanel panel-id="main" :favorited-ids="favoritedIds" @favorite="onFavorite" />
-          </div>
-
-          <template v-if="showSecondPreset">
-            <SplitHandle direction="vertical" @drag-start="onRightDragStart" @resize="onRightSplitResize" />
-            <div class="second-preset-area" :style="{ width: `${rightWidth}px` }">
-              <PresetPanel panel-id="second" :favorited-ids="favoritedIds" @favorite="onFavorite" />
-            </div>
-          </template>
-
-          <button
-            class="second-toggle"
-            :class="{ active: showSecondPreset }"
-            :title="showSecondPreset ? '收起第二预设' : '展开第二预设'"
-            @click="showSecondPreset = !showSecondPreset"
-          >
-            <i :class="['fas text-xs', showSecondPreset ? 'fa-chevron-right' : 'fa-chevron-left']" />
-          </button>
+        <div v-if="ai.showConfig" class="api-settings-page">
+          <AiConfig variant="page" @close="ai.showConfig = false" />
         </div>
 
-        <AiAssistant />
+        <div v-else class="preset-workspace-content">
+          <div class="preset-panels">
+            <div class="center-area" style="flex: 1; min-width: 200px">
+              <PresetPanel panel-id="main" :favorited-ids="favoritedIds" @favorite="onFavorite" />
+            </div>
+
+            <template v-if="showSecondPreset">
+              <SplitHandle direction="vertical" @drag-start="onRightDragStart" @resize="onRightSplitResize" />
+              <div class="second-preset-area" :style="{ width: `${rightWidth}px` }">
+                <PresetPanel panel-id="second" :favorited-ids="favoritedIds" @favorite="onFavorite" />
+              </div>
+            </template>
+
+            <button
+              class="second-toggle"
+              :class="{ active: showSecondPreset }"
+              :title="showSecondPreset ? '收起第二预设' : '展开第二预设'"
+              @click="showSecondPreset = !showSecondPreset"
+            >
+              <i :class="['fas text-xs', showSecondPreset ? 'fa-chevron-right' : 'fa-chevron-left']" />
+            </button>
+          </div>
+
+          <AiAssistant />
+        </div>
       </div>
     </div>
 
@@ -101,12 +110,7 @@
           </button>
         </div>
 
-        <input
-          v-model="unusedPromptSearch"
-          class="unused-prompt-search"
-          type="search"
-          placeholder="搜索条目"
-        />
+        <input v-model="unusedPromptSearch" class="unused-prompt-search" type="search" placeholder="搜索条目" />
 
         <div class="unused-prompt-list">
           <button
@@ -118,9 +122,7 @@
             <span>{{ prompt.name || getPromptKey(prompt) }}</span>
             <small>{{ (prompt as any).role || 'system' }}</small>
           </button>
-          <div v-if="filteredOfficialUnusedPrompts.length === 0" class="unused-prompt-empty">
-            暂无可添加条目
-          </div>
+          <div v-if="filteredOfficialUnusedPrompts.length === 0" class="unused-prompt-empty">暂无可添加条目</div>
         </div>
       </div>
     </Transition>
@@ -143,17 +145,22 @@
               @click="applyUiPreset(preset.key)"
             >
               <span>{{ preset.label }}</span>
-              <small>{{ Math.round(uiPresets[preset.key].promptScale * 100) }}% · {{ previewLabel(uiPresets[preset.key].promptPreviewLines) }}</small>
+              <small
+                >{{ Math.round(uiPresets[preset.key].promptScale * 100) }}% ·
+                {{ previewLabel(uiPresets[preset.key].promptPreviewLines) }}</small
+              >
             </button>
-            <button class="settings-preset-save" :title="`保存当前比例到${preset.label}`" @click="saveCurrentToUiPreset(preset.key)">
+            <button
+              class="settings-preset-save"
+              :title="`保存当前比例到${preset.label}`"
+              @click="saveCurrentToUiPreset(preset.key)"
+            >
               <i class="fas fa-save text-xs" />
             </button>
           </div>
         </div>
 
-        <button class="settings-reset-btn" @click="resetUiSettingsDefaults">
-          恢复默认比例
-        </button>
+        <button class="settings-reset-btn" @click="resetUiSettingsDefaults">恢复默认比例</button>
 
         <label class="settings-row">
           <span>整体字体</span>
@@ -203,10 +210,22 @@
     <DevThemePanel v-if="devTheme.panelOpen" />
 
     <template v-if="!isFullscreen">
-      <div class="window-resize-handle resize-top-left" @mousedown.stop.prevent="onWindowResizeStart($event, 'top-left')" />
-      <div class="window-resize-handle resize-top-right" @mousedown.stop.prevent="onWindowResizeStart($event, 'top-right')" />
-      <div class="window-resize-handle resize-bottom-left" @mousedown.stop.prevent="onWindowResizeStart($event, 'bottom-left')" />
-      <div class="window-resize-handle resize-bottom-right" @mousedown.stop.prevent="onWindowResizeStart($event, 'bottom-right')" />
+      <div
+        class="window-resize-handle resize-top-left"
+        @mousedown.stop.prevent="onWindowResizeStart($event, 'top-left')"
+      />
+      <div
+        class="window-resize-handle resize-top-right"
+        @mousedown.stop.prevent="onWindowResizeStart($event, 'top-right')"
+      />
+      <div
+        class="window-resize-handle resize-bottom-left"
+        @mousedown.stop.prevent="onWindowResizeStart($event, 'bottom-left')"
+      />
+      <div
+        class="window-resize-handle resize-bottom-right"
+        @mousedown.stop.prevent="onWindowResizeStart($event, 'bottom-right')"
+      />
     </template>
   </div>
 </template>
@@ -217,11 +236,13 @@ import LeftSidebar from './components/LeftSidebar.vue';
 import SplitHandle from './components/SplitHandle.vue';
 import PresetPanel from './components/PresetPanel.vue';
 import AiAssistant from './components/AiAssistant.vue';
+import AiConfig from './components/AiConfig.vue';
 import HistoryPanel from './components/HistoryPanel.vue';
 import AnnotationOverlay from './components/AnnotationOverlay.vue';
 import DevThemeStyleInjector from './components/DevThemeStyleInjector.vue';
 import DevThemePanel from './components/DevThemePanel.vue';
 import { useDevThemeStore } from './stores/devTheme';
+import { useAiStore } from './stores/ai';
 import { getPromptKey, useManagerStore } from './stores/manager';
 import { useHistoryStore } from './stores/history';
 import { startParentDrag } from './utils/drag';
@@ -238,6 +259,7 @@ import { getInstanceStorageKey, type PresetManagerInstanceKey } from './utils/in
 const manager = useManagerStore();
 const history = useHistoryStore();
 const devTheme = useDevThemeStore();
+const ai = useAiStore();
 
 const isFullscreen = ref(false);
 const showHistory = ref(false);
@@ -272,6 +294,7 @@ type CodeInspectorSelectPayload = {
   label: string;
   tag: string;
   matchedCount: number;
+  rect?: { width: number; height: number };
 };
 type CodeInspectorControls = {
   isEnabled: () => boolean;
@@ -279,7 +302,15 @@ type CodeInspectorControls = {
   onSelect?: (listener: (payload: CodeInspectorSelectPayload) => void) => () => void;
 };
 let lastWindowState: WindowState | null = null;
-type WindowResizeDirection = 'top' | 'right' | 'bottom' | 'left' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+type WindowResizeDirection =
+  | 'top'
+  | 'right'
+  | 'bottom'
+  | 'left'
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-right';
 const MIN_WINDOW_WIDTH = 640;
 const MIN_WINDOW_HEIGHT = 420;
 const WINDOW_MIN_VISIBLE_RATIO = 0.1;
@@ -563,18 +594,19 @@ function createParentFloatingRoot() {
   style.setAttribute('data-preset-manager-floating-root-style', String(instanceKey));
   style.textContent = `
     [data-preset-manager-floating-root="${instanceKey}"] {
-      --pm-bg-panel: #1f232b;
+      --pm-bg-panel: #111114;
       --pm-bg-soft: rgba(255,255,255,0.045);
-      --pm-bg-hover: rgba(255,255,255,0.065);
+      --pm-bg-hover: rgba(255,255,255,0.06);
       --pm-input-bg: rgba(255,255,255,0.04);
       --pm-border: rgba(255,255,255,0.08);
-      --pm-border-strong: rgba(255,255,255,0.14);
-      --pm-divider: rgba(255,255,255,0.075);
-      --pm-text: #f4f4f5;
-      --pm-text-muted: rgba(244,244,245,0.74);
-      --pm-text-subtle: rgba(244,244,245,0.48);
-      --pm-shadow: 0 28px 80px rgba(0,0,0,0.45);
-      font: 13px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --pm-border-strong: #343541;
+      --pm-divider: rgba(255,255,255,0.28);
+      --pm-text: #ffffff;
+      --pm-text-muted: #acacbe;
+      --pm-text-subtle: #8e8ea0;
+      --pm-shadow: 0 24px 80px rgba(0,0,0,0.55);
+      font: 13px/1.5 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-feature-settings: 'calt', 'kern', 'liga', 'ss03';
       color: var(--pm-text);
     }
     [data-preset-manager-floating-root="${instanceKey}"] * {
@@ -582,151 +614,6 @@ function createParentFloatingRoot() {
     }
     [data-preset-manager-floating-panel] {
       pointer-events: auto;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel {
-      position: fixed;
-      z-index: 1;
-      min-width: 320px;
-      min-height: 360px;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      border: 1px solid var(--pm-border-strong);
-      border-radius: 16px;
-      background: color-mix(in srgb, var(--pm-bg-panel) 92%, transparent);
-      color: var(--pm-text);
-      box-shadow: var(--pm-shadow);
-      backdrop-filter: blur(28px) saturate(135%);
-      -webkit-backdrop-filter: blur(28px) saturate(135%);
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-head {
-      min-height: 44px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 8px 10px 8px 12px;
-      border-bottom: 1px solid var(--pm-divider);
-      cursor: move;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-head strong,
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-head small {
-      display: block;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-head small {
-      margin-top: 2px;
-      color: var(--pm-text-subtle);
-      font-size: 11px;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-head-actions,
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-body {
-      flex: 1;
-      min-height: 0;
-      overflow: auto;
-      padding: 10px;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-section {
-      display: grid;
-      gap: 8px;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--pm-divider);
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-section h3 {
-      margin: 0;
-      color: var(--pm-text-muted);
-      font-size: 12px;
-      font-weight: 650;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel button,
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel select,
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel input,
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel textarea {
-      border: 1px solid var(--pm-border);
-      border-radius: 8px;
-      background: var(--pm-input-bg);
-      color: var(--pm-text);
-      font: inherit;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel button {
-      min-height: 28px;
-      padding: 0 9px;
-      cursor: pointer;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-icon-btn {
-      min-width: 28px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel button:hover:not(:disabled) {
-      border-color: var(--pm-border-strong);
-      background: var(--pm-bg-hover);
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-panel button:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-switch,
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-check,
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-field {
-      display: grid;
-      gap: 5px;
-      color: var(--pm-text-muted);
-      font-size: 12px;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-check,
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-switch {
-      display: flex;
-      align-items: center;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-field span {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-field code {
-      color: var(--pm-text-subtle);
-      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-field b {
-      color: var(--pm-text);
-      font-weight: 600;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-drop {
-      min-height: 120px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      border: 1px dashed var(--pm-border-strong);
-      border-radius: 12px;
-      background: var(--pm-bg-hover);
-      color: var(--pm-text-subtle);
-      cursor: pointer;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-drop img {
-      width: 100%;
-      height: 140px;
-      object-fit: cover;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-file {
-      display: none;
-    }
-    [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-section pre {
-      max-height: 160px;
-      margin: 0;
-      padding: 8px;
-      overflow: auto;
-      border-radius: 10px;
-      background: var(--pm-bg-soft);
-      color: var(--pm-text-muted);
-      font-size: 11px;
-      white-space: pre-wrap;
     }
     [data-preset-manager-floating-root="${instanceKey}"] .dev-theme-resize {
       position: absolute;
@@ -768,9 +655,13 @@ function createParentFloatingRoot() {
 
 function toggleCodeInspector() {
   codeInspectorEnabled.value = codeInspectorControls?.toggle() ?? false;
-  toastr.info(codeInspectorEnabled.value ? '开发者检查器已开启，移动鼠标查看元素，Alt+Shift+点击定位代码' : '开发者检查器已关闭', '', {
-    timeOut: 1400,
-  });
+  toastr.info(
+    codeInspectorEnabled.value ? '开发者检查器已开启，移动鼠标查看元素，Alt+Shift+点击定位代码' : '开发者检查器已关闭',
+    '',
+    {
+      timeOut: 1400,
+    },
+  );
 }
 
 function readTheme(): AppTheme {
@@ -817,13 +708,18 @@ function clampUiPreset(preset: Partial<UiPresetConfig> | undefined, fallback: Ui
   return {
     uiScale: Math.max(0.9, Math.min(Number.isFinite(nextUiScale) ? nextUiScale : fallback.uiScale, 1.16)),
     promptScale: Math.max(1, Math.min(Number.isFinite(nextPromptScale) ? nextPromptScale : fallback.promptScale, 1.42)),
-    promptPreviewLines: Math.max(0, Math.min(Math.round(Number.isFinite(nextPreviewLines) ? nextPreviewLines : fallback.promptPreviewLines), 3)),
+    promptPreviewLines: Math.max(
+      0,
+      Math.min(Math.round(Number.isFinite(nextPreviewLines) ? nextPreviewLines : fallback.promptPreviewLines), 3),
+    ),
   };
 }
 
 function readUiPresets(): UiPresetMap {
   try {
-    const saved = JSON.parse(localStorage.getItem(UI_PRESETS_KEY) || '{}') as Partial<Record<UiPresetKey, Partial<UiPresetConfig>>>;
+    const saved = JSON.parse(localStorage.getItem(UI_PRESETS_KEY) || '{}') as Partial<
+      Record<UiPresetKey, Partial<UiPresetConfig>>
+    >;
     return {
       compact: clampUiPreset(saved.compact, DEFAULT_UI_PRESETS.compact),
       standard: clampUiPreset(saved.standard, DEFAULT_UI_PRESETS.standard),
@@ -874,9 +770,11 @@ function previewLabel(lines: number) {
 
 function isCurrentUiPreset(key: UiPresetKey) {
   const preset = uiPresets.value[key];
-  return Math.abs(uiScale.value - preset.uiScale) < 0.001
-    && Math.abs(promptScale.value - preset.promptScale) < 0.001
-    && promptPreviewLines.value === preset.promptPreviewLines;
+  return (
+    Math.abs(uiScale.value - preset.uiScale) < 0.001 &&
+    Math.abs(promptScale.value - preset.promptScale) < 0.001 &&
+    promptPreviewLines.value === preset.promptPreviewLines
+  );
 }
 
 function applyTheme(nextTheme: AppTheme) {
@@ -998,13 +896,16 @@ function onWindowResizeStart(e: MouseEvent, direction: WindowResizeDirection) {
   const startW = rect.width;
   const startH = rect.height;
   const style = iframeEl.style;
-  const cursor = direction.includes('top') && direction.includes('left') || direction.includes('bottom') && direction.includes('right')
-    ? 'nwse-resize'
-    : direction.includes('top') && direction.includes('right') || direction.includes('bottom') && direction.includes('left')
-      ? 'nesw-resize'
-      : direction === 'left' || direction === 'right'
-        ? 'ew-resize'
-        : 'ns-resize';
+  const cursor =
+    (direction.includes('top') && direction.includes('left')) ||
+    (direction.includes('bottom') && direction.includes('right'))
+      ? 'nwse-resize'
+      : (direction.includes('top') && direction.includes('right')) ||
+          (direction.includes('bottom') && direction.includes('left'))
+        ? 'nesw-resize'
+        : direction === 'left' || direction === 'right'
+          ? 'ew-resize'
+          : 'ns-resize';
 
   startParentDrag(parentDoc, {
     startEvent: e,
@@ -1085,9 +986,10 @@ onMounted(() => {
   const savedState = readWindowState();
   if (savedState) applyWindowState(savedState);
 
-  removeCodeInspectorSelectListener = codeInspectorControls?.onSelect?.(detail => {
-    devTheme.setSelectedElement(detail);
-  }) ?? null;
+  removeCodeInspectorSelectListener =
+    codeInspectorControls?.onSelect?.(detail => {
+      devTheme.setSelectedElement(detail);
+    }) ?? null;
 
   document.addEventListener('preset-manager-code-inspector-state', event => {
     codeInspectorEnabled.value = Boolean((event as CustomEvent<{ enabled: boolean }>).detail?.enabled);
@@ -1119,18 +1021,106 @@ onUnmounted(() => {
 </script>
 
 <style>
-html, body {
+html,
+body {
   margin: 0 !important;
   padding: 0;
   overflow: hidden !important;
   height: 100%;
   background: transparent;
 }
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
-body[data-pm-theme="dark"],
+body[data-pm-theme='dark'],
 .theme-dark {
-  /* Surface ladder — 4 steps from canvas to topmost card, inspired by Raycast */
+  /* Codex dark mode tokens — reverse-engineered from openai.com/codex via SkillUI */
+  --pm-bg: #000000;
+  --pm-bg-transparent: rgba(0, 0, 0, 0);
+  --pm-bg-soft: #0a0a0c;
+  --pm-bg-panel: #111114;
+  --pm-bg-titlebar: #000000;
+  --pm-bg-workspace: #000000;
+  --pm-bg-sidebar: rgba(255, 255, 255, 0.025);
+  --pm-bg-elevated: #1f1f23;
+  --pm-bg-card: #16161a;
+
+  /* Rows */
+  --pm-row-bg: transparent;
+  --pm-row-hover: rgba(255, 255, 255, 0.04);
+  --pm-row-active: rgba(255, 255, 255, 0.08);
+  --pm-row-border: rgba(255, 255, 255, 0.06);
+  --pm-bg-hover: rgba(255, 255, 255, 0.045);
+  --pm-bg-active: rgba(255, 255, 255, 0.08);
+
+  /* Hairlines — Codex uses #343541 solid border + white-alpha for inner */
+  --pm-border: rgba(255, 255, 255, 0.08);
+  --pm-border-strong: #343541;
+  --pm-divider: rgba(255, 255, 255, 0.28);
+  --pm-sidebar-edge: rgba(255, 255, 255, 0.28);
+  --pm-split-line: rgba(255, 255, 255, 0.28);
+  --pm-split-line-hover: rgba(255, 255, 255, 0.38);
+
+  /* Text */
+  --pm-text: #ffffff;
+  --pm-text-muted: #acacbe;
+  --pm-text-subtle: #8e8ea0;
+  --pm-text-faint: #565660;
+
+  /* Brand action — white pill */
+  --pm-accent: #ffffff;
+  --pm-accent-text: #000000;
+
+  /* Semantic */
+  --pm-success: #4ade80;
+  --pm-warning: #ffc533;
+  --pm-danger: #ff6f6f;
+
+  /* Inputs */
+  --pm-input-bg: rgba(255, 255, 255, 0.04);
+
+  --pm-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+
+  /* AI dock */
+  --pm-ai-surface: rgba(20, 20, 24, 0.85);
+  --pm-ai-capsule: rgba(28, 28, 32, 0.78);
+  --pm-control-highlight: rgba(255, 255, 255, 0.05);
+  --pm-control-highlight-hover: rgba(255, 255, 255, 0.09);
+  --pm-send-bg: #ffffff;
+  --pm-send-fg: #000000;
+
+  --pm-pill-primary-bg: #ffffff;
+  --pm-pill-primary-bg-hover: #efeefe;
+  --pm-pill-primary-fg: #000000;
+  --pm-pill-border: rgba(255, 255, 255, 0.12);
+  --pm-pill-border-hover: rgba(255, 255, 255, 0.22);
+  --pm-pill-bg-hover: rgba(255, 255, 255, 0.06);
+  --pm-pill-bg-active: rgba(255, 255, 255, 0.1);
+
+  /* Acrylic refraction layer — extremely subtle radial tints in the corners so the sidebar's
+     backdrop-blur has *something* faint to refract, instead of blurring pure flat black.
+     Kept under 5% alpha so this never reads as a "decorative gradient". */
+  --pm-glow-1: radial-gradient(ellipse 1200px 800px at 0% 0%, rgba(120, 130, 180, 0.04), transparent 65%);
+  --pm-glow-2: radial-gradient(ellipse 900px 600px at 100% 100%, rgba(150, 110, 200, 0.025), transparent 65%);
+  --pm-glow-3: none;
+
+  --pm-sidebar-glow: rgba(255, 255, 255, 0);
+  --pm-sidebar-glow-soft: rgba(255, 255, 255, 0);
+  --pm-sidebar-shadow: rgba(0, 0, 0, 0.4);
+  --pm-btn-radius: 8px;
+  --pm-btn-radius-pill: 999px;
+  --pm-btn-size: 30px;
+  --pm-btn-size-sm: 26px;
+  --pm-btn-hover: var(--pm-pill-bg-hover);
+  --pm-btn-active: var(--pm-pill-bg-active);
+  --pm-btn-active-border: var(--pm-pill-border-hover);
+}
+
+/* Backup of the previous (Raycast-inspired minimal) dark theme — switch to it by setting
+   document.body.dataset.pmTheme = 'codex-minimal-v1' or root class 'theme-codex-minimal-v1' */
+body[data-pm-theme='codex-minimal-v1'],
+.theme-codex-minimal-v1 {
   --pm-bg: #15171a;
   --pm-bg-transparent: rgba(21, 23, 26, 0);
   --pm-bg-soft: #1a1c20;
@@ -1140,62 +1130,45 @@ body[data-pm-theme="dark"],
   --pm-bg-sidebar: #15171a;
   --pm-bg-elevated: #24272c;
   --pm-bg-card: #2a2d32;
-
-  /* Rows */
   --pm-row-bg: transparent;
   --pm-row-hover: rgba(255, 255, 255, 0.04);
   --pm-row-active: rgba(255, 255, 255, 0.07);
   --pm-row-border: transparent;
   --pm-bg-hover: rgba(255, 255, 255, 0.045);
   --pm-bg-active: rgba(255, 255, 255, 0.08);
-
-  /* Hairlines */
   --pm-border: rgba(255, 255, 255, 0.06);
   --pm-border-strong: rgba(255, 255, 255, 0.11);
   --pm-divider: rgba(255, 255, 255, 0.05);
   --pm-sidebar-edge: rgba(255, 255, 255, 0.06);
   --pm-split-line: rgba(255, 255, 255, 0.06);
   --pm-split-line-hover: rgba(255, 255, 255, 0.18);
-
-  /* Text */
-  --pm-text: #ECEDEF;
-  --pm-text-muted: #B0B3B9;
-  --pm-text-subtle: #8C8F96;
-  --pm-text-faint: #6E7079;
-
-  /* Brand action — white pill */
-  --pm-accent: #F4F5F6;
+  --pm-text: #ecedef;
+  --pm-text-muted: #b0b3b9;
+  --pm-text-subtle: #8c8f96;
+  --pm-text-faint: #6e7079;
+  --pm-accent: #f4f5f6;
   --pm-accent-text: #15171a;
-
-  /* Semantic */
   --pm-success: #59d499;
   --pm-warning: #ffc533;
   --pm-danger: #ff6f6f;
-
-  /* Inputs */
   --pm-input-bg: #1f2226;
-
-  /* Shadow rarely used; depth comes from surface ladder */
   --pm-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
-
-  /* AI dock */
   --pm-ai-surface: #1d2024;
   --pm-ai-capsule: rgba(36, 39, 44, 0.92);
   --pm-control-highlight: rgba(255, 255, 255, 0.05);
   --pm-control-highlight-hover: rgba(255, 255, 255, 0.09);
-  --pm-send-bg: #F4F5F6;
+  --pm-send-bg: #f4f5f6;
   --pm-send-fg: #15171a;
-
-  /* Pill / icon button tokens (consumed by PillButton.vue and IconButton.vue) */
-  --pm-pill-primary-bg: #F4F5F6;
+  --pm-pill-primary-bg: #f4f5f6;
   --pm-pill-primary-bg-hover: #ffffff;
   --pm-pill-primary-fg: #15171a;
   --pm-pill-border: rgba(255, 255, 255, 0.11);
   --pm-pill-border-hover: rgba(255, 255, 255, 0.18);
   --pm-pill-bg-hover: rgba(255, 255, 255, 0.06);
-  --pm-pill-bg-active: rgba(255, 255, 255, 0.10);
-
-  /* Legacy aliases kept for unmigrated components */
+  --pm-pill-bg-active: rgba(255, 255, 255, 0.1);
+  --pm-glow-1: none;
+  --pm-glow-2: none;
+  --pm-glow-3: none;
   --pm-sidebar-glow: rgba(255, 255, 255, 0);
   --pm-sidebar-glow-soft: rgba(255, 255, 255, 0);
   --pm-sidebar-shadow: rgba(0, 0, 0, 0.22);
@@ -1208,7 +1181,7 @@ body[data-pm-theme="dark"],
   --pm-btn-active-border: var(--pm-pill-border-hover);
 }
 
-body[data-pm-theme="light"],
+body[data-pm-theme='light'],
 .theme-light {
   --pm-bg: #f5f5f4;
   --pm-bg-transparent: rgba(245, 245, 244, 0);
@@ -1341,7 +1314,15 @@ button {
 .app-root textarea,
 .app-root button {
   font-size: var(--pm-font-size, 13px);
-  font-family: 'Inter Variable', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-family:
+    'Inter Variable',
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    sans-serif;
   font-feature-settings: 'calt', 'kern', 'liga', 'ss03';
   letter-spacing: 0;
 }
@@ -1364,6 +1345,10 @@ button {
 .app-root.hide-prompt-preview .prompt-preview {
   display: none !important;
 }
+
+.hidden-file-input {
+  display: none !important;
+}
 </style>
 
 <style scoped>
@@ -1374,15 +1359,36 @@ button {
   position: relative;
   background: var(--pm-bg);
   color: var(--pm-text);
-  font-family: 'Inter Variable', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-family:
+    'Inter Variable',
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    sans-serif;
   overflow: hidden;
   border: 1px solid var(--pm-border);
   border-radius: 12px;
   box-shadow: var(--pm-shadow);
 }
-.app-root::before,
+/* Global radial glow — gives sidebar's backdrop-filter something to refract,
+   producing the "acrylic glass over cloudy sky" feel from the brief. */
+.app-root::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--pm-glow-1, none), var(--pm-glow-2, none), var(--pm-glow-3, none);
+  z-index: 0;
+}
 .app-root::after {
   display: none;
+}
+.app-root > * {
+  position: relative;
+  z-index: 1;
 }
 .app-root.fullscreen {
   border: 0;
@@ -1486,6 +1492,22 @@ button {
   overflow: hidden;
   background: var(--pm-bg-workspace);
 }
+.preset-workspace-content,
+.api-settings-page {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.preset-workspace-content {
+  display: flex;
+  flex-direction: column;
+}
+.api-settings-page {
+  z-index: 90;
+  background: var(--pm-bg-workspace);
+}
 .preset-panels {
   position: relative;
   flex: 1;
@@ -1521,7 +1543,10 @@ button {
   cursor: pointer;
   z-index: 20;
   backdrop-filter: blur(18px);
-  transition: background 0.12s, color 0.12s, opacity 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    opacity 0.12s;
 }
 .second-toggle:hover {
   color: var(--pm-text);
@@ -1676,7 +1701,9 @@ button {
 }
 .settings-pop-enter-active,
 .settings-pop-leave-active {
-  transition: opacity 0.12s ease, transform 0.12s ease;
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
 }
 .settings-pop-enter-from,
 .settings-pop-leave-to {

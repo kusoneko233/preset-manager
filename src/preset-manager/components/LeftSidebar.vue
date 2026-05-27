@@ -44,19 +44,26 @@ function onHorizontalResize(delta: number) {
   flex-shrink: 0;
   position: relative;
   display: flex;
-  background: transparent;
-  border-right: 0;
+  /* True acrylic — semi-transparent white over the dark canvas + real backdrop blur.
+     The visual "透过去看到背景" comes from blur + subtle alpha, not from a painted gradient. */
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-right: 1px solid var(--pm-sidebar-edge);
   overflow: visible;
 }
-.left-sidebar::before {
-  display: none;
-}
+.left-sidebar::before,
 .left-sidebar::after {
   display: none;
 }
 .left-sidebar.collapsed {
   min-width: 0;
   overflow: hidden;
+  border-right: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
 }
 .sidebar-content {
   position: relative;
@@ -66,8 +73,10 @@ function onHorizontalResize(delta: number) {
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
-  padding: 6px 15px 14px;
+  padding: 10px 14px 16px;
   gap: 0;
+  /* No internal dividers — the sidebar reads as one continuous glass surface. */
+  background: transparent;
 }
 .workbench-area {
   min-height: 80px;

@@ -587,10 +587,10 @@ onMounted(() => {
   line-height: 1;
 }
 .prompt-list {
-  padding: 4px 12px 14px;
+  padding: 6px 14px 14px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
   transition: background 0.15s ease;
   background: transparent;
 }

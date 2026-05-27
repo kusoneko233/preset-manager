@@ -31,7 +31,9 @@ expectIncludes(devThemeIO, "if (!file.type.startsWith('image/')) return '请选�
 expectIncludes(devThemeIO, "if (file.size > DEV_THEME_IMAGE_MAX_BYTES) return '图片不能超过 20MB';");
 expectIncludes(devThemeIO, 'export function serializeDevThemeConfig(input: DevThemeExportInput)');
 expectIncludes(devThemeIO, 'imageDataUrl: null,');
+expectIncludes(devThemeIO, 'originalImageDataUrl: null,');
 expectIncludes(devThemeIO, 'export function parseDevThemeConfig(raw: string): DevThemeExportConfig');
+expectIncludes(devThemeIO, 'originalImageDataUrl: null,');
 expectNotIncludes(devThemeIO, 'vitest');
 expectNotIncludes(devThemeIO, 'declare const require');
 

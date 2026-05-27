@@ -144,27 +144,32 @@ defineExpose({ expanded });
 <style scoped>
 .prompt-item {
   position: relative;
-  border-radius: 8px;
-  background: transparent;
+  border: 1px solid var(--pm-row-border);
+  border-radius: 10px;
+  background: var(--pm-bg-card);
   cursor: grab;
-  transition: background 0.12s ease, opacity 0.12s ease;
+  transition: background 0.14s ease, border-color 0.14s ease, opacity 0.14s ease, box-shadow 0.14s ease;
 }
 .prompt-item:hover {
-  background: var(--pm-row-hover);
+  background: color-mix(in srgb, var(--pm-bg-card) 60%, var(--pm-row-hover));
+  border-color: var(--pm-border);
 }
 .prompt-item.expanded {
-  background: var(--pm-row-active);
+  background: var(--pm-bg-elevated);
+  border-color: var(--pm-border-strong);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pm-border-strong) 30%, transparent);
 }
 .prompt-item.dragging {
   opacity: 0.5;
   cursor: grabbing;
 }
 .prompt-item.disabled {
-  opacity: 0.55;
+  opacity: 0.5;
 }
 .prompt-item.is-placeholder {
   cursor: default;
-  opacity: 0.6;
+  opacity: 0.5;
+  border-style: dashed;
 }
 .prompt-row {
   display: flex;

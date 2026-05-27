@@ -11,59 +11,125 @@
 - 正式发布前版本号统一使用 `v0.x.x`；功能和 UI 稳定后再从 `v1.0.0` 开始。
 - 新增项目 Markdown 默认使用中文。
 
+## 当前维护记录：隐藏文件输入控件泄漏
+
+目标：避免用于导入提示词 JSON 的原生文件输入框显示在插件底部。
+
+- [x] 确认底部“选择文件 / 未选择文件”来自 `officialPromptImportInput`，不是正常功能区。
+- [x] 为 `.hidden-file-input` 补回 `display: none !important;`，让导入按钮仍可程序化触发，但原生控件不参与布局。
+- [x] 更新 `visualPolish.test.ts`，防止后续 UI 重构再次漏出文件输入控件。
+- [x] 已验证 `visualPolish.test.ts`、AI API 配置相关测试、开发者背景面板相关测试、`git diff --check` 和
+      `pnpm build:dev`。
+
 ## 当前设计基准
 
 - 小窗默认尺寸：`1100x700`，用于对照 Codex 默认窗口比例。
-- Codex 贴图参考尺寸记录：默认窗口约 `1100x700`；左侧栏约 `255px`；右侧主区约 `845px`；顶栏约 `52px`；当前 AI 输入框按本次对照标注收敛为 `400px` 宽、`93px` 高。
+- Codex 贴图参考尺寸记录：默认窗口约 `1100x700`；左侧栏约 `255px`；右侧主区约 `845px`；顶栏约
+  `52px`；当前 AI 输入框按本次对照标注收敛为 `400px` 宽、`93px` 高。
 - 这些基准已固化在 `src/preset-manager/designMetrics.ts`，后续 UI 调整优先改设计标尺，不在组件里散落魔法数字。
 - UI 方向：接近 Codex 的精密工具界面，强调简洁、干净、低噪音、半透明侧栏、弱边框、明确层级。
 - 暗色模式不使用单一纯黑，使用多层黑灰建立空间。
 - 预设条目走高级列表感，不走厚重卡片堆叠。
 - AI 助手是内嵌命令入口，不是横跨全屏的外置聊天底栏。
 
+## 当前功能节点：开发者背景面板 v2 重做
+
+目标：把开发者背景面板从不可控的旧覆盖方案改成可直接选元素、可实时调 CSS、可用于前端学习和调试的工具面板。
+
+- [x] 面板 UI 重做为紧凑工具栏 + 左侧目标/预设/背景图 + 右侧实时参数/选中元素参数/装饰/CSS 预览结构。
+- [x] 背景样式生成从 `::before` 覆盖层改为直接写入目标元素，透明度映射为 `background-color`
+      透明通道，模糊/饱和度/亮度/对比度统一映射为 `backdrop-filter`。
+- [x] 选中元素增加 `data-preset-manager-dev-selected` 标记，检查器点击才提交选择，鼠标经过只显示高亮，避免滑过即改目标。
+- [x] 无源码定位标记的元素也可作为样式目标；可定位元素仍通过本地定位服务打开 VS Code 对应位置。
+- [x] Teleport 到酒馆父页面的面板单独注入必要样式，避免 iframe scoped CSS 无法覆盖父页面浮层。
+- [x] 修复检查器状态事件少传父页面文档和样式注入组件缺少 Vue 监听 API 导入的问题。
+- [x] 已验证 `devThemeCss.test.ts`、`codeInspectorIframe.test.cjs`、`devThemeIntegration.test.ts` 和 `pnpm build:dev`。
+- [ ] 在酒馆实际页面验收：面板开关、Alt+Shift 选取、滑杆实时变化、背景图导入、预设保存/导入导出、跨页面拖动缩放和 VS
+      Code 定位。
+
+## 当前功能节点：开发者背景图取景裁剪
+
+目标：让背景图像头像裁剪一样可选取使用区域，而不是只能用整张图硬缩放。
+
+- [x] 背景图上传后保留原图 `originalImageDataUrl`，裁剪后生成实际用于 CSS 的 `imageDataUrl`。
+- [x] 背景图区域增加“裁剪”入口，上传图片后自动进入裁剪模式。
+- [x] 裁剪器支持拖动图片位置、缩放图片，并提供左半边、右半边、居中和铺满预设。
+- [x] 点击“应用裁剪”后立即更新背景图预览和实际样式。
+- [x] 支持重新裁剪，不丢原图。
+- [x] 清除背景图时同步清除原图、裁剪结果并关闭裁剪器，避免旧图残留。
+- [x] 裁剪框按当前作用范围自动匹配比例：侧栏、工作区、弹窗或检查器选中元素。
+- [x] 裁剪输出尺寸跟随目标比例生成，避免侧栏背景仍被固定竖图比例裁坏。
+
 ## 当前节点：Codex 化视觉精修（P0/P1/P2）
 
 目标：在已固化的标尺基础上，把暗色玻璃、AI 输入坞、预设条目和批注工具栏全部对齐 Codex 视觉语言，统一按钮和滚动条质感。
 
-- [x] P0 玻璃化与令牌重构：暗色 `--pm-bg` 改为 `oklch(0.155 0.008 255)`，新增 `--pm-bg-sidebar`、`--pm-bg-transparent`、`--pm-split-line`、`--pm-ai-capsule`、`--pm-control-highlight`、`--pm-send-bg`、`--pm-btn-hover/active/active-border` 等令牌；浅色同步更新。
-- [x] P0 主容器去重压：`.app-root::before` 去掉两组径向 glow 和内阴影，只保留线性渐变 + `blur(32px) saturate(140%)`；侧栏边缘线收回；工作区改用更深底色让玻璃侧栏漂浮其上。
-- [x] P0 顶栏轻量化：去除底色和底部分隔线；`TitleBar` 按钮接入 `--pm-btn-size / --pm-btn-radius / --pm-btn-hover`，关闭按钮改 CSS 类替代 Tailwind 内联红色。
-- [x] P1 AI 输入坞结构重做：拆出双行结构（顶部 input + 底部工具行），占位符改为 `Ask Codex anything`；模型胶囊靠左 + 自动占位，独立小窗按钮改为 hover 才显形的 `.floating-detach`，发送按钮换成 oklch 亮白圆。
-- [x] P1 预设条目去卡片：展开态去掉 1px 边和圆角，改为 `border-top/bottom` 配 `var(--pm-row-active)` 底色 + 左侧 2px 强调条，列表更接近 Codex。
-- [x] P1 面板小标题统一：工作台、收藏夹的图标去掉，文本改为 `草稿 / 收藏`，统一 11px 600 字重、`uppercase`、`letter-spacing: 0.04em`。
-- [x] P1 批注工具栏紧凑分组：用 `.anno-group / .anno-separator` 重排工具/颜色/字号/操作；按钮缩到 22px，图标降到 10px；删除被覆盖的旧 hover 块。
-- [x] P2 圆角与按钮尺寸令牌化：`--pm-btn-radius`、`--pm-btn-radius-pill`、`--pm-btn-size`、`--pm-btn-size-sm` 统一接入标题栏、AI 助手等组件。
+- [x] P0 玻璃化与令牌重构：暗色 `--pm-bg` 改为 `oklch(0.155 0.008 255)`，新增
+      `--pm-bg-sidebar`、`--pm-bg-transparent`、`--pm-split-line`、`--pm-ai-capsule`、`--pm-control-highlight`、`--pm-send-bg`、`--pm-btn-hover/active/active-border`
+      等令牌；浅色同步更新。
+- [x] P0 主容器去重压：`.app-root::before` 去掉两组径向 glow 和内阴影，只保留线性渐变 +
+      `blur(32px) saturate(140%)`；侧栏边缘线收回；工作区改用更深底色让玻璃侧栏漂浮其上。
+- [x] P0 顶栏轻量化：去除底色和底部分隔线；`TitleBar` 按钮接入
+      `--pm-btn-size / --pm-btn-radius / --pm-btn-hover`，关闭按钮改 CSS 类替代 Tailwind 内联红色。
+- [x] P1 AI 输入坞结构重做：拆出双行结构（顶部 input + 底部工具行），占位符改为
+      `Ask Codex anything`；模型胶囊靠左 + 自动占位，独立小窗按钮改为 hover 才显形的
+      `.floating-detach`，发送按钮换成 oklch 亮白圆。
+- [x] P1 预设条目去卡片：展开态去掉 1px 边和圆角，改为 `border-top/bottom` 配 `var(--pm-row-active)`
+      底色 + 左侧 2px 强调条，列表更接近 Codex。
+- [x] P1 面板小标题统一：工作台、收藏夹的图标去掉，文本改为 `草稿 / 收藏`，统一 11px
+      600 字重、`uppercase`、`letter-spacing: 0.04em`。
+- [x] P1 批注工具栏紧凑分组：用 `.anno-group / .anno-separator`
+      重排工具/颜色/字号/操作；按钮缩到 22px，图标降到 10px；删除被覆盖的旧 hover 块。
+- [x] P2 圆角与按钮尺寸令牌化：`--pm-btn-radius`、`--pm-btn-radius-pill`、`--pm-btn-size`、`--pm-btn-size-sm`
+      统一接入标题栏、AI 助手等组件。
 - [x] P2 滚动条收窄：宽高从 10px 收到 6px，去除背景剪裁和边框，玻璃容器内更安静。
 - [x] P2 Tailwind 警告清理：移除 `hover:!bg-red-500/30` 等内联危险样式，替换为 scoped CSS。
-- [x] 同步更新 `visualPolish.test.ts` 断言以覆盖新令牌、滚动条 6px、面板小标题 uppercase、AI 占位符、`floating-detach`、条目去卡片边线、批注 `.anno-group` 与 22px 按钮等。
+- [x] 同步更新 `visualPolish.test.ts`
+      断言以覆盖新令牌、滚动条 6px、面板小标题 uppercase、AI 占位符、`floating-detach`、条目去卡片边线、批注
+      `.anno-group` 与 22px 按钮等。
 
 ## 当前节点：UI v2 接续修复（与 Codex 功能并行）
 
-目标：基于 `ui/codex-polish` 分支继续推进 UI 视觉，与 Codex 在 `D:\tavern_helper_template-feature` 工作区的功能开发并行。
+目标：基于 `ui/codex-polish` 分支继续推进 UI 视觉，与 Codex 在 `D:\tavern_helper_template-feature`
+工作区的功能开发并行。
 
-- [x] 新 UI 同步为 Codex/Raycast 方向 surface ladder：暗色和亮色统一 `--pm-bg`、`--pm-bg-card`、侧栏、标题栏、工作区和按钮令牌。
-- [x] 新增 `Icon`、`IconButton`、`PillButton`、`PanelHeader` 基础 UI 原语，标题栏、工作台、收藏夹和条目操作开始使用统一图标/胶囊按钮。
+- [x] 新 UI 同步为 Codex/Raycast 方向 surface ladder：暗色和亮色统一
+      `--pm-bg`、`--pm-bg-card`、侧栏、标题栏、工作区和按钮令牌。
+- [x] 新增 `Icon`、`IconButton`、`PillButton`、`PanelHeader`
+      基础 UI 原语，标题栏、工作台、收藏夹和条目操作开始使用统一图标/胶囊按钮。
 - [x] 新增 Lucide 风格内联图标注册表，替换标题栏、AI 助手、收藏夹、工作台和预设条目中的 Font Awesome 图标。
 - [x] 预设条目、收藏夹、工作台和第二预设头部同步为更克制的列表/胶囊布局，减少噪音按钮和厚重边框。
 - [x] 同步更新 `visualPolish.test.ts`，覆盖新 surface 令牌、Lucide 图标层、UI 原语组件和条目/侧栏关键结构。
-- [x] 将 `AiAssistant.vue` drawer 与 detached 模式输入框 placeholder 同步为 `Ask Codex anything`，与 `visualPolish.test.ts` 期望对齐。
+- [x] 将 `AiAssistant.vue` drawer 与 detached 模式输入框 placeholder 同步为 `Ask Codex anything`，与
+      `visualPolish.test.ts` 期望对齐。
 - [x] 将 drawer 中 input 后的独立小窗按钮 class 由 `detach-trigger` 改为 `floating-detach`，应用既有 hover 浮现样式。
 - [x] 全部测试绿灯：`designMetrics`、`annotationTools`、`panelLayout`、`promptRelations`、`visualPolish`。
-- [x] 背景重做：顶栏与主区改为实色暗灰画布（`--pm-bg-titlebar` / `--pm-bg-workspace` 统一为 `#1c1e25`）；侧栏保留毛玻璃但提高底色不透明度到 `rgba(34, 38, 48, 0.62)` 让酒馆背景图只透出微微蓝紫调；侧栏右侧加 `0.8px` `--pm-sidebar-edge` 极细分隔线对齐 Codex。
-- [x] 按钮克制化：`PromptItem` 启用胶囊去掉绿色 glow + 绿色背景，启用态只有内圆点变绿、底色保持灰；`action-btn` / `star-btn` hover 取消 1px 边框只换底色；全局按钮圆角令牌 `--pm-btn-radius` 由 `8px` 收到 `6px`。
-- [x] 条目简洁化：删除条目左侧 `star-btn` 收藏按钮和展开后 `action-btn` 收藏/取消收藏项，条目内不再混杂收藏交互（保留外层收藏面板入口）。
-- [x] 同步 `visualPolish.test.ts` 断言：覆盖 `--pm-bg-titlebar`、`--pm-bg-workspace`、新版 `--pm-bg-sidebar` / `--pm-ai-capsule` / `--pm-sidebar-edge` 取值，以及新增的侧栏右边线 `box-shadow inset` 与 `--pm-btn-radius: 6px`。
-- [x] 修复 `code-inspector-plugin` 在预设管理器 UI iframe 内无响应：引入本项目生成的 inspector client 字符串模块，在 `createScriptIdIframe()` 加载完成后把 `code-inspector-component` 注入真实可视 UI iframe，并保留旧 watch/旧包下的 DefinePlugin 常量防御。
-- [x] 修复 inspector 热键模式：预设管理器 UI iframe 内 `Alt+Shift` 改为按一次切换一次，松开按键不再自动隐藏，便于停留遮罩后截图。
-- [x] 修复 inspector 仍表现为长按模式：禁用注入 iframe 内 inspector 的内部 `hotKeys` 按住判断，并在 `mousemove` 捕获阶段执行本项目自己的 `Alt+Shift` 切换逻辑。
-- [x] 修复 inspector 点击不跳转代码：打开态点击高亮元素时由预设管理器直接向 `localhost:5678` 发起定位请求，并保留 `trackCode()` 事件链路，避免 iframe 内点击事件或 XHR 兜底失效导致编辑器不响应。
+- [x] 背景重做：顶栏与主区改为实色暗灰画布（`--pm-bg-titlebar` / `--pm-bg-workspace` 统一为
+      `#1c1e25`）；侧栏保留毛玻璃但提高底色不透明度到 `rgba(34, 38, 48, 0.62)` 让酒馆背景图只透出微微蓝紫调；侧栏右侧加
+      `0.8px` `--pm-sidebar-edge` 极细分隔线对齐 Codex。
+- [x] 按钮克制化：`PromptItem` 启用胶囊去掉绿色 glow + 绿色背景，启用态只有内圆点变绿、底色保持灰；`action-btn` /
+      `star-btn` hover 取消 1px 边框只换底色；全局按钮圆角令牌 `--pm-btn-radius` 由 `8px` 收到 `6px`。
+- [x] 条目简洁化：删除条目左侧 `star-btn` 收藏按钮和展开后 `action-btn`
+      收藏/取消收藏项，条目内不再混杂收藏交互（保留外层收藏面板入口）。
+- [x] 同步 `visualPolish.test.ts` 断言：覆盖 `--pm-bg-titlebar`、`--pm-bg-workspace`、新版 `--pm-bg-sidebar` /
+      `--pm-ai-capsule` / `--pm-sidebar-edge` 取值，以及新增的侧栏右边线 `box-shadow inset` 与 `--pm-btn-radius: 6px`。
+- [x] 修复 `code-inspector-plugin` 在预设管理器 UI iframe 内无响应：引入本项目生成的 inspector client 字符串模块，在
+      `createScriptIdIframe()` 加载完成后把 `code-inspector-component` 注入真实可视 UI
+      iframe，并保留旧 watch/旧包下的 DefinePlugin 常量防御。
+- [x] 修复 inspector 热键模式：预设管理器 UI iframe 内 `Alt+Shift`
+      改为按一次切换一次，松开按键不再自动隐藏，便于停留遮罩后截图。
+- [x] 修复 inspector 仍表现为长按模式：禁用注入 iframe 内 inspector 的内部 `hotKeys` 按住判断，并在 `mousemove`
+      捕获阶段执行本项目自己的 `Alt+Shift` 切换逻辑。
+- [x] 修复 inspector 点击不跳转代码：打开态点击高亮元素时由预设管理器直接向 `localhost:5678` 发起定位请求，并保留
+      `trackCode()` 事件链路，避免 iframe 内点击事件或 XHR 兜底失效导致编辑器不响应。
 
 ## 已完成节点：Codex 参考尺寸标准化
 
 目标：把参考图里的窗口、边栏、顶栏和 AI 输入框尺寸变成项目内统一标尺，后续“借鉴”Codex 时先对齐比例，再逐块改视觉。
 
 - [x] 记录参考图尺寸：默认窗口 `1100x700`、侧栏 `255px`、主区 `845px`、顶栏 `52px`。
-- [x] 记录 AI 输入框参考：曾按 Codex 贴图校准为约 `634px` 宽、`93px` 高，后按本次并排对照标注收敛为 `400px` 宽、`93px` 高。
+- [x] 记录 AI 输入框参考：曾按 Codex 贴图校准为约 `634px` 宽、`93px` 高，后按本次并排对照标注收敛为 `400px` 宽、`93px`
+      高。
 - [x] 新增 `designMetrics.ts` 统一管理这些基准。
 - [x] `App.vue`、`index.ts`、`TitleBar.vue`、`AiAssistant.vue` 改为引用统一基准或 CSS 变量。
 - [x] 新增 `designMetrics.test.ts` 防止基准被误改。
@@ -118,13 +184,34 @@
 - [x] 设置、模型、发送按钮按 Codex 风格重新排布。
 - [ ] 独立小窗模式保留，但拖动、收回、跨插件/酒馆页面覆盖和视觉反馈放到后续节点；当前先用开发者背景面板验证通用父页面浮层方案，不做自动弹出。
 
+## 当前功能节点：AI API 与模型预设配置
+
+目标：让插件 AI 可以保存多套接口地址、Key 和模型配置，用户可快速切换接入的模型。
+
+- [x] AI 配置支持从旧版 `apiUrl/key/source/model` 自动迁移为一套默认 API 预设。
+- [x] 新增多 API 预设数据层：每套预设保存名称、分组、API 地址、Key、Source 和模型列表；UI 层隐藏分组选项，继续保留底层分组字段用于模型来源标记。
+- [x] AI 生成请求改为从当前 API 预设构造 `custom_api`，同时保留酒馆代理预设模式。
+- [x] 配置面板支持新增、选择、编辑、删除 API 预设。
+- [x] 只保留名称、API 地址、API Key 三个手动输入项；代理预设、API 预设、API 模式和模型全部改为选项控件。
+- [x] 支持调用 `getModelList` 从接口拉取模型，并把结果写入当前 API 预设的模型选项。
+- [x] 模型列表采用扁平展示：模型名正常显示，分组名作为后置灰色小字，不做分组折叠。
+- [x] API 配置面板按 Chatbox 式设置页重做：左侧栏保存多套 API 预设，右侧显示当前预设详情，`Source` 改名为 `API 模式`
+      并放在 URL 上方。
+- [x] AI 配置弹窗放大到 `565px` 级别，并按参考图收敛为 `565x568` 深色表单，避免多字段设置挤在窄小浮层里。
+- [x] AI 配置弹窗放大到 `760px` 级别，面板高度收敛为 `520px`，并下移以避免贴近窗口顶部。
+- [x] API 设置从 AI 输入坞浮层改为主工作区页面式设置：打开设置时隐藏预设列表和底部 AI 输入框，只显示左侧 API 预设栏 + 右侧详情表单，并提供返回按钮，避免小窗裁切和底部遮挡。
+- [x] API 详情页按最新批注收敛：顶部 `API 1`
+      标题改为可编辑名称输入并带笔图标，删除表单内“使用代理预设”和“名称”两行；底层代理预设能力仍保留给历史配置和请求构造使用。
+
 ## 当前功能节点：跨插件浮层小窗
 
 目标：让插件内需要临时展开的工具窗可以手动覆盖到插件窗口和酒馆页面之上，节省插件内部空间。
 
 - [x] 开发者背景面板打开后直接挂载到酒馆父页面浮层，不再使用插件内/父页面两套模式，也不做拖到边缘后自动弹出的触发。
-- [x] 在主应用中创建父页面浮层根节点，浮层根节点 `pointer-events: none`，实际小窗 `pointer-events: auto`，避免遮住酒馆页面其它区域。
-- [x] 面板拖动和四角缩放统一监听酒馆父页面 `document`，拖动时临时让浮层接管指针事件，松开后恢复穿透，保证能跨插件窗口和酒馆页面无缝拖动。
+- [x] 在主应用中创建父页面浮层根节点，浮层根节点 `pointer-events: none`，实际小窗
+      `pointer-events: auto`，避免遮住酒馆页面其它区域。
+- [x] 面板拖动和四角缩放统一监听酒馆父页面
+      `document`，拖动时临时让浮层接管指针事件，松开后恢复穿透，保证能跨插件窗口和酒馆页面无缝拖动。
 - [x] 面板使用父页面 viewport 做边界夹取。
 - [x] 给父页面浮层注入开发者背景面板必要样式，解决 Vue Teleport 跨 iframe 后 scoped CSS 不生效的问题。
 - [ ] 抽象为通用父页面浮窗宿主，再接入 AI 独立小窗、历史备份等其它可拖小窗。
@@ -134,10 +221,15 @@
 目标：让插件 AI 不只是聊天建议，而是作为用户的预设写作 handler，能指导用户、帮助用户写条目，并在确认后代用户执行插件内部操作。
 
 - [x] 新增中文知识库文档 `docs/ai-knowledge/preset-writing.md`，沉淀预设写作、诊断、文风、模型适配和安全边界。
-- [x] 补充 `语言模型与提示词分析入门教程（雾）` 主附件的安全提炼：Transformer、decoder-only、文本向量化、自回归生成、上下文、token 和注意力诊断。
+- [x] 补充 `语言模型与提示词分析入门教程（雾）`
+      主附件的安全提炼：Transformer、decoder-only、文本向量化、自回归生成、上下文、token 和注意力诊断。
 - [x] 新增运行时知识片段 `src/preset-manager/knowledge/presetWritingKnowledge.ts`，供插件 AI 在触发预设写作意图时注入。
 - [x] `presetWritingSkill` 支持新手引导、从零创建、局部优化、故障诊断、文风塑形、模型适配六类处理策略。
 - [x] `ai.ts` 在用户输入涉及预设写作时自动加入预设写作知识库提示。
+- [x] How2Claude（rentry.org）完整精读：ST 上下文组装、U 型注意力曲线、ICL、模板 one-shot、重复反制、XML 格式化、采样器调参、摘要系统、预填充。
+- [x] 知识库扩展至 23 章（含 Discord 反 RLHF 导论核心内容与破限原理理论），覆盖 NSFW/破限/反 RLHF 提示词设计与写法。
+- [x] Discord 频道 `破限原理理论` 已读取正文：提示词语意分析、模型可解释性（归因图/特征/超节点）、英语母语特性、幻觉电路失调机制、CoT 局限性。规划的破限原理/反催眠章节未发布。
+- [x] Discord 频道 `反 RLHF 提示结构设计导论` 已完整读取全部已发布章节（第 1-3 章），基于 V4.3beta7 预设的完整提示结构解析已整合入知识库。
 - [ ] 设计 AI Action Agent：把用户指令解析为结构化动作，如切换预设、插入条目、修改条目、移动条目、开关条目。
 - [ ] 动作执行前必须给预览和确认，不允许 AI 静默改动预设。
 - [ ] 动作执行前写入历史快照，支持撤销。

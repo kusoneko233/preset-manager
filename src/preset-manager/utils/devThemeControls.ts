@@ -37,14 +37,26 @@ function buildFilterDeclaration(background: DevThemeBackground) {
   const saturate = clamp(background.saturate, 0, 2);
   const brightness = clamp(background.brightness, 0.5, 1.5);
   const contrast = clamp(background.contrast, 0.5, 1.5);
-  return `filter: saturate(${saturate}) brightness(${brightness}) contrast(${contrast});`;
+  return `backdrop-filter: blur(${clamp(background.blur, 0, 64)}px) saturate(${Math.round(saturate * 100)}%) brightness(${Math.round(brightness * 100)}%) contrast(${Math.round(contrast * 100)}%) !important;`;
 }
 
 function buildBackdropFilterDeclarations(background: DevThemeBackground) {
   const blur = clamp(background.blur, 0, 64);
   const saturate = clamp(background.saturate, 0, 2);
-  const value = `blur(${blur}px) saturate(${Math.round(saturate * 100)}%)`;
-  return [`backdrop-filter: ${value};`, `-webkit-backdrop-filter: ${value};`];
+  const brightness = clamp(background.brightness, 0.5, 1.5);
+  const contrast = clamp(background.contrast, 0.5, 1.5);
+  const value = `blur(${blur}px) saturate(${Math.round(saturate * 100)}%) brightness(${Math.round(brightness * 100)}%) contrast(${Math.round(contrast * 100)}%)`;
+  return [`backdrop-filter: ${value} !important;`, `-webkit-backdrop-filter: ${value} !important;`];
+}
+
+function buildBackgroundColorDeclaration(background: DevThemeBackground) {
+  const normalized = background.maskColor.trim().replace(/^#/, '');
+  const valid = /^[0-9a-fA-F]{6}$/.test(normalized);
+  const r = valid ? Number.parseInt(normalized.slice(0, 2), 16) : 22;
+  const g = valid ? Number.parseInt(normalized.slice(2, 4), 16) : 26;
+  const b = valid ? Number.parseInt(normalized.slice(4, 6), 16) : 34;
+  const alpha = Math.round(clamp(background.opacity, 0, 1) * clamp(background.maskOpacity, 0, 1) * 1000) / 1000;
+  return `background-color: rgba(${r}, ${g}, ${b}, ${alpha}) !important;`;
 }
 
 export const DEV_THEME_CONTROL_SPECS: DevThemeControlSpec[] = [
@@ -62,11 +74,11 @@ export const DEV_THEME_CONTROL_SPECS: DevThemeControlSpec[] = [
     id: 'opacity',
     label: '整体不透明度',
     beginnerHint: '控制整块背景层透明度。',
-    cssProperties: ['opacity'],
+    cssProperties: ['background-color alpha', 'background-image alpha'],
     sourceLocation: 'src/preset-manager/utils/devThemeCss.ts > buildBlock',
     scope: 'background',
     isEnabled: () => true,
-    buildDeclarations: background => [`opacity: ${clamp(background.opacity, 0, 1)};`],
+    buildDeclarations: background => [buildBackgroundColorDeclaration(background)],
   },
   {
     id: 'blur',
@@ -82,7 +94,7 @@ export const DEV_THEME_CONTROL_SPECS: DevThemeControlSpec[] = [
     id: 'saturate',
     label: '饱和度（彩度）',
     beginnerHint: '控制颜色鲜艳程度。',
-    cssProperties: ['filter: saturate(...)', 'backdrop-filter: saturate(...)'],
+    cssProperties: ['backdrop-filter: saturate(...)'],
     sourceLocation: 'src/preset-manager/utils/devThemeCss.ts > buildBlock',
     scope: 'background',
     isEnabled: () => true,
@@ -92,7 +104,7 @@ export const DEV_THEME_CONTROL_SPECS: DevThemeControlSpec[] = [
     id: 'brightness',
     label: '亮度',
     beginnerHint: '控制背景层整体偏亮还是偏暗。',
-    cssProperties: ['filter: brightness(...)'],
+    cssProperties: ['backdrop-filter: brightness(...)'],
     sourceLocation: 'src/preset-manager/utils/devThemeCss.ts > buildBlock',
     scope: 'background',
     isEnabled: () => true,
@@ -102,7 +114,7 @@ export const DEV_THEME_CONTROL_SPECS: DevThemeControlSpec[] = [
     id: 'contrast',
     label: '对比度',
     beginnerHint: '控制明暗差距强不强。',
-    cssProperties: ['filter: contrast(...)'],
+    cssProperties: ['backdrop-filter: contrast(...)'],
     sourceLocation: 'src/preset-manager/utils/devThemeCss.ts > buildBlock',
     scope: 'background',
     isEnabled: () => true,

@@ -343,8 +343,7 @@ onUnmounted(() => {
   align-items: stretch;
   height: var(--pm-titlebar-height, 56px);
   padding: 0;
-  background: var(--pm-bg-titlebar);
-  border-bottom: 1px solid var(--pm-divider);
+  background: transparent;
   cursor: move;
   user-select: none;
 }
@@ -356,14 +355,22 @@ onUnmounted(() => {
   align-items: center;
   justify-content: flex-end;
   padding: 0 14px 0 20px;
-  background: transparent;
-  border-right: 0;
+  /* Same acrylic as the sidebar, so sidebar + this section read as ONE glass column. */
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-right: 1px solid var(--pm-sidebar-edge);
 }
 .title-bar.left-collapsed .title-left {
   flex-basis: 0;
   width: 0;
   padding: 0;
   overflow: visible;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  border-right: 0;
 }
 .title-bar.left-collapsed .title-left :deep(.icon-btn) {
   position: absolute;
@@ -381,7 +388,9 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 16px;
   padding: 0 16px 0 22px;
-  background: transparent;
+  background: var(--pm-bg-titlebar);
+  /* Bottom rule only on the right side — sidebar + title-left stay one continuous glass. */
+  border-bottom: 1px solid var(--pm-divider);
 }
 .title-bar.left-collapsed .title-actions {
   padding-left: 60px;

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, inject } from 'vue';
+import { computed, inject, onUnmounted, watch } from 'vue';
 import { buildDevThemeCss } from '../utils/devThemeCss';
 import { useDevThemeStore } from '../stores/devTheme';
 
 const store = useDevThemeStore();
 const parentDoc = inject<Document | null>('parentDocument', null);
+const iframeElement = inject<HTMLIFrameElement | null>('iframeElement', null);
 const styleEls = new Map<Document, HTMLStyleElement>();
 
 const selectedPaths = computed(() => {
@@ -44,6 +45,10 @@ function syncStyleElement(styleDocument: Document, css: string) {
   ensureStyleElement(styleDocument).textContent = css;
 }
 
+function getIframeDocument() {
+  return iframeElement?.contentDocument ?? document;
+}
+
 function syncStyle() {
   const css = buildDevThemeCss({
     enabled: store.enabled,
@@ -51,8 +56,9 @@ function syncStyle() {
     background: store.currentDraft,
     selectedPaths: store.livePreviewActive ? livePreviewSelectedPaths.value : selectedPaths.value,
   });
-  syncStyleElement(document, css);
-  if (parentDoc && parentDoc !== document) syncStyleElement(parentDoc, css);
+  const iframeDoc = getIframeDocument();
+  syncStyleElement(iframeDoc, css);
+  if (parentDoc && parentDoc !== iframeDoc) syncStyleElement(parentDoc, css);
 }
 
 watch(

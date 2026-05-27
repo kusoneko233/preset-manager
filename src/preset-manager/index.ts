@@ -50,6 +50,7 @@ type CodeInspectorSelectPayload = {
   label: string;
   tag: string;
   matchedCount: number;
+  rect?: { width: number; height: number };
 };
 
 type CodeInspectorControls = {
@@ -163,6 +164,10 @@ function dispatchCodeInspectorSelect(iframeDoc: Document, parentDoc: Document, p
   dispatchPresetManagerEvent(iframeDoc, parentDoc, CODE_INSPECTOR_SELECT_EVENT, payload);
 }
 
+function buildSelectedElementPath(target: HTMLElement, sourceInfo: InspectorSourceInfo) {
+  return buildInspectorSourcePathKey(sourceInfo) || `__selected_element__:${target.tagName.toLowerCase()}`;
+}
+
 function buildInspectorSourceSelectors(path: string) {
   if (!path) return '';
   const escaped = path.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
@@ -176,6 +181,13 @@ function buildInspectorSourceSelectors(path: string) {
   ].join(',');
 }
 
+function clearDevThemeSelectionMarks(iframeDoc: Document) {
+  iframeDoc.querySelectorAll('[data-preset-manager-selected-source], [data-preset-manager-dev-selected]').forEach(element => {
+    element.removeAttribute('data-preset-manager-selected-source');
+    element.removeAttribute('data-preset-manager-dev-selected');
+  });
+}
+
 function countSelectedMatches(iframeDoc: Document, path: string) {
   if (!path) return 0;
   try {
@@ -186,17 +198,28 @@ function countSelectedMatches(iframeDoc: Document, path: string) {
 }
 
 function markSelectedMatches(iframeDoc: Document, path: string) {
-  iframeDoc.querySelectorAll('[data-preset-manager-selected-source]').forEach(element => {
-    element.removeAttribute('data-preset-manager-selected-source');
-  });
+  clearDevThemeSelectionMarks(iframeDoc);
   if (!path) return 0;
   try {
     const matches = Array.from(iframeDoc.querySelectorAll(buildInspectorSourceSelectors(path))) as HTMLElement[];
-    matches.forEach(element => element.setAttribute('data-preset-manager-selected-source', path));
+    matches.forEach(element => {
+      element.setAttribute('data-preset-manager-selected-source', path);
+      element.setAttribute('data-preset-manager-dev-selected', 'true');
+    });
     return matches.length;
   } catch {
     return 0;
   }
+}
+
+function markSelectedTarget(iframeDoc: Document, target: HTMLElement, path: string) {
+  const markedCount = markSelectedMatches(iframeDoc, path);
+  if (!path) return markedCount;
+  if (!target.matches('[data-preset-manager-selected-source]')) {
+    target.setAttribute('data-preset-manager-selected-source', path);
+  }
+  target.setAttribute('data-preset-manager-dev-selected', 'true');
+  return Math.max(markedCount, 1);
 }
 
 function buildInspectorSourcePathKey(sourceInfo: InspectorSourceInfo) {
@@ -465,24 +488,22 @@ function bindCodeInspectorControls(iframeDoc: Document, parentDoc: Document): Co
   let enabled = false;
   let overlay: InspectorOverlay | null = null;
   let removeInspectorListeners: (() => void) | null = null;
-  let lastDispatchedSelectKey = '';
   const selectListeners = new Set<(payload: CodeInspectorSelectPayload) => void>();
   const state = createAltShiftToggleState();
 
   const dispatchSelectFor = (target: HTMLElement) => {
     const sourceInfo = getInspectorSourceInfo(target);
-    if (!sourceInfo.path) return;
-    const pathKey = buildInspectorSourcePathKey(sourceInfo);
-    if (!pathKey || pathKey === lastDispatchedSelectKey) return;
-    lastDispatchedSelectKey = pathKey;
-    const markedCount = markSelectedMatches(iframeDoc, pathKey);
+    const pathKey = buildSelectedElementPath(target, sourceInfo);
+    const markedCount = markSelectedTarget(iframeDoc, target, pathKey);
     const matchedCount = markedCount || countSelectedMatches(iframeDoc, pathKey) || 1;
-    const shortPath = normalizeInspectorSourcePath(sourceInfo.path);
+    const shortPath = sourceInfo.path ? normalizeInspectorSourcePath(sourceInfo.path) : target.tagName.toLowerCase();
+    const rect = target.getBoundingClientRect();
     const payload: CodeInspectorSelectPayload = {
       path: pathKey,
-      label: `${shortPath}:${sourceInfo.line ?? 1}`,
+      label: sourceInfo.path ? `${shortPath}:${sourceInfo.line ?? 1}` : `${shortPath}（仅样式选中，暂无源码定位）`,
       tag: target.tagName.toLowerCase(),
       matchedCount,
+      rect: { width: Math.round(rect.width), height: Math.round(rect.height) },
     };
     dispatchCodeInspectorSelect(iframeDoc, parentDoc, payload);
     selectListeners.forEach(listener => listener(payload));
@@ -501,7 +522,6 @@ function bindCodeInspectorControls(iframeDoc: Document, parentDoc: Document): Co
         return;
       }
       if (overlay) updateInspectorOverlay(iframeDoc, overlay, target);
-      dispatchSelectFor(target);
     };
     const onMouseLeave = () => hideInspectorOverlay(overlay);
     const onClick = (event: MouseEvent) => {
@@ -513,11 +533,11 @@ function bindCodeInspectorControls(iframeDoc: Document, parentDoc: Document): Co
       event.stopImmediatePropagation();
       const sourceInfo = getInspectorSourceInfo(target);
       if (!sourceInfo.path) {
-        toastr.warning('这个元素暂时没有可定位的源码行，请换一个更具体的子元素', '', { timeOut: 1800 });
+        dispatchSelectFor(target);
+        toastr.warning('这个元素已选中，可调样式；但暂时没有源码定位。', '', { timeOut: 1800 });
         return;
       }
       requestCodeInspectorLocate(iframeDoc, sourceInfo);
-      lastDispatchedSelectKey = '';
       dispatchSelectFor(target);
     };
 
@@ -589,7 +609,7 @@ function bindCodeInspectorControls(iframeDoc: Document, parentDoc: Document): Co
   };
 
   $(window).on('pagehide', destroy);
-  dispatchCodeInspectorState(iframeDoc, enabled);
+  dispatchCodeInspectorState(iframeDoc, parentDoc, enabled);
 
   return {
     isEnabled: () => enabled,

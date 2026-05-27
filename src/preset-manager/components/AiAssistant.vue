@@ -27,8 +27,6 @@
               </button>
             </div>
 
-            <AiConfig v-if="ai.showConfig && !isDrawerCompact" />
-
             <div ref="messagesRef" class="messages-area">
               <div v-if="!ai.messages.length" class="empty-ai text-xs text-slate-600">
                 询问预设结构、条目顺序或提示词问题。
@@ -37,28 +35,25 @@
                 <div class="msg-content">{{ msg.content }}</div>
               </div>
               <div v-if="ai.isGenerating" class="ai-message assistant">
-                <div class="msg-content typing">
-                  <span class="dot" /><span class="dot" /><span class="dot" />
-                </div>
+                <div class="msg-content typing"><span class="dot" /><span class="dot" /><span class="dot" /></div>
               </div>
             </div>
           </template>
 
           <div class="input-dock">
             <div class="input-row">
-              <input
-                v-model="inputText"
-                class="ai-input"
-                placeholder="Ask Codex anything"
-                @keydown.enter="send"
-              />
+              <input v-model="inputText" class="ai-input" placeholder="Ask Codex anything" @keydown.enter="send" />
               <button class="tool-pill icon-only floating-detach" title="独立小窗" @click="detach">
                 <Icon name="external-link" :size="13" />
               </button>
             </div>
 
             <div class="input-tool-row">
-              <button class="tool-pill icon-only settings-trigger" title="AI 设置" @click="ai.showConfig = !ai.showConfig">
+              <button
+                class="tool-pill icon-only settings-trigger"
+                title="AI 设置"
+                @click="ai.showConfig = !ai.showConfig"
+              >
                 <Icon name="settings-2" :size="13" />
               </button>
               <button class="model-pill" title="AI 模型设置" @click="ai.showConfig = !ai.showConfig">
@@ -69,10 +64,6 @@
                 <Icon name="arrow-up" :size="14" :stroke-width="2" />
               </button>
             </div>
-          </div>
-
-          <div v-if="ai.showConfig && !ai.drawerExpanded" class="capsule-config">
-            <AiConfig />
           </div>
         </div>
       </div>
@@ -88,9 +79,7 @@
         @mouseleave="isHovering = false"
       >
         <div class="ai-header" @mousedown.prevent="onDetachedDrag">
-          <span class="detached-title">
-            <Icon name="sparkles" :size="13" /> AI
-          </span>
+          <span class="detached-title"> <Icon name="sparkles" :size="13" /> AI </span>
           <div class="ai-actions">
             <button class="ai-btn" title="收回到底部" @click="dock">
               <Icon name="minimize" :size="13" />
@@ -100,30 +89,18 @@
             </button>
           </div>
         </div>
-
-        <AiConfig v-if="ai.showConfig" />
-
         <div ref="detachedMsgRef" class="messages-area">
-          <div v-if="!ai.messages.length" class="empty-ai text-xs text-slate-600">
-            输入消息开始对话。
-          </div>
+          <div v-if="!ai.messages.length" class="empty-ai text-xs text-slate-600">输入消息开始对话。</div>
           <div v-for="msg in ai.messages" :key="msg.id" class="ai-message" :class="msg.role">
             <div class="msg-content">{{ msg.content }}</div>
           </div>
           <div v-if="ai.isGenerating" class="ai-message assistant">
-            <div class="msg-content typing">
-              <span class="dot" /><span class="dot" /><span class="dot" />
-            </div>
+            <div class="msg-content typing"><span class="dot" /><span class="dot" /><span class="dot" /></div>
           </div>
         </div>
 
         <div class="input-dock detached-input">
-          <input
-            v-model="inputText"
-            class="ai-input"
-            placeholder="Ask Codex anything"
-            @keydown.enter="send"
-          />
+          <input v-model="inputText" class="ai-input" placeholder="Ask Codex anything" @keydown.enter="send" />
           <button class="send-btn" :disabled="!inputText.trim() || ai.isGenerating" @click="send">
             <Icon name="arrow-up" :size="14" :stroke-width="2" />
           </button>
@@ -137,7 +114,6 @@
 import Icon from './Icon.vue';
 import { useAiStore } from '../stores/ai';
 import { useManagerStore } from '../stores/manager';
-import AiConfig from './AiConfig.vue';
 import { startParentDrag } from '../utils/drag';
 
 const ai = useAiStore();
@@ -160,10 +136,30 @@ const detachedStyle = computed(() => {
   if (ai.snappedEdge && !isHovering.value) {
     const styles: Record<string, string> = { position: 'fixed' };
     switch (ai.snappedEdge) {
-      case 'right': Object.assign(styles, { right: '0', top: '50%', transform: 'translateY(-50%)', width: '32px', height: '120px' }); break;
-      case 'left': Object.assign(styles, { left: '0', top: '50%', transform: 'translateY(-50%)', width: '32px', height: '120px' }); break;
-      case 'bottom': Object.assign(styles, { bottom: '0', left: '50%', transform: 'translateX(-50%)', width: '120px', height: '32px' }); break;
-      case 'top': Object.assign(styles, { top: '0', left: '50%', transform: 'translateX(-50%)', width: '120px', height: '32px' }); break;
+      case 'right':
+        Object.assign(styles, {
+          right: '0',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: '32px',
+          height: '120px',
+        });
+        break;
+      case 'left':
+        Object.assign(styles, { left: '0', top: '50%', transform: 'translateY(-50%)', width: '32px', height: '120px' });
+        break;
+      case 'bottom':
+        Object.assign(styles, {
+          bottom: '0',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '120px',
+          height: '32px',
+        });
+        break;
+      case 'top':
+        Object.assign(styles, { top: '0', left: '50%', transform: 'translateX(-50%)', width: '120px', height: '32px' });
+        break;
     }
     return styles;
   }
@@ -171,10 +167,18 @@ const detachedStyle = computed(() => {
   if (ai.snappedEdge && isHovering.value) {
     const styles: Record<string, string> = { position: 'fixed' };
     switch (ai.snappedEdge) {
-      case 'right': Object.assign(styles, { right: '0', top: '10%', width: '320px', height: '80%' }); break;
-      case 'left': Object.assign(styles, { left: '0', top: '10%', width: '320px', height: '80%' }); break;
-      case 'bottom': Object.assign(styles, { bottom: '0', left: '10%', width: '80%', height: '300px' }); break;
-      case 'top': Object.assign(styles, { top: '0', left: '10%', width: '80%', height: '300px' }); break;
+      case 'right':
+        Object.assign(styles, { right: '0', top: '10%', width: '565px', height: '80%' });
+        break;
+      case 'left':
+        Object.assign(styles, { left: '0', top: '10%', width: '565px', height: '80%' });
+        break;
+      case 'bottom':
+        Object.assign(styles, { bottom: '0', left: '10%', width: '80%', height: '300px' });
+        break;
+      case 'top':
+        Object.assign(styles, { top: '0', left: '10%', width: '80%', height: '300px' });
+        break;
     }
     return styles;
   }
@@ -183,8 +187,8 @@ const detachedStyle = computed(() => {
     position: 'fixed',
     left: `${ai.detachedPosition.x}px`,
     top: `${ai.detachedPosition.y}px`,
-    width: '320px',
-    height: '400px',
+    width: '565px',
+    height: '640px',
   } as Record<string, string>;
 });
 
@@ -324,7 +328,9 @@ function onDrawerResize(e: MouseEvent) {
   width: min(var(--pm-ai-dock-width, 400px), calc(100% - var(--pm-ai-dock-side-gap, 96px)));
   transform: translateX(-50%);
   pointer-events: none;
-  transition: width 0.2s cubic-bezier(0, 0, 0.2, 1), transform 0.2s cubic-bezier(0, 0, 0.2, 1);
+  transition:
+    width 0.2s cubic-bezier(0, 0, 0.2, 1),
+    transform 0.2s cubic-bezier(0, 0, 0.2, 1);
 }
 .overlay-shell.expanded {
   width: min(var(--pm-ai-dock-width, 400px), calc(100% - var(--pm-ai-dock-side-gap, 96px)));
@@ -350,7 +356,7 @@ function onDrawerResize(e: MouseEvent) {
   -webkit-backdrop-filter: blur(34px) saturate(140%);
 }
 .overlay-panel.expanded.empty {
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.20);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.2);
 }
 .drawer-handle {
   height: 9px;
@@ -431,7 +437,9 @@ function onDrawerResize(e: MouseEvent) {
   background: transparent;
   color: var(--pm-text-muted);
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 .ai-btn:hover {
   color: var(--pm-text);
@@ -500,11 +508,21 @@ function onDrawerResize(e: MouseEvent) {
   background: var(--pm-text-subtle);
   animation: bounce 1.2s infinite;
 }
-.dot:nth-child(2) { animation-delay: 0.2s; }
-.dot:nth-child(3) { animation-delay: 0.4s; }
+.dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
 @keyframes bounce {
-  0%, 80%, 100% { transform: translateY(0); }
-  40% { transform: translateY(-6px); }
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-6px);
+  }
 }
 .input-dock {
   display: flex;
@@ -554,7 +572,11 @@ function onDrawerResize(e: MouseEvent) {
   background: transparent;
   color: var(--pm-text-muted);
   font-size: 12px;
-  transition: background 0.12s, border-color 0.12s, color 0.12s, opacity 0.12s;
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    color 0.12s,
+    opacity 0.12s;
 }
 .tool-pill {
   cursor: pointer;
@@ -627,7 +649,10 @@ function onDrawerResize(e: MouseEvent) {
   color: var(--pm-send-fg);
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
-  transition: transform 0.12s, opacity 0.12s, box-shadow 0.12s;
+  transition:
+    transform 0.12s,
+    opacity 0.12s,
+    box-shadow 0.12s;
 }
 .send-btn:hover:not(:disabled) {
   transform: translateY(-1px);
@@ -636,17 +661,6 @@ function onDrawerResize(e: MouseEvent) {
 .send-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
-}
-.capsule-config {
-  position: absolute;
-  right: 0;
-  bottom: 70px;
-  width: min(360px, 80vw);
-  overflow: hidden;
-  border: 1px solid var(--pm-border);
-  border-radius: 14px;
-  background: var(--pm-bg-panel);
-  box-shadow: var(--pm-shadow);
 }
 .detached-window {
   background: var(--pm-ai-surface);
@@ -669,7 +683,9 @@ function onDrawerResize(e: MouseEvent) {
 .overlay-panel.compact .input-dock {
   padding-top: 5px;
 }
-.detached-window .ai-header { cursor: move; }
+.detached-window .ai-header {
+  cursor: move;
+}
 .snap-collapsed {
   border-radius: 8px;
   overflow: hidden;

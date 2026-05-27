@@ -51,6 +51,7 @@ export function serializeDevThemeConfig(input: DevThemeExportInput) {
     background: {
       ...input.background,
       imageDataUrl: null,
+      originalImageDataUrl: null,
     },
   };
   return JSON.stringify(config, null, 2);
@@ -95,6 +96,7 @@ export function parseDevThemeConfig(raw: string): DevThemeExportConfig {
     },
     background: {
       imageDataUrl: null,
+      originalImageDataUrl: null,
       imageFit: ['cover', 'contain', 'repeat', 'center'].includes(source.imageFit) ? source.imageFit : defaults.imageFit,
       imageScale: asNumber(source.imageScale, defaults.imageScale),
       opacity: asNumber(source.opacity, defaults.opacity),

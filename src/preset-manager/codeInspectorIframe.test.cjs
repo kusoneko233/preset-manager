@@ -112,8 +112,16 @@ void (async () => {
   expectNotIncludes(index, 'syncInspectorElementFromTarget(inspector, target);');
   expectNotIncludes(index, 'inspector?.trackCode?.();');
   expectIncludes(index, 'const sourceInfo = getInspectorSourceInfo(target);');
+  expectIncludes(index, 'function buildSelectedElementPath(target: HTMLElement, sourceInfo: InspectorSourceInfo)');
+  expectIncludes(index, 'function markSelectedTarget(iframeDoc: Document, target: HTMLElement, path: string)');
+  expectIncludes(index, "target.setAttribute('data-preset-manager-selected-source', path)");
+  expectIncludes(index, "target.setAttribute('data-preset-manager-dev-selected', 'true')");
+  expectIncludes(index, "element.removeAttribute('data-preset-manager-dev-selected')");
+  expectIncludes(index, 'const pathKey = buildSelectedElementPath(target, sourceInfo);');
+  expectIncludes(index, 'const markedCount = markSelectedTarget(iframeDoc, target, pathKey);');
   expectIncludes(index, 'if (!sourceInfo.path) {');
-  expectIncludes(index, 'toastr.warning(\'这个元素暂时没有可定位的源码行，请换一个更具体的子元素\', \'\', { timeOut: 1800 });');
+  expectIncludes(index, 'dispatchSelectFor(target);');
+  expectIncludes(index, 'toastr.warning(\'这个元素已选中，可调样式；但暂时没有源码定位。\', \'\', { timeOut: 1800 });');
   expectIncludes(index, 'requestCodeInspectorLocate(iframeDoc, sourceInfo);');
   expectIncludes(index, 'console.info(\'[Preset Manager] code inspector locate\',');
   expectIncludes(index, 'if (!enabled) return;');
@@ -121,6 +129,8 @@ void (async () => {
   expectIncludes(index, 'event.preventDefault();');
   expectIncludes(index, 'event.stopPropagation();');
   expectIncludes(index, 'event.stopImmediatePropagation();');
+  const mouseMoveSource = index.slice(index.indexOf('const onMouseMove'), index.indexOf('const onMouseLeave'));
+  expectNotIncludes(mouseMoveSource, 'dispatchSelectFor(target);');
   expectIncludes(index, 'if (!shouldToggleInspectorOnAltShift(event, state)) return;');
   expectIncludes(index, 'showCodeInspectorStateToast(setEnabled(!enabled));');
   expectIncludes(index, "defaultView?.addEventListener('keydown', onKeyDown, true)");

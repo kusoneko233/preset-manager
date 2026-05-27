@@ -4,6 +4,7 @@ export type DevThemeTarget = 'sidebar' | 'workspace' | 'panel' | 'selected';
 
 export type DevThemeBackground = {
   imageDataUrl: string | null;
+  originalImageDataUrl: string | null;
   imageFit: 'cover' | 'contain' | 'repeat' | 'center';
   imageScale: number;
   opacity: number;
@@ -50,6 +51,7 @@ export type DevThemeCssState = {
 export function createDefaultDevThemeBackground(): DevThemeBackground {
   return {
     imageDataUrl: null,
+    originalImageDataUrl: null,
     imageFit: 'cover',
     imageScale: 1,
     opacity: 0.96,
@@ -115,16 +117,17 @@ function backgroundRepeat(background: DevThemeBackground) {
 
 function buildLayerList(background: DevThemeBackground) {
   const rgb = hexToRgb(background.maskColor);
-  const maskAlpha = clamp(background.maskOpacity, 0, 1);
+  const opacity = clamp(background.opacity, 0, 1);
+  const maskAlpha = clamp(background.maskOpacity, 0, 1) * opacity;
   const layers = [
     `linear-gradient(rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${maskAlpha}), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${maskAlpha}))`,
   ];
 
   if (background.edgeHighlightEnabled) {
-    layers.push('linear-gradient(135deg, rgba(255,255,255,0.18), rgba(255,255,255,0) 32%, rgba(255,255,255,0.08) 100%)');
+    layers.push(`linear-gradient(135deg, rgba(255,255,255,${0.18 * opacity}), rgba(255,255,255,0) 32%, rgba(255,255,255,${0.08 * opacity}) 100%)`);
   }
   if (background.noiseEnabled) {
-    const noiseAlpha = clamp(background.noiseOpacity, 0, 0.4);
+    const noiseAlpha = clamp(background.noiseOpacity, 0, 0.4) * opacity;
     layers.push(`radial-gradient(circle at 20% 30%, rgba(255,255,255,${noiseAlpha}) 0 1px, transparent 1px 4px)`);
   }
   if (background.gradientEnabled && background.gradientCss.trim()) {
@@ -135,6 +138,12 @@ function buildLayerList(background: DevThemeBackground) {
   }
 
   return layers.join(',\n    ');
+}
+
+function buildMaskBackgroundColor(background: DevThemeBackground) {
+  const rgb = hexToRgb(background.maskColor);
+  const alpha = Math.round(clamp(background.maskOpacity, 0, 1) * clamp(background.opacity, 0, 1) * 1000) / 1000;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
 }
 
 function buildBoxShadow(background: DevThemeBackground) {
@@ -148,23 +157,26 @@ function buildBoxShadow(background: DevThemeBackground) {
   return shadows.length ? `\n  box-shadow: ${shadows.join(', ')};` : '';
 }
 
-function buildBlock(selector: string, background: DevThemeBackground) {
-  const opacity = clamp(background.opacity, 0, 1);
+function buildBackdropFilter(background: DevThemeBackground) {
   const blur = clamp(background.blur, 0, 64);
-  const saturate = clamp(background.saturate, 0, 2);
-  const brightness = clamp(background.brightness, 0.5, 1.5);
-  const contrast = clamp(background.contrast, 0.5, 1.5);
+  const saturate = Math.round(clamp(background.saturate, 0, 2) * 100);
+  const brightness = Math.round(clamp(background.brightness, 0.5, 1.5) * 100);
+  const contrast = Math.round(clamp(background.contrast, 0.5, 1.5) * 100);
+  return `blur(${blur}px) saturate(${saturate}%) brightness(${brightness}%) contrast(${contrast}%)`;
+}
+
+function buildBlock(selector: string, background: DevThemeBackground) {
+  const backdropFilter = buildBackdropFilter(background);
 
   return `${selector} {
+  background-color: ${buildMaskBackgroundColor(background)} !important;
   background-image:
-    ${buildLayerList(background)};
-  background-size: ${backgroundSize(background)};
-  background-position: center center;
-  background-repeat: ${backgroundRepeat(background)};
-  opacity: ${opacity};
-  filter: saturate(${saturate}) brightness(${brightness}) contrast(${contrast});
-  backdrop-filter: blur(${blur}px) saturate(${Math.round(saturate * 100)}%);${buildBoxShadow(background)}
-  -webkit-backdrop-filter: blur(${blur}px) saturate(${Math.round(saturate * 100)}%);
+    ${buildLayerList(background)} !important;
+  background-size: ${backgroundSize(background)} !important;
+  background-position: center center !important;
+  background-repeat: ${backgroundRepeat(background)} !important;
+  backdrop-filter: ${backdropFilter} !important;
+  -webkit-backdrop-filter: ${backdropFilter} !important;${buildBoxShadow(background)}
 }`;
 }
 
@@ -186,6 +198,7 @@ function buildSelectedSelectors(paths: string[]) {
       const escaped = escapeAttributeValue(path);
       const escapedWithColon = escapeAttributeValue(`${path}:`);
       return [
+        `[data-preset-manager-dev-selected="true"]`,
         `[data-insp-path="${escaped}"]`,
         `[data-insp-path^="${escapedWithColon}"]`,
         `[data-v-inspector="${escaped}"]`,
@@ -218,7 +231,7 @@ export function buildDevThemeCss(state: DevThemeCssState) {
   if (!state.enabled) return '';
 
   const blocks: string[] = ['/* pm-dev-theme: auto-generated */'];
-  if (state.targets.sidebar) blocks.push(buildBlock('.app-root[data-dev-sidebar="on"]::before', state.background));
+  if (state.targets.sidebar) blocks.push(buildBlock('.app-root[data-dev-sidebar="on"] .left-sidebar,\n.app-root[data-dev-sidebar="on"] .title-left', state.background));
   if (state.targets.workspace) blocks.push(buildBlock('.app-root[data-dev-workspace="on"] .preset-workspace', state.background));
   if (state.targets.panel) blocks.push(buildBlock('.app-root[data-dev-panel="on"] .ui-settings-panel', state.background));
   if (state.targets.selected && state.selectedPaths && state.selectedPaths.length) {

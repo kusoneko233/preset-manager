@@ -1,16 +1,5 @@
 <template>
   <section class="ai-config-shell" :class="[`variant-${variant}`]">
-    <div v-if="variant === 'page'" class="api-page-header">
-      <button class="api-page-back" title="返回预设列表" @click="emit('close')">
-        <Icon name="chevron-left" :size="15" />
-        <span>返回</span>
-      </button>
-      <div class="api-page-heading">
-        <span>API 设置</span>
-        <small>管理模型接口、Key 和模型选择</small>
-      </div>
-    </div>
-
     <div class="api-config-layout">
       <aside class="api-profile-sidebar">
         <div class="api-sidebar-title">API 预设</div>
@@ -20,7 +9,8 @@
             :key="profile.id"
             class="api-profile-item"
             :class="{ active: profile.id === ai.config.activeProfileId }"
-            @click="ai.selectApiProfile(profile.id)"
+            @click="selectApiProfile(profile.id)"
+            @contextmenu.prevent.stop="openApiProfileMenu($event, profile)"
           >
             <span class="api-profile-avatar">{{ getProfileInitial(profile.name) }}</span>
             <span class="api-profile-name">{{ profile.name }}</span>
@@ -31,100 +21,168 @@
           <Icon name="plus" :size="14" />
           <span>添加</span>
         </button>
+        <Transition name="api-context-pop">
+          <div
+            v-if="apiProfileContextMenuOpen"
+            ref="apiProfileContextMenuRef"
+            class="api-profile-context-menu"
+            :style="{ left: `${apiProfileContextMenu.x}px`, top: `${apiProfileContextMenu.y}px` }"
+            @pointerdown.stop
+            @mousedown.stop
+          >
+            <button type="button" class="api-profile-context-item" @click="renameApiProfile">
+              <Icon name="pen-line" :size="13" />
+              <span>重命名</span>
+            </button>
+            <button type="button" class="api-profile-context-item danger" @click="deleteApiProfileFromMenu">
+              <Icon name="trash-2" :size="13" />
+              <span>删除</span>
+            </button>
+          </div>
+        </Transition>
       </aside>
 
       <div class="api-config-detail">
-        <div class="api-detail-header">
-          <div class="api-detail-title">
-            <label class="api-title-name-editor" :class="{ disabled: !activeProfile }">
-              <input
-                :value="activeProfile?.name || ''"
-                class="api-title-name-input"
-                placeholder="API 预设"
-                :disabled="!activeProfile"
-                @change="updateActiveProfile({ name: ($event.target as HTMLInputElement).value })"
-              />
-              <Icon name="pen-line" :size="15" class="api-title-edit-icon" />
-            </label>
+        <div class="api-detail-scroll">
+          <div class="api-detail-header">
+            <div class="api-detail-title-row">
+              <button v-if="variant === 'page'" class="api-page-back" title="返回预设列表" @click="emit('close')">
+                <Icon name="chevron-left" :size="15" />
+                <span>返回</span>
+              </button>
+              <label class="api-title-name-editor" :class="{ disabled: !activeProfile }">
+                <input
+                  ref="titleNameInputRef"
+                  :value="activeProfile?.name || ''"
+                  class="api-title-name-input"
+                  placeholder="API 预设"
+                  :disabled="!activeProfile"
+                  :style="{ width: titleInputWidthCh }"
+                  @change="updateActiveProfile({ name: ($event.target as HTMLInputElement).value })"
+                />
+              </label>
+            </div>
           </div>
-          <button class="icon-square" title="删除当前 API 预设" :disabled="!activeProfile" @click="deleteActiveProfile">
-            <Icon name="trash-2" :size="15" />
-          </button>
-        </div>
 
-        <div class="chatbox-config-card">
           <template v-if="activeProfile">
-            <div class="chatbox-setting-row">
-              <div class="chatbox-setting-label">
-                <span>API 模式</span>
-              </div>
-              <div class="chatbox-setting-control">
-                <select
-                  :value="activeProfile.source"
-                  class="config-input source-select"
-                  @change="updateActiveProfile({ source: ($event.target as HTMLSelectElement).value })"
-                >
-                  <option v-for="source in sourceOptions" :key="source.value" :value="source.value">
-                    {{ source.label }}
-                  </option>
-                </select>
-              </div>
-            </div>
-
-            <div class="chatbox-setting-row">
-              <div class="chatbox-setting-label">
-                <span>API 地址</span>
-              </div>
-              <div class="chatbox-setting-control">
-                <input
-                  :value="activeProfile.apiUrl"
-                  class="config-input manual-api-url"
-                  placeholder="API 地址"
-                  @change="updateActiveProfile({ apiUrl: ($event.target as HTMLInputElement).value })"
-                />
-              </div>
-            </div>
-
-            <div class="chatbox-setting-row">
-              <div class="chatbox-setting-label">
-                <span>API Key</span>
-              </div>
-              <div class="chatbox-setting-control">
-                <input
-                  :value="activeProfile.key"
-                  class="config-input manual-api-key"
-                  placeholder="API Key"
-                  type="password"
-                  @change="updateActiveProfile({ key: ($event.target as HTMLInputElement).value })"
-                />
-              </div>
-            </div>
-
-            <div class="chatbox-setting-row">
-              <div class="chatbox-setting-label">
-                <span>模型</span>
-              </div>
-              <div class="chatbox-setting-control">
-                <select
-                  :value="selectedModelKey"
-                  class="config-input model-select"
-                  @change="selectModelKey(($event.target as HTMLSelectElement).value)"
-                >
-                  <option value="">选择模型</option>
-                  <option
-                    v-for="option in ai.modelOptions"
-                    :key="modelOptionKey(option)"
-                    :value="modelOptionKey(option)"
+            <section class="api-field-section api-mode-section">
+              <label class="api-field api-mode-field">
+                <span class="api-field-label">API 模式</span>
+                <span class="api-select-control api-mode-select-control">
+                  <select
+                    :value="activeProfile.source"
+                    class="config-input api-mode-select"
+                    @change="updateActiveProfile({ source: ($event.target as HTMLSelectElement).value })"
                   >
-                    {{ option.name }} · {{ option.group }}
-                  </option>
-                </select>
-              </div>
-            </div>
+                    <option v-for="source in sourceOptions" :key="source.value" :value="source.value">
+                      {{ source.label }}
+                    </option>
+                  </select>
+                  <Icon name="chevron-down" :size="13" class="api-select-chevron" />
+                </span>
+              </label>
+            </section>
 
-            <div class="chatbox-setting-row action-row">
-              <div class="chatbox-setting-label" />
-              <div class="chatbox-setting-control">
+            <section class="api-field-section">
+              <div class="api-section-heading">
+                <span>身份验证</span>
+                <small>当前预设的访问凭据</small>
+              </div>
+              <div class="api-field-grid">
+                <label class="api-field api-field-secret">
+                  <span class="api-field-label">API Key</span>
+                  <span class="api-key-control">
+                    <input
+                      :value="activeProfile.key"
+                      class="config-input manual-api-key"
+                      placeholder="sk-..."
+                      :type="showApiKey ? 'text' : 'password'"
+                      @change="updateActiveProfile({ key: ($event.target as HTMLInputElement).value })"
+                    />
+                    <button
+                      type="button"
+                      class="api-key-visibility-button"
+                      :title="showApiKey ? '隐藏 Key' : '显示 Key'"
+                      @click="showApiKey = !showApiKey"
+                    >
+                      <Icon :name="showApiKey ? 'eye-off' : 'eye'" :size="15" />
+                    </button>
+                  </span>
+                </label>
+              </div>
+            </section>
+
+            <section class="api-field-section">
+              <div class="api-section-heading">
+                <span>接口与模型</span>
+                <small>配置兼容接口地址并选择模型</small>
+              </div>
+              <div class="api-field-grid">
+                <label class="api-field api-field-wide api-field-url">
+                  <span class="api-field-label">API 地址</span>
+                  <input
+                    :value="activeProfile.apiUrl"
+                    class="config-input manual-api-url"
+                    placeholder="https://api.example.com/v1"
+                    @change="updateActiveProfile({ apiUrl: ($event.target as HTMLInputElement).value })"
+                  />
+                </label>
+
+                <label class="api-field api-field-wide api-field-model">
+                  <span class="api-field-label">模型</span>
+                  <span class="api-select-control model-select-control">
+                    <select
+                      :value="selectedModelKey"
+                      class="config-input model-select"
+                      @change="selectModelKey(($event.target as HTMLSelectElement).value)"
+                    >
+                      <option value="">选择模型</option>
+                      <option
+                        v-for="option in ai.modelOptions"
+                        :key="modelOptionKey(option)"
+                        :value="modelOptionKey(option)"
+                      >
+                        {{ option.name }}
+                      </option>
+                    </select>
+                    <Icon name="chevron-down" :size="13" class="api-select-chevron" />
+                  </span>
+                </label>
+
+                <div class="api-model-list" aria-label="当前 API 预设的模型列表">
+                  <div
+                    v-for="model in activeProfile.models"
+                    :key="model.id"
+                    class="api-model-item"
+                    :class="{ active: model.name === ai.config.model && activeProfile.id === ai.config.activeProfileId }"
+                  >
+                    <button class="api-model-select" type="button" @click="selectModel(model.name, activeProfile.id)">
+                      <span class="api-model-name">{{ model.name }}</span>
+                      <small class="api-model-profile">{{ activeProfile.name }}</small>
+                    </button>
+                    <button
+                      class="api-model-remove"
+                      type="button"
+                      title="移除模型"
+                      @click.stop="ai.removeModelFromActiveProfile(model.id)"
+                    >
+                      <Icon name="x" :size="12" />
+                    </button>
+                  </div>
+                  <div v-if="!activeProfile.models.length" class="api-model-empty">
+                    点击「从接口获取模型」后会显示多个可选模型
+                  </div>
+                </div>
+              </div>
+
+              <div class="api-action-row">
+                <button
+                  class="api-secondary-action"
+                  :disabled="!activeProfile.apiUrl || loadingModels"
+                  @click="fetchModels"
+                >
+                  检查连接
+                </button>
                 <button
                   class="api-fetch-button"
                   :disabled="!activeProfile.apiUrl || loadingModels"
@@ -133,14 +191,15 @@
                   {{ loadingModels ? '获取中...' : '从接口获取模型' }}
                 </button>
               </div>
-            </div>
+            </section>
           </template>
-        </div>
+          <div v-else class="api-empty-detail">选择或添加 API 预设后继续配置</div>
 
-        <button class="danger-clear-button" @click="ai.clearMessages()">
-          <Icon name="trash-2" :size="13" />
-          <span>清空对话</span>
-        </button>
+          <button class="danger-clear-button api-clear-bottom" @click="ai.clearMessages()">
+            <Icon name="trash-2" :size="13" />
+            <span>清空对话</span>
+          </button>
+        </div>
       </div>
     </div>
   </section>
@@ -162,8 +221,21 @@ const props = withDefaults(
 const emit = defineEmits<{ close: [] }>();
 const ai = useAiStore();
 const loadingModels = ref(false);
+const showApiKey = ref(false);
+const titleNameInputRef = ref<HTMLInputElement | null>(null);
+const apiProfileContextMenuRef = ref<HTMLElement | null>(null);
+const apiProfileContextMenuOpen = ref(false);
+const apiProfileContextMenu = reactive({
+  profileId: '',
+  x: 0,
+  y: 0,
+});
 const activeProfile = computed(() => ai.activeApiProfile);
 const variant = computed(() => props.variant);
+const titleInputWidthCh = computed(() => {
+  const name = activeProfile.value?.name || 'API 预设';
+  return `${Math.min(38, Math.max(14, Array.from(name).length + 4))}ch`;
+});
 const selectedModelKey = computed(() => {
   const option =
     ai.modelOptions.find(item => item.name === ai.config.model && item.profileId === ai.config.activeProfileId) ??
@@ -172,19 +244,49 @@ const selectedModelKey = computed(() => {
 });
 const sourceOptions = [
   { value: 'openai', label: 'OpenAI / 兼容接口' },
+  { value: 'custom', label: '自定义兼容接口' },
   { value: 'claude', label: 'Claude' },
   { value: 'google', label: 'Google Gemini' },
-  { value: 'deepseek', label: 'DeepSeek' },
-  { value: 'openrouter', label: 'OpenRouter' },
 ] as const;
+
+function selectApiProfile(id: string) {
+  closeApiProfileContextMenu();
+  ai.selectApiProfile(id);
+}
 
 function updateActiveProfile(patch: Partial<Omit<AiApiProfile, 'id' | 'models'>>) {
   ai.setActiveApiProfilePatch(patch);
 }
 
-function deleteActiveProfile() {
-  if (!activeProfile.value) return;
-  ai.deleteApiProfile(activeProfile.value.id);
+function openApiProfileMenu(event: MouseEvent, profile: AiApiProfile) {
+  ai.selectApiProfile(profile.id);
+  const sidebarRect = (event.currentTarget as HTMLElement)
+    .closest('.api-profile-sidebar')
+    ?.getBoundingClientRect();
+  apiProfileContextMenu.profileId = profile.id;
+  apiProfileContextMenu.x = sidebarRect ? event.clientX - sidebarRect.left : event.clientX;
+  apiProfileContextMenu.y = sidebarRect ? event.clientY - sidebarRect.top : event.clientY;
+  apiProfileContextMenuOpen.value = true;
+}
+
+function closeApiProfileContextMenu(event?: MouseEvent) {
+  if (event && apiProfileContextMenuRef.value?.contains(event.target as Node)) return;
+  apiProfileContextMenuOpen.value = false;
+}
+
+async function renameApiProfile() {
+  const id = apiProfileContextMenu.profileId;
+  closeApiProfileContextMenu();
+  if (id) ai.selectApiProfile(id);
+  await nextTick();
+  titleNameInputRef.value?.focus();
+  titleNameInputRef.value?.select();
+}
+
+function deleteApiProfileFromMenu() {
+  const id = apiProfileContextMenu.profileId;
+  closeApiProfileContextMenu();
+  if (id) ai.deleteApiProfile(id);
 }
 
 function modelOptionKey(option: AiModelFlatOption) {
@@ -219,29 +321,37 @@ async function fetchModels() {
       apiurl: activeProfile.value.apiUrl,
       key: activeProfile.value.key || undefined,
     });
-    models.forEach(model => ai.addModelToActiveProfile(model, activeProfile.value?.group || '默认'));
+    ai.addModelsToActiveProfile(models, activeProfile.value?.group || '默认');
   } catch (error) {
     toastr.error(error instanceof Error ? error.message : '获取模型列表失败');
   } finally {
     loadingModels.value = false;
   }
 }
+
+onMounted(() => {
+  document.addEventListener('mousedown', closeApiProfileContextMenu);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('mousedown', closeApiProfileContextMenu);
+});
 </script>
 
 <style scoped>
 .ai-config-shell {
-  width: min(760px, calc(100vw - 32px));
+  width: min(860px, calc(100vw - 32px));
   min-height: 520px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid var(--pm-border);
   border-radius: 18px;
-  background: rgba(7, 7, 8, 0.96);
+  background: color-mix(in srgb, var(--pm-bg-workspace) 96%, #000);
   color: var(--pm-text);
   box-shadow: 0 24px 72px rgba(0, 0, 0, 0.42);
-  backdrop-filter: blur(30px) saturate(125%);
-  -webkit-backdrop-filter: blur(30px) saturate(125%);
+  backdrop-filter: blur(22px) saturate(112%);
+  -webkit-backdrop-filter: blur(22px) saturate(112%);
 }
 
 .ai-config-shell.variant-page {
@@ -256,26 +366,19 @@ async function fetchModels() {
   -webkit-backdrop-filter: none;
 }
 
-.api-page-header {
-  min-height: 74px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 0 28px;
-  border-bottom: 1px solid var(--pm-border);
-  background: color-mix(in srgb, var(--pm-bg-workspace) 92%, transparent);
-}
-
 .api-page-back {
-  min-width: 82px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 76px;
   height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  border: 1px solid var(--pm-border);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--pm-bg-elevated) 42%, transparent);
+  border: 0;
+  border-radius: 999px;
+  background: var(--pm-pill-bg-hover);
   color: var(--pm-text-muted);
   font-size: 13px;
   font-weight: 650;
@@ -287,56 +390,36 @@ async function fetchModels() {
 }
 
 .api-page-back:hover {
-  border-color: var(--pm-border-strong);
-  background: var(--pm-bg-hover);
+  background: var(--pm-pill-bg-active);
   color: var(--pm-text);
-}
-
-.api-page-heading {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.api-page-heading span {
-  color: var(--pm-text);
-  font-size: 20px;
-  font-weight: 720;
-}
-
-.api-page-heading small {
-  color: var(--pm-text-subtle);
-  font-size: 12px;
-  font-weight: 520;
 }
 
 .api-config-layout {
   min-height: 520px;
   display: grid;
-  grid-template-columns: 210px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr);
 }
 
 .variant-page .api-config-layout {
   min-height: 0;
   flex: 1 1 auto;
-  grid-template-columns: 240px minmax(0, 760px) minmax(24px, 1fr);
+  grid-template-columns: 248px minmax(0, 1fr);
   overflow: hidden;
 }
 
 .api-profile-sidebar {
+  position: relative;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 14px 10px;
-  border-right: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(255, 255, 255, 0.025);
+  border-right: 1px solid var(--pm-sidebar-edge);
+  background: color-mix(in srgb, var(--pm-bg-sidebar) 88%, transparent);
 }
 
 .variant-page .api-profile-sidebar {
-  padding: 18px 12px;
-  background: color-mix(in srgb, var(--pm-bg-sidebar) 82%, transparent);
+  padding: 18px 16px;
 }
 
 .api-sidebar-title {
@@ -352,6 +435,7 @@ async function fetchModels() {
   flex: 1 1 auto;
   flex-direction: column;
   gap: 6px;
+  padding: 0 2px;
   overflow: auto;
 }
 
@@ -359,14 +443,14 @@ async function fetchModels() {
   width: 100%;
   min-height: 48px;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 6px;
+  grid-template-columns: 26px minmax(0, 1fr) 6px;
   gap: 10px;
   align-items: center;
   padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: 10px;
+  border: 0;
+  border-radius: 8px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.66);
+  color: var(--pm-text-muted);
   cursor: pointer;
   text-align: left;
   transition:
@@ -377,24 +461,20 @@ async function fetchModels() {
 
 .api-profile-item:hover,
 .api-profile-item.active {
-  background: rgba(255, 255, 255, 0.07);
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.api-profile-item.active {
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--pm-row-active);
+  color: var(--pm-text);
 }
 
 .api-profile-avatar {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.13);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 13px;
+  background: var(--pm-control-highlight);
+  color: var(--pm-text);
+  font-size: 12px;
   font-weight: 720;
 }
 
@@ -411,7 +491,7 @@ async function fetchModels() {
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: rgba(95, 193, 128, 0.9);
+  background: var(--pm-success);
 }
 
 .api-profile-add {
@@ -420,10 +500,10 @@ async function fetchModels() {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  border: 1px solid rgba(255, 255, 255, 0.105);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.76);
+  border: 0;
+  border-radius: 999px;
+  background: var(--pm-pill-primary-bg);
+  color: var(--pm-pill-primary-fg);
   font-size: 13px;
   font-weight: 650;
   cursor: pointer;
@@ -434,46 +514,109 @@ async function fetchModels() {
 }
 
 .api-profile-add:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.075);
-  color: rgba(255, 255, 255, 0.92);
+  background: var(--pm-pill-primary-bg-hover);
+}
+
+.api-profile-context-menu {
+  position: absolute;
+  z-index: 60;
+  min-width: 132px;
+  display: grid;
+  gap: 3px;
+  padding: 6px;
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--pm-bg-workspace) 94%, #000);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+}
+
+.api-profile-context-item {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pm-text-muted);
+  font-size: 13px;
+  font-weight: 620;
+  cursor: pointer;
+  text-align: left;
+}
+
+.api-profile-context-item:hover {
+  background: var(--pm-row-hover);
+  color: var(--pm-text);
+}
+
+.api-profile-context-item.danger {
+  color: rgba(255, 118, 118, 0.9);
+}
+
+.api-context-pop-enter-active,
+.api-context-pop-leave-active {
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+
+.api-context-pop-enter-from,
+.api-context-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-3px);
 }
 
 .api-config-detail {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 16px;
+  overflow: hidden;
 }
 
 .variant-page .api-config-detail {
-  padding: 40px 28px 32px;
+  padding: 0;
+}
+
+.api-detail-scroll {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 28px;
   overflow: auto;
+  padding: 34px 42px 36px;
 }
 
 .api-detail-header {
+  position: relative;
   min-height: 48px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
 }
 
-.api-detail-title {
+.api-detail-title-row {
   min-width: 0;
   flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .api-title-name-editor {
-  width: min(420px, 100%);
+  width: min(520px, 100%);
+  max-width: min(520px, 100%);
   min-height: 46px;
   display: inline-flex;
   align-items: center;
   gap: 10px;
   padding: 0 11px 0 0;
-  border: 1px solid transparent;
-  border-radius: 10px;
+  border: 0;
+  border-radius: 8px;
   background: transparent;
   color: rgba(255, 255, 255, 0.9);
   cursor: pointer;
@@ -484,18 +627,18 @@ async function fetchModels() {
 
 .api-title-name-editor:hover,
 .api-title-name-editor:focus-within {
-  border-color: rgba(255, 255, 255, 0.11);
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--pm-row-hover);
 }
 
 .api-title-name-input {
   min-width: 0;
-  flex: 1 1 auto;
+  max-width: min(460px, 100%);
+  flex: 0 1 auto;
   height: 44px;
   padding: 0 10px;
   border: 0;
   background: transparent;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--pm-text);
   font-size: 20px;
   font-weight: 720;
   line-height: 44px;
@@ -503,26 +646,12 @@ async function fetchModels() {
 }
 
 .api-title-name-input::placeholder {
-  color: rgba(255, 255, 255, 0.38);
+  color: var(--pm-text-faint);
 }
 
 .api-title-name-input:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.api-title-edit-icon {
-  color: rgba(255, 255, 255, 0.36);
-  opacity: 0.82;
-  transition:
-    color 0.14s ease,
-    opacity 0.14s ease;
-}
-
-.api-title-name-editor:hover .api-title-edit-icon,
-.api-title-name-editor:focus-within .api-title-edit-icon {
-  color: rgba(255, 255, 255, 0.72);
-  opacity: 1;
 }
 
 .api-title-name-editor.disabled {
@@ -534,60 +663,228 @@ async function fetchModels() {
   background: transparent;
 }
 
-.api-title-name-editor.disabled .api-title-edit-icon {
-  opacity: 0.32;
-}
-
-.api-profile-toolbar,
-.config-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.chatbox-config-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.chatbox-setting-row {
-  min-height: 72px;
+.api-field-section {
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
   gap: 18px;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.065);
 }
 
-.chatbox-setting-row:last-child {
-  border-bottom: 0;
+.api-section-heading {
+  display: grid;
+  gap: 4px;
 }
 
-.chatbox-setting-label {
-  color: rgba(255, 255, 255, 0.56);
-  font-size: 13px;
-  font-weight: 560;
+.api-section-heading span {
+  color: var(--pm-text);
+  font-size: 14px;
+  font-weight: 680;
 }
 
-.chatbox-setting-control {
+.api-section-heading small {
+  color: var(--pm-text-subtle);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.api-mode-section {
+  gap: 0;
+}
+
+.api-mode-field {
+  width: min(232px, 100%);
+}
+
+.api-mode-select {
+  cursor: pointer;
+}
+
+.api-select-control {
+  position: relative;
+  display: block;
   min-width: 0;
+}
+
+.api-select-control .config-input {
+  padding-right: 38px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.api-select-chevron {
+  position: absolute;
+  top: 50%;
+  right: 13px;
+  color: var(--pm-text-subtle);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.api-field-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+
+.api-field {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.api-field-wide {
+  grid-column: 1 / -1;
+}
+
+.api-field-secret {
+  width: min(560px, 100%);
+}
+
+.api-field-url {
+  width: min(640px, 100%);
+}
+
+.api-field-model {
+  width: min(520px, 100%);
+}
+
+.api-model-list {
+  width: min(520px, 100%);
+  display: grid;
+  gap: 6px;
+}
+
+.api-model-item {
+  min-height: 38px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 2px;
+  padding: 0 7px 0 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pm-text-muted);
+  text-align: left;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
 }
 
-.chatbox-setting-control > .config-input {
+.api-model-item:hover,
+.api-model-item.active {
+  background: var(--pm-row-hover);
+  color: var(--pm-text);
+}
+
+.api-model-select {
+  min-width: 0;
+  min-height: 38px;
   flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 4px 0 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
 }
 
-.action-row {
-  min-height: 72px;
+.api-model-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--pm-text);
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.api-model-profile {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--pm-text-subtle);
+  font-size: 11px;
+  font-weight: 520;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.api-model-remove {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--pm-text-subtle);
+  cursor: pointer;
+}
+
+.api-model-remove:hover {
+  background: var(--pm-row-hover);
+  color: var(--pm-text);
+}
+
+.api-model-empty {
+  padding: 6px 2px;
+  color: var(--pm-text-subtle);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.api-field-label {
+  color: var(--pm-text-subtle);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.api-key-control {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.api-key-control .config-input {
+  padding-right: 48px;
+}
+
+.api-key-visibility-button {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pm-text-subtle);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+
+.api-key-visibility-button:hover {
+  background: var(--pm-row-hover);
+  color: var(--pm-text);
+}
+
+.api-empty-detail {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  border-radius: 8px;
+  background: var(--pm-control-highlight);
+  color: var(--pm-text-subtle);
+  font-size: 13px;
 }
 
 .config-input {
@@ -595,10 +892,10 @@ async function fetchModels() {
   height: 46px;
   min-width: 0;
   padding: 0 14px;
-  border: 1px solid rgba(255, 255, 255, 0.105);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.055);
-  color: rgba(255, 255, 255, 0.88);
+  border: 0;
+  border-radius: 8px;
+  background: var(--pm-input-bg);
+  color: var(--pm-text);
   font-size: 13px;
   font-weight: 560;
   line-height: 46px;
@@ -610,14 +907,13 @@ async function fetchModels() {
 }
 
 .config-input::placeholder {
-  color: rgba(255, 255, 255, 0.44);
+  color: var(--pm-text-faint);
   font-weight: 500;
 }
 
 .config-input:focus {
-  border-color: rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.075);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--pm-input-bg) 78%, var(--pm-text) 8%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pm-text) 14%, transparent);
 }
 
 .config-input option {
@@ -625,58 +921,51 @@ async function fetchModels() {
   color: var(--pm-text);
 }
 
-.icon-square {
-  width: 44px;
-  height: 44px;
-  flex: 0 0 44px;
+.api-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.api-fetch-button,
+.api-secondary-action {
+  height: 46px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.105);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.055);
-  color: rgba(255, 255, 255, 0.66);
-  cursor: pointer;
-  transition:
-    border-color 0.14s ease,
-    background 0.14s ease,
-    color 0.14s ease;
-}
-
-.icon-square:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.09);
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.icon-square:disabled {
-  opacity: 0.38;
-  cursor: not-allowed;
-}
-
-.api-fetch-button {
-  width: 100%;
-  height: 46px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.035);
-  color: rgba(255, 255, 255, 0.48);
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
   font-size: 13px;
   font-weight: 650;
   cursor: pointer;
   transition:
-    border-color 0.14s ease,
     background 0.14s ease,
     color 0.14s ease;
 }
 
-.api-fetch-button:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.07);
-  color: rgba(255, 255, 255, 0.84);
+.api-fetch-button {
+  background: var(--pm-pill-primary-bg);
+  color: var(--pm-pill-primary-fg);
 }
 
-.api-fetch-button:disabled {
+.api-fetch-button:hover:not(:disabled) {
+  background: var(--pm-pill-primary-bg-hover);
+}
+
+.api-secondary-action {
+  background: var(--pm-control-highlight);
+  color: var(--pm-text-muted);
+}
+
+.api-secondary-action:hover:not(:disabled) {
+  background: var(--pm-control-highlight-hover);
+  color: var(--pm-text);
+}
+
+.api-fetch-button:disabled,
+.api-secondary-action:disabled {
   opacity: 0.62;
   cursor: not-allowed;
 }
@@ -688,9 +977,8 @@ async function fetchModels() {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  margin-top: auto;
   padding: 0 14px;
-  border: 1px solid rgba(255, 93, 93, 0.45);
+  border: 0;
   border-radius: 999px;
   background: rgba(255, 83, 83, 0.08);
   color: rgba(255, 104, 104, 0.95);
@@ -703,7 +991,28 @@ async function fetchModels() {
 }
 
 .danger-clear-button:hover {
-  border-color: rgba(255, 111, 111, 0.62);
   background: rgba(255, 83, 83, 0.13);
+}
+
+.api-clear-bottom {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+@media (max-width: 720px) {
+  .api-config-layout,
+  .variant-page .api-config-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .api-profile-sidebar {
+    max-height: 180px;
+    border-right: 0;
+    border-bottom: 1px solid var(--pm-sidebar-edge);
+  }
+
+  .api-detail-scroll {
+    padding: 24px;
+  }
 }
 </style>

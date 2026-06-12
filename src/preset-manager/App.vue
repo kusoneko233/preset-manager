@@ -7,6 +7,7 @@
     ]"
     :style="uiVars"
     :data-dev-sidebar="devTheme.enabled && devTheme.currentTargets.sidebar ? 'on' : undefined"
+    :data-dev-sidebar-width="leftCollapsed ? 0 : leftWidth"
     :data-dev-workspace="devTheme.enabled && devTheme.currentTargets.workspace ? 'on' : undefined"
     :data-dev-panel="devTheme.enabled && devTheme.currentTargets.panel ? 'on' : undefined"
   >
@@ -14,32 +15,17 @@
       :is-fullscreen="isFullscreen"
       :can-undo="history.canUndo"
       :can-redo="history.canRedo"
-      :annotation-visible="showAnnotation"
-      :theme="theme"
       :left-collapsed="leftCollapsed"
-      :current-preset-name="manager.presetName"
+      :current-preset-name="activeMainPresetName"
       :preset-names="manager.presetNames"
-      :prompt-count="manager.mainPrompts.length"
-      :token-estimate="mainPresetTokenEstimate"
-      :code-inspector-enabled="codeInspectorEnabled"
+      :preset-token-total="mainPresetTokenTotal"
+      :native-token-total="nativePromptTokenTotal"
+      :right-sidebar-open="showRightAuxArea"
       @undo="doUndo"
       @redo="doRedo"
-      @toggle-history="showHistory = !showHistory"
-      @toggle-theme="toggleTheme"
-      @toggle-ui-settings="showUiSettings = !showUiSettings"
-      @toggle-annotation="showAnnotation = !showAnnotation"
-      @toggle-dev-theme-panel="devTheme.togglePanel()"
-      @toggle-code-inspector="toggleCodeInspector"
       @toggle-left-sidebar="leftCollapsed = !leftCollapsed"
       @select-preset="selectMainPreset"
-      @create-prompt="createOfficialPrompt"
-      @create-preset="createOfficialPreset"
-      @rename-preset="renameOfficialPreset"
-      @delete-preset="deleteOfficialPreset"
-      @append-unused-prompt="showUnusedPromptPicker = true"
-      @import-prompts="officialPromptImportInput?.click()"
-      @export-prompts="downloadPresetPromptExport"
-      @reset-prompt-order="resetOfficialPromptOrder"
+      @toggle-right-sidebar="toggleRightSidebar"
       @toggle-fullscreen="toggleFullscreen"
       @close="closePanel"
     />
@@ -54,44 +40,211 @@
     />
 
     <div class="main-body">
-      <LeftSidebar :width="leftWidth" :collapsed="leftCollapsed" />
+      <LeftSidebar
+        :width="leftWidth"
+        :collapsed="leftCollapsed"
+        :active-preset-name="activeMainPresetName"
+        :active-mode="sidebarMode"
+        :chat-tabs="mainChatTabs"
+        :active-chat-id="activeMainChatTabId"
+        :annotation-visible="showAnnotation"
+        :code-inspector-enabled="codeInspectorEnabled"
+        :theme="theme"
+        :ui-scale="uiScale"
+        :prompt-scale="promptScale"
+        :prompt-preview-lines="promptPreviewLines"
+        :ui-presets="uiPresets"
+        :ui-preset-options="uiPresetOptions"
+        @change-mode="setSidebarMode"
+        @new-chat="createMainChatTab"
+        @select-chat="selectMainChatTab"
+        @close-chat="closeMainChatTab"
+        @select-preset="selectMainPreset"
+        @preset-action="runSidebarPresetAction"
+        @open-api-settings="openAiConfig"
+        @toggle-history="showHistory = !showHistory"
+        @toggle-theme="toggleTheme"
+        @toggle-annotation="showAnnotation = !showAnnotation"
+        @toggle-dev-theme-panel="devTheme.togglePanel()"
+        @toggle-code-inspector="toggleCodeInspector"
+        @set-ui-scale="setUiScale"
+        @set-prompt-scale="setPromptScale"
+        @set-prompt-preview-lines="setPromptPreviewLines"
+        @apply-ui-preset="applyUiPreset"
+        @save-current-to-ui-preset="saveCurrentToUiPreset"
+        @reset-ui-settings-defaults="resetUiSettingsDefaults"
+      />
 
       <div ref="presetWorkspaceRef" class="preset-workspace">
-        <div v-if="ai.showConfig" class="api-settings-page">
-          <AiConfig variant="page" @close="ai.showConfig = false" />
-        </div>
-
-        <div v-else class="preset-workspace-content">
+        <div class="preset-workspace-content">
           <div class="preset-panels">
             <div class="center-area" style="flex: 1; min-width: 200px">
-              <PresetPanel panel-id="main" :favorited-ids="favoritedIds" @favorite="onFavorite" />
+              <AiAssistant
+                v-if="sidebarMode === 'chat'"
+                variant="main"
+                :session-id="mainChatSessionId"
+                :title="mainChatTitle"
+                @open-config="openAiConfig"
+                @session-title="renameChatTabBySession"
+              />
+              <template v-else>
+                <PresetPanel
+                  ref="mainPresetPanelRef"
+                  panel-id="main"
+                  :active-preset-name="activeMainPresetName"
+                  :favorited-ids="favoritedIds"
+                  @favorite="onFavorite"
+                />
+                <AiAssistant @open-config="openAiConfig" />
+              </template>
             </div>
 
-            <template v-if="showSecondPreset">
-              <SplitHandle direction="vertical" @drag-start="onRightDragStart" @resize="onRightSplitResize" />
-              <div class="second-preset-area" :style="{ width: `${rightWidth}px` }">
-                <PresetPanel panel-id="second" :favorited-ids="favoritedIds" @favorite="onFavorite" />
+            <template v-if="showRightAuxArea">
+              <SplitHandle hit-area="narrow" direction="vertical" @drag-start="onRightDragStart" @resize="onRightSplitResize" />
+              <div class="right-aux-area" :style="{ width: `${rightWidth}px` }">
+                <div v-if="rightAuxTabs.length" class="right-aux-tab-strip">
+                  <div
+                    v-for="tab in rightAuxTabs"
+                    :key="tab.id"
+                    class="right-aux-tab-item"
+                    :class="{ active: tab.id === activeRightAuxTabId }"
+                  >
+                    <button class="right-aux-tab" type="button" @click="setActiveRightAuxTab(tab.id)">
+                      <Icon :name="tab.type === 'preset' ? 'folder' : tab.type === 'chat' ? 'message-square' : 'plus'" :size="13" />
+                      <span>{{ tab.title }}</span>
+                    </button>
+                    <button class="right-aux-tab-close" type="button" title="关闭标签页" @click.stop="closeRightAuxTab(tab.id)">
+                      <Icon name="x" :size="12" />
+                    </button>
+                  </div>
+
+                  <div class="right-aux-add-wrap">
+                    <button
+                      class="right-aux-add-button"
+                      type="button"
+                      title="新建侧边栏标签页"
+                      @click.stop="createEmptyRightAuxTab"
+                    >
+                      <Icon name="plus" :size="14" />
+                    </button>
+                  </div>
+                </div>
+
+                <div v-if="activeRightAuxTab?.type === 'empty'" class="right-aux-empty">
+                  <div class="right-aux-choice-grid">
+                    <button type="button" class="right-aux-choice-card" @click="replaceRightAuxTabWithPreset(activeRightAuxTab.id)">
+                      <span class="right-aux-choice-icon"><Icon name="folder" :size="20" /></span>
+                      <span class="right-aux-choice-title">第二预设</span>
+                      <small>把一个预设作为侧边栏参考打开</small>
+                    </button>
+                    <button type="button" class="right-aux-choice-card" @click="replaceRightAuxTabWithChat(activeRightAuxTab.id)">
+                      <span class="right-aux-choice-icon"><Icon name="message-square" :size="20" /></span>
+                      <span class="right-aux-choice-title">侧边聊天</span>
+                      <small>发起侧边对话</small>
+                    </button>
+                  </div>
+                </div>
+
+                <div v-else-if="!activeRightAuxTab" class="right-aux-empty">
+                  <div class="right-aux-choice-grid">
+                    <button type="button" class="right-aux-choice-card" @click="openFirstAvailablePresetInRightSidebar()">
+                      <span class="right-aux-choice-icon"><Icon name="folder" :size="20" /></span>
+                      <span class="right-aux-choice-title">第二预设</span>
+                      <small>把一个预设作为侧边栏参考打开</small>
+                    </button>
+                    <button type="button" class="right-aux-choice-card" @click="createSideChatTab()">
+                      <span class="right-aux-choice-icon"><Icon name="message-square" :size="20" /></span>
+                      <span class="right-aux-choice-title">侧边聊天</span>
+                      <small>发起侧边对话</small>
+                    </button>
+                  </div>
+                </div>
+
+                <template v-else-if="activeRightAuxTab?.type === 'preset'">
+                  <div class="right-preset-select-row">
+                    <div class="right-preset-select-wrap" :data-right-preset-menu-id="activeRightAuxTab.id">
+                      <button
+                        class="right-preset-select"
+                        :class="{ open: rightPresetMenuTabId === activeRightAuxTab.id }"
+                        type="button"
+                        :title="activeRightAuxTab.presetName"
+                        @click.stop="toggleRightPresetMenu(activeRightAuxTab.id)"
+                      >
+                        <span>{{ activeRightAuxTab.presetName }}</span>
+                        <Icon name="chevron-down" :size="12" class="right-preset-select-chevron" />
+                      </button>
+                      <Transition name="preset-context-pop">
+                        <div
+                          v-if="rightPresetMenuTabId === activeRightAuxTab.id"
+                          class="right-preset-menu"
+                          @pointerdown.stop
+                          @mousedown.stop
+                          @click.stop
+                        >
+                          <button
+                            v-for="name in manager.presetNames"
+                            :key="name"
+                            class="right-preset-menu-item"
+                            :class="{ active: name === activeRightAuxTab.presetName }"
+                            type="button"
+                            :title="name"
+                            @click.stop="selectRightPresetFromMenu(activeRightAuxTab.id, name)"
+                          >
+                            <span>{{ name }}</span>
+                            <Icon v-if="name === activeRightAuxTab.presetName" name="check" :size="13" />
+                          </button>
+                          <div v-if="manager.presetNames.length === 0" class="right-preset-menu-empty">暂无预设</div>
+                        </div>
+                      </Transition>
+                    </div>
+                    <button
+                      class="right-preset-migration-action"
+                      :class="{ active: activeRightAuxTab.migrationOpen }"
+                      type="button"
+                      @click="toggleRightPresetMigration(activeRightAuxTab.id)"
+                    >
+                      <Icon name="refresh-cw" :size="13" />
+                      <span>迁移</span>
+                    </button>
+                  </div>
+                  <PresetMigrationPanel
+                    v-if="activeRightAuxTab.migrationOpen"
+                    @focus-main-prompt="focusMainPromptFromMigration"
+                  />
+                  <PresetPanel
+                    v-else
+                    panel-id="second"
+                    :active-preset-name="activeRightAuxTab.presetName"
+                    :favorited-ids="favoritedIds"
+                    :show-second-header="false"
+                    @favorite="onFavorite"
+                  />
+                </template>
+
+                <AiAssistant
+                  v-else-if="activeRightAuxTab?.type === 'chat'"
+                  variant="side"
+                  :session-id="activeRightAuxTab.sessionId"
+                  :title="activeRightAuxTab.title"
+                  @open-config="openAiConfig"
+                  @session-title="renameChatTabBySession"
+                />
               </div>
             </template>
-
-            <button
-              class="second-toggle"
-              :class="{ active: showSecondPreset }"
-              :title="showSecondPreset ? '收起第二预设' : '展开第二预设'"
-              @click="showSecondPreset = !showSecondPreset"
-            >
-              <i :class="['fas text-xs', showSecondPreset ? 'fa-chevron-right' : 'fa-chevron-left']" />
-            </button>
           </div>
-
-          <AiAssistant />
         </div>
       </div>
     </div>
 
     <HistoryPanel :visible="showHistory" @close="showHistory = false" />
+    <ConfirmDialog />
+    <TextPromptDialog />
 
     <AnnotationOverlay v-if="showAnnotation" @close="showAnnotation = false" />
+
+    <div v-if="ai.showConfig" class="api-settings-page">
+      <AiConfig variant="page" @close="ai.showConfig = false" />
+    </div>
 
     <input
       ref="officialPromptImportInput"
@@ -127,85 +280,6 @@
       </div>
     </Transition>
 
-    <Transition name="settings-pop">
-      <div v-if="showUiSettings" class="ui-settings-panel">
-        <div class="settings-head">
-          <span>界面设置</span>
-          <button class="settings-close" title="关闭" @click="showUiSettings = false">
-            <i class="fas fa-times text-xs" />
-          </button>
-        </div>
-
-        <div class="settings-presets">
-          <div v-for="preset in uiPresetOptions" :key="preset.key" class="settings-preset-slot">
-            <button
-              class="settings-preset-apply"
-              :class="{ active: isCurrentUiPreset(preset.key) }"
-              :title="`套用${preset.label}档位`"
-              @click="applyUiPreset(preset.key)"
-            >
-              <span>{{ preset.label }}</span>
-              <small
-                >{{ Math.round(uiPresets[preset.key].promptScale * 100) }}% ·
-                {{ previewLabel(uiPresets[preset.key].promptPreviewLines) }}</small
-              >
-            </button>
-            <button
-              class="settings-preset-save"
-              :title="`保存当前比例到${preset.label}`"
-              @click="saveCurrentToUiPreset(preset.key)"
-            >
-              <i class="fas fa-save text-xs" />
-            </button>
-          </div>
-        </div>
-
-        <button class="settings-reset-btn" @click="resetUiSettingsDefaults">恢复默认比例</button>
-
-        <label class="settings-row">
-          <span>整体字体</span>
-          <span class="settings-value">{{ Math.round(uiScale * 100) }}%</span>
-        </label>
-        <input
-          class="settings-range"
-          type="range"
-          min="0.9"
-          max="1.16"
-          step="0.02"
-          :value="uiScale"
-          @input="setUiScale(Number(($event.target as HTMLInputElement).value))"
-        />
-
-        <label class="settings-row settings-row-spaced">
-          <span>预设条目</span>
-          <span class="settings-value">{{ Math.round(promptScale * 100) }}%</span>
-        </label>
-        <input
-          class="settings-range"
-          type="range"
-          min="1"
-          max="1.42"
-          step="0.02"
-          :value="promptScale"
-          @input="setPromptScale(Number(($event.target as HTMLInputElement).value))"
-        />
-
-        <label class="settings-row settings-row-spaced">
-          <span>内容预览</span>
-          <span class="settings-value">{{ promptPreviewLines === 0 ? '关闭' : `${promptPreviewLines} 行` }}</span>
-        </label>
-        <input
-          class="settings-range"
-          type="range"
-          min="0"
-          max="3"
-          step="1"
-          :value="promptPreviewLines"
-          @input="setPromptPreviewLines(Number(($event.target as HTMLInputElement).value))"
-        />
-      </div>
-    </Transition>
-
     <DevThemeStyleInjector />
     <DevThemePanel v-if="devTheme.panelOpen" />
 
@@ -233,16 +307,23 @@
 <script setup lang="ts">
 import TitleBar from './components/TitleBar.vue';
 import LeftSidebar from './components/LeftSidebar.vue';
+import type { SidebarPresetActionPayload } from './components/SidebarPresetList.vue';
+import Icon from './components/Icon.vue';
 import SplitHandle from './components/SplitHandle.vue';
 import PresetPanel from './components/PresetPanel.vue';
+import PresetMigrationPanel from './components/PresetMigrationPanel.vue';
 import AiAssistant from './components/AiAssistant.vue';
 import AiConfig from './components/AiConfig.vue';
 import HistoryPanel from './components/HistoryPanel.vue';
+import ConfirmDialog from './components/ConfirmDialog.vue';
+import TextPromptDialog from './components/TextPromptDialog.vue';
 import AnnotationOverlay from './components/AnnotationOverlay.vue';
 import DevThemeStyleInjector from './components/DevThemeStyleInjector.vue';
 import DevThemePanel from './components/DevThemePanel.vue';
 import { useDevThemeStore } from './stores/devTheme';
 import { useAiStore } from './stores/ai';
+import { useConfirmStore } from './stores/confirm';
+import { useTextPromptStore } from './stores/textPrompt';
 import { getPromptKey, useManagerStore } from './stores/manager';
 import { useHistoryStore } from './stores/history';
 import { startParentDrag } from './utils/drag';
@@ -255,27 +336,44 @@ import {
 } from './utils/panelLayout';
 import { CODEX_REFERENCE_METRICS } from './designMetrics';
 import { getInstanceStorageKey, type PresetManagerInstanceKey } from './utils/instanceConfig';
+import { CODEX_DARK_GLASS_WALLPAPER_DATA_URL } from './utils/codexDarkGlassWallpaper';
 
 const manager = useManagerStore();
 const history = useHistoryStore();
 const devTheme = useDevThemeStore();
 const ai = useAiStore();
+const confirmDialog = useConfirmStore();
+const textPrompt = useTextPromptStore();
 
 const isFullscreen = ref(false);
 const showHistory = ref(false);
 const showAnnotation = ref(false);
-const showSecondPreset = ref(false);
 const showUnusedPromptPicker = ref(false);
+const activeMainPresetName = computed(() => manager.presetName);
+const sidebarMode = ref<SidebarMode>('presets');
+const mainChatTabs = ref<ChatWorkspaceTab[]>([]);
+const activeMainChatTabId = ref('');
+const rightAuxOpen = ref(false);
+const rightAuxTabs = ref<RightAuxTab[]>([]);
+const activeRightAuxTabId = ref('');
+const rightPresetMenuTabId = ref('');
 const leftCollapsed = ref(false);
 const leftWidth = ref(CODEX_REFERENCE_METRICS.sidebar.width);
 const rightWidth = ref(280);
 const presetWorkspaceRef = ref<HTMLElement>();
+const mainPresetPanelRef = ref<{ scrollToPromptAnchor?: (payload: { key?: string; index?: number; mainAnchorIndex?: number }) => void } | null>(null);
 const officialPromptImportInput = ref<HTMLInputElement | null>(null);
+const creatingOfficialPrompt = ref(false);
 const unusedPromptSearch = ref('');
 const instanceKey = inject<PresetManagerInstanceKey>('presetManagerInstanceKey', 'default');
 const codeInspectorControls = inject<CodeInspectorControls | null>('presetManagerCodeInspector', null);
 const codeInspectorEnabled = ref(codeInspectorControls?.isEnabled() ?? false);
 let removeCodeInspectorSelectListener: (() => void) | null = null;
+let presetSyncTimer: number | null = null;
+let nativeTokenObserver: MutationObserver | null = null;
+let nativeTokenPollTimer: number | null = null;
+let pendingTavernPresetName = '';
+let pendingTavernPresetUntil = 0;
 
 const WINDOW_STATE_KEY = getInstanceStorageKey(instanceKey, 'WindowState');
 const WINDOW_STATE_VERSION_KEY = getInstanceStorageKey(instanceKey, 'WindowStateVersion');
@@ -286,13 +384,42 @@ const PROMPT_SCALE_KEY = getInstanceStorageKey(instanceKey, 'PromptScale');
 const PROMPT_PREVIEW_LINES_KEY = getInstanceStorageKey(instanceKey, 'PromptPreviewLines');
 const UI_PRESETS_KEY = getInstanceStorageKey(instanceKey, 'UiPresets');
 type AppTheme = 'dark' | 'light';
+type SidebarMode = 'presets' | 'workbench' | 'favorites' | 'chat';
+type RightAuxTabType = 'empty' | 'preset' | 'chat';
+type ChatWorkspaceTab = {
+  id: string;
+  type: 'chat';
+  title: string;
+  sessionId: string;
+};
+type EmptyRightAuxTab = {
+  id: string;
+  type: 'empty';
+  title: string;
+};
+type PresetRightAuxTab = {
+  id: string;
+  type: 'preset';
+  title: string;
+  presetName: string;
+  migrationOpen: boolean;
+};
+type ChatRightAuxTab = {
+  id: string;
+  type: 'chat';
+  title: string;
+  sessionId: string;
+};
+type RightAuxTab = EmptyRightAuxTab | PresetRightAuxTab | ChatRightAuxTab;
 type UiPresetKey = 'compact' | 'standard' | 'large';
 type UiPresetConfig = { uiScale: number; promptScale: number; promptPreviewLines: number };
 type UiPresetMap = Record<UiPresetKey, UiPresetConfig>;
 type CodeInspectorSelectPayload = {
   path: string;
+  selectors?: string[];
   label: string;
   tag: string;
+  stability?: 'source' | 'stable' | 'fallback';
   matchedCount: number;
   rect?: { width: number; height: number };
 };
@@ -316,6 +443,7 @@ const MIN_WINDOW_HEIGHT = 420;
 const WINDOW_MIN_VISIBLE_RATIO = 0.1;
 const DEFAULT_WINDOW_WIDTH = CODEX_REFERENCE_METRICS.window.width;
 const DEFAULT_WINDOW_HEIGHT = CODEX_REFERENCE_METRICS.window.height;
+const TAVERN_PRESET_SWITCH_GRACE_MS = 2500;
 
 const DEFAULT_UI_PRESETS: UiPresetMap = {
   compact: { uiScale: 0.94, promptScale: 1, promptPreviewLines: 0 },
@@ -332,7 +460,6 @@ const uiPresetOptions: { key: UiPresetKey; label: string }[] = [
 const startLeftWidth = ref(CODEX_REFERENCE_METRICS.sidebar.width);
 const startRightWidth = ref(280);
 const theme = ref<AppTheme>(readTheme());
-const showUiSettings = ref(false);
 const uiScale = ref(readUiScale());
 const promptScale = ref(readPromptScale());
 const promptPreviewLines = ref(readPromptPreviewLines());
@@ -347,6 +474,7 @@ const uiVars = computed(() => {
     '--pm-title-font-size': `${13 * font}px`,
     '--pm-prompt-font-size': `${13 * font * prompt}px`,
     '--pm-prompt-preview-font-size': `${12 * font * Math.min(prompt, 1.26)}px`,
+    '--pm-prompt-editor-font-size': `${14.5 * font * Math.min(prompt, 1.18)}px`,
     '--pm-prompt-row-min': `${42 * prompt}px`,
     '--pm-prompt-pad-y': `${7 * prompt}px`,
     '--pm-prompt-pad-x': `${10 * prompt}px`,
@@ -361,6 +489,10 @@ const uiVars = computed(() => {
     '--pm-ai-dock-side-gap': `${CODEX_REFERENCE_METRICS.aiDock.sideGap}px`,
     '--pm-ai-dock-bottom': `${CODEX_REFERENCE_METRICS.aiDock.bottom}px`,
     '--pm-ai-dock-min-height': `${CODEX_REFERENCE_METRICS.aiDock.minHeight}px`,
+    '--pm-sidebar-default-image': `url('${CODEX_DARK_GLASS_WALLPAPER_DATA_URL}')`,
+    '--pm-sidebar-default-bottom-fade': 'linear-gradient(180deg, rgba(0, 0, 0, 0) 54%, rgba(0, 0, 0, 0.59) 65%, rgba(0, 0, 0, 0.59) 100%)',
+    '--pm-sidebar-default-mask': 'linear-gradient(rgba(48, 51, 68, 0.70), rgba(48, 51, 68, 0.70))',
+    '--pm-sidebar-default-backdrop': 'blur(0px) saturate(90%) brightness(55%) contrast(105%)',
   };
 });
 
@@ -372,13 +504,8 @@ const sidebarSplitHandleStyle = computed(() => ({
   zIndex: 220,
 }));
 
-const mainPresetTokenEstimate = computed(() => {
-  const totalChars = manager.mainPrompts.reduce((sum, prompt) => {
-    const content = (prompt as any).content ?? '';
-    return sum + String(prompt.name ?? '').length + String(content).length;
-  }, 0);
-  return Math.max(0, Math.ceil(totalChars / 3.8));
-});
+const nativePromptTokenTotal = ref<number | null>(null);
+const mainPresetTokenTotal = ref<number | null>(null);
 
 const favoritedIds = computed(() => {
   const ids = new Set<string>();
@@ -401,6 +528,12 @@ const filteredOfficialUnusedPrompts = computed(() => {
   });
 });
 
+const showRightAuxArea = computed(() => rightAuxOpen.value);
+const activeRightAuxTab = computed(() => rightAuxTabs.value.find(tab => tab.id === activeRightAuxTabId.value) ?? null);
+const mainChatTab = computed(() => mainChatTabs.value.find(tab => tab.id === activeMainChatTabId.value) ?? null);
+const mainChatSessionId = computed(() => mainChatTab.value?.sessionId ?? 'main-chat-default');
+const mainChatTitle = computed(() => mainChatTab.value?.title ?? '新聊天');
+
 function onLeftDragStart() {
   startLeftWidth.value = leftWidth.value;
 }
@@ -421,12 +554,268 @@ function onRightSplitResize(delta: number) {
   rightWidth.value = clampSecondPresetWidth(startRightWidth.value - delta, getPresetWorkspaceWidth());
 }
 
-function selectMainPreset(name: string) {
-  if (!name || name === manager.presetName) return;
-  const loaded = manager.loadMainPreset(name);
-  if (loaded) {
-    history.createSnapshot(name, undefined, true);
+function createChatWorkspaceTab(scope: 'main' | 'side', index: number): ChatWorkspaceTab {
+  const id = `${scope}-chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return {
+    id,
+    type: 'chat',
+    title: index <= 1 ? '新聊天' : `新聊天 ${index}`,
+    sessionId: id,
+  };
+}
+
+function createMainChatTab() {
+  const tab = createChatWorkspaceTab('main', mainChatTabs.value.length + 1);
+  mainChatTabs.value.push(tab);
+  activeMainChatTabId.value = tab.id;
+  sidebarMode.value = 'chat';
+  return tab;
+}
+
+function ensureMainChatTab() {
+  const existing = mainChatTabs.value.find(tab => tab.id === activeMainChatTabId.value) ?? mainChatTabs.value[0];
+  if (existing) {
+    activeMainChatTabId.value = existing.id;
+    return existing;
   }
+
+  return createMainChatTab();
+}
+
+function setSidebarMode(mode: SidebarMode) {
+  sidebarMode.value = mode;
+  if (mode === 'chat') ensureMainChatTab();
+}
+
+function selectMainChatTab(tabId: string) {
+  const tab = mainChatTabs.value.find(item => item.id === tabId);
+  if (!tab) return;
+  activeMainChatTabId.value = tab.id;
+  sidebarMode.value = 'chat';
+}
+
+function closeMainChatTab(tabId: string) {
+  const closedIndex = mainChatTabs.value.findIndex(tab => tab.id === tabId);
+  if (closedIndex < 0) return;
+  const closed = mainChatTabs.value[closedIndex];
+  mainChatTabs.value.splice(closedIndex, 1);
+  ai.clearMessages(closed.sessionId);
+
+  if (activeMainChatTabId.value !== tabId) return;
+  const nextTab = mainChatTabs.value[Math.min(closedIndex, mainChatTabs.value.length - 1)] ?? null;
+  if (nextTab) {
+    activeMainChatTabId.value = nextTab.id;
+  } else {
+    createMainChatTab();
+  }
+}
+
+function isGeneratedChatTitle(title: string) {
+  return title === '新聊天' || /^新聊天 \d+$/.test(title);
+}
+
+function renameChatTabBySession(payload: { sessionId: string; title: string }) {
+  const title = payload.title.trim();
+  if (!payload.sessionId || !title) return;
+
+  const mainTab = mainChatTabs.value.find(tab => tab.sessionId === payload.sessionId);
+  if (mainTab && isGeneratedChatTitle(mainTab.title)) mainTab.title = title;
+
+  const sideTab = rightAuxTabs.value.find(tab => tab.type === 'chat' && tab.sessionId === payload.sessionId);
+  if (sideTab && sideTab.type === 'chat' && isGeneratedChatTitle(sideTab.title)) sideTab.title = title;
+}
+
+function setActiveRightAuxTab(tabId: string) {
+  const tab = rightAuxTabs.value.find(item => item.id === tabId);
+  if (!tab) return;
+  activeRightAuxTabId.value = tab.id;
+  if (tab.type === 'preset') manager.loadSecondPreset(tab.presetName);
+}
+
+function upsertRightAuxTab(tab: RightAuxTab) {
+  const existingIndex = rightAuxTabs.value.findIndex(item =>
+    tab.type === 'preset' && item.type === 'preset' ? item.presetName === tab.presetName : item.id === tab.id,
+  );
+
+  if (existingIndex >= 0) {
+    rightAuxTabs.value.splice(existingIndex, 1, { ...rightAuxTabs.value[existingIndex], ...tab } as RightAuxTab);
+    return rightAuxTabs.value[existingIndex];
+  }
+
+  rightAuxTabs.value.push(tab);
+  return tab;
+}
+
+function closeRightAuxTab(tabId: string) {
+  const closedIndex = rightAuxTabs.value.findIndex(tab => tab.id === tabId);
+  if (closedIndex < 0) return;
+  rightAuxTabs.value.splice(closedIndex, 1);
+  if (activeRightAuxTabId.value !== tabId) return;
+
+  const nextTab = rightAuxTabs.value[Math.min(closedIndex, rightAuxTabs.value.length - 1)] ?? null;
+  activeRightAuxTabId.value = nextTab?.id ?? '';
+  if (nextTab?.type === 'preset') manager.loadSecondPreset(nextTab.presetName);
+}
+
+function createEmptyRightAuxTab() {
+  const tab = upsertRightAuxTab({
+    id: `empty-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type: 'empty',
+    title: '新标签页',
+  });
+  rightAuxOpen.value = true;
+  ensureSecondPresetWidth();
+  setActiveRightAuxTab(tab.id);
+  return tab;
+}
+
+function createSideChatTab(tabIdToReplace?: string) {
+  const chatIndex = rightAuxTabs.value.filter(tab => tab.type === 'chat').length + 1;
+  const chatTab = createChatWorkspaceTab('side', chatIndex);
+  const nextTab: ChatRightAuxTab = {
+    id: chatTab.id,
+    type: 'chat',
+    title: chatTab.title,
+    sessionId: chatTab.sessionId,
+  };
+  if (tabIdToReplace) {
+    const replaceIndex = rightAuxTabs.value.findIndex(tab => tab.id === tabIdToReplace);
+    if (replaceIndex >= 0) {
+      rightAuxTabs.value.splice(replaceIndex, 1, nextTab);
+    } else {
+      rightAuxTabs.value.push(nextTab);
+    }
+  } else {
+    upsertRightAuxTab(nextTab);
+  }
+  rightAuxOpen.value = true;
+  ensureSecondPresetWidth();
+  setActiveRightAuxTab(nextTab.id);
+}
+
+function replaceRightAuxTabWithChat(tabId: string) {
+  createSideChatTab(tabId);
+}
+
+function openFirstAvailablePresetInRightSidebar(tabIdToReplace?: string) {
+  const candidate = manager.presetNames.find(name => name !== manager.presetName) ?? manager.presetNames[0] ?? manager.presetName;
+  if (candidate) openPresetInRightSidebar(candidate, tabIdToReplace);
+}
+
+function replaceRightAuxTabWithPreset(tabId: string) {
+  openFirstAvailablePresetInRightSidebar(tabId);
+}
+
+function toggleRightPresetMigration(tabId: string) {
+  const tab = rightAuxTabs.value.find(item => item.id === tabId);
+  if (!tab || tab.type !== 'preset') return;
+  tab.migrationOpen = !tab.migrationOpen;
+}
+
+function toggleRightPresetMenu(tabId: string) {
+  rightPresetMenuTabId.value = rightPresetMenuTabId.value === tabId ? '' : tabId;
+}
+
+function selectRightPresetFromMenu(tabId: string, presetName: string) {
+  rightPresetMenuTabId.value = '';
+  changeRightPresetTabPreset(tabId, presetName);
+}
+
+function closeRightPresetMenuFromOutside(event?: Event) {
+  if (!rightPresetMenuTabId.value) return;
+  const target = event?.target as HTMLElement | null;
+  if (target?.closest?.('[data-right-preset-menu-id]')) return;
+  rightPresetMenuTabId.value = '';
+}
+
+function focusMainPromptFromMigration(payload: { key?: string; index?: number; mainAnchorIndex?: number }) {
+  mainPresetPanelRef.value?.scrollToPromptAnchor?.(payload);
+}
+
+function selectMainPreset(name: string) {
+  if (!name) return;
+  const tavernPresetName = getTavernPresetName();
+  if (name === manager.presetName && manager.preset && tavernPresetName === name) return;
+  const loaded = manager.loadMainPreset(name);
+  if (!loaded) return;
+
+  pendingTavernPresetName = name;
+  pendingTavernPresetUntil = Date.now() + TAVERN_PRESET_SWITCH_GRACE_MS;
+  if (tavernPresetName !== name) loadPreset(name);
+  history.createSnapshot(name, undefined, true);
+}
+
+async function runSidebarPresetAction(payload: SidebarPresetActionPayload) {
+  if (payload.action === 'createPreset') await createOfficialPreset();
+  if (!payload.presetName) return;
+  if (payload.action === 'openSecondPreset') openPresetInRightSidebar(payload.presetName);
+  if (payload.action === 'renamePreset') await renameOfficialPreset(payload.presetName);
+  if (payload.action === 'deletePreset') await deleteOfficialPreset(payload.presetName, payload.anchor);
+}
+
+function changeRightPresetTabPreset(tabId: string, presetName: string) {
+  if (!presetName) return;
+  const tab = rightAuxTabs.value.find(item => item.id === tabId);
+  if (!tab || tab.type !== 'preset') return;
+  const loaded = manager.loadSecondPreset(presetName);
+  if (!loaded) return;
+  const duplicateIndex = rightAuxTabs.value.findIndex(item =>
+    item.id !== tabId && item.type === 'preset' && item.presetName === presetName,
+  );
+  if (duplicateIndex >= 0) {
+    const duplicateTab = rightAuxTabs.value[duplicateIndex];
+    if (duplicateTab.type === 'preset') duplicateTab.migrationOpen = false;
+    rightAuxTabs.value = rightAuxTabs.value.filter(item => item.id !== tabId);
+    setActiveRightAuxTab(duplicateTab.id);
+    history.createSnapshot(presetName, undefined, true);
+    return;
+  }
+  tab.id = `preset-${presetName}`;
+  tab.presetName = presetName;
+  tab.title = presetName;
+  tab.migrationOpen = false;
+  activeRightAuxTabId.value = tab.id;
+  history.createSnapshot(presetName, undefined, true);
+}
+
+function openPresetInRightSidebar(presetName: string, tabIdToReplace?: string) {
+  if (!presetName) return;
+  const loaded = manager.loadSecondPreset(presetName);
+  if (!loaded) return;
+  const existingPreset = rightAuxTabs.value.find(tab =>
+    tab.type === 'preset' && tab.presetName === presetName && tab.id !== tabIdToReplace,
+  );
+  if (existingPreset) {
+    existingPreset.migrationOpen = false;
+    if (tabIdToReplace) rightAuxTabs.value = rightAuxTabs.value.filter(tab => tab.id !== tabIdToReplace);
+    rightAuxOpen.value = true;
+    setActiveRightAuxTab(existingPreset.id);
+    ensureSecondPresetWidth();
+    history.createSnapshot(presetName, undefined, true);
+    return;
+  }
+  const nextTab: PresetRightAuxTab = {
+    id: `preset-${presetName}`,
+    type: 'preset',
+    title: presetName,
+    presetName,
+    migrationOpen: false,
+  };
+  const replaceIndex = tabIdToReplace ? rightAuxTabs.value.findIndex(tab => tab.id === tabIdToReplace) : -1;
+  const tab = replaceIndex >= 0
+    ? (rightAuxTabs.value.splice(replaceIndex, 1, nextTab), nextTab)
+    : upsertRightAuxTab(nextTab);
+  rightAuxOpen.value = true;
+  setActiveRightAuxTab(tab.id);
+  ensureSecondPresetWidth();
+  nextTick(() => {
+    rightWidth.value = getSecondPresetBounds(getPresetWorkspaceWidth()).center;
+  });
+  history.createSnapshot(presetName, undefined, true);
+}
+
+function openAiConfig() {
+  ai.showConfig = true;
 }
 
 function snapshotMainPreset(): Preset | null {
@@ -454,15 +843,27 @@ async function recordMainOfficialChange<T>(description: string, operation: () =>
 }
 
 async function createOfficialPrompt() {
-  const created = await recordMainOfficialChange('新建条目', () => manager.createPromptInPreset('main'));
-  if (created) toastr.success('条目已新建', '', { timeOut: 1400 });
+  if (creatingOfficialPrompt.value) return;
+  creatingOfficialPrompt.value = true;
+  try {
+    const created = await recordMainOfficialChange('新建条目', () => manager.createPromptInPreset('main'));
+    if (created) toastr.success('条目已新建', '', { timeOut: 1400 });
+  } finally {
+    creatingOfficialPrompt.value = false;
+  }
 }
 
 async function createOfficialPreset() {
-  const name = prompt('新预设名称');
-  if (!name?.trim()) return;
+  const name = await textPrompt.prompt({
+    title: '新建预设',
+    label: '预设名称',
+    placeholder: '输入新预设名称',
+    confirmLabel: '新建',
+  });
+  const presetName = name?.trim();
+  if (!presetName) return;
 
-  const created = await manager.createPresetByName(name);
+  const created = await manager.createPresetByName(presetName);
   if (created) {
     history.createSnapshot(manager.presetName, undefined, true);
     toastr.success('预设已新建', '', { timeOut: 1400 });
@@ -471,17 +872,23 @@ async function createOfficialPreset() {
   }
 }
 
-async function renameOfficialPreset() {
-  const currentName = manager.presetName;
+async function renameOfficialPreset(targetPresetName = manager.presetName) {
+  const currentName = targetPresetName;
   if (!currentName) {
     toastr.warning('请先选择一个预设', '', { timeOut: 1600 });
     return;
   }
 
-  const name = prompt('新的预设名称', currentName);
-  if (!name?.trim() || name.trim() === currentName) return;
+  const name = await textPrompt.prompt({
+    title: '重命名预设',
+    label: '新的预设名称',
+    defaultValue: currentName,
+    confirmLabel: '重命名',
+  });
+  const nextName = name?.trim();
+  if (!nextName || nextName === currentName) return;
 
-  const renamed = await manager.renamePresetByName(currentName, name);
+  const renamed = await manager.renamePresetByName(currentName, nextName);
   if (renamed) {
     history.createSnapshot(manager.presetName, undefined, true);
     toastr.success('预设已重命名', '', { timeOut: 1400 });
@@ -490,13 +897,19 @@ async function renameOfficialPreset() {
   }
 }
 
-async function deleteOfficialPreset() {
-  const presetName = manager.presetName;
+async function deleteOfficialPreset(targetPresetName = manager.presetName, anchor?: SidebarPresetActionPayload['anchor']) {
+  const presetName = targetPresetName;
   if (!presetName) {
     toastr.warning('请先选择一个预设', '', { timeOut: 1600 });
     return;
   }
-  if (!confirm(`确定删除预设 "${presetName}" 吗？此操作无法用撤回恢复。`)) return;
+  if (!await confirmDialog.confirm({
+    title: '删除预设',
+    message: `确定删除预设 "${presetName}" 吗？此操作无法用撤回恢复。`,
+    confirmLabel: '删除',
+    tone: 'danger',
+    anchor,
+  })) return;
 
   const deleted = await manager.deletePresetByName(presetName);
   if (deleted) toastr.info('预设已删除', '', { timeOut: 1400 });
@@ -556,7 +969,11 @@ function downloadPresetPromptExport() {
 }
 
 async function resetOfficialPromptOrder() {
-  if (!confirm('确定按官方默认顺序重置当前预设的条目吗？')) return;
+  if (!await confirmDialog.confirm({
+    title: '重置条目顺序',
+    message: '确定按官方默认顺序重置当前预设的条目吗？',
+    confirmLabel: '重置',
+  })) return;
 
   const reset = await recordMainOfficialChange('重置条目顺序', () => manager.resetPromptOrder('main'));
   if (reset) toastr.success('条目顺序已重置', '', { timeOut: 1400 });
@@ -571,12 +988,30 @@ function ensureSecondPresetWidth() {
   rightWidth.value = clampSecondPresetWidth(rightWidth.value, getPresetWorkspaceWidth());
 }
 
-watch(showSecondPreset, visible => {
+function toggleRightSidebar() {
+  if (showRightAuxArea.value) {
+    rightAuxOpen.value = false;
+    return;
+  }
+
+  rightAuxOpen.value = true;
+  ensureSecondPresetWidth();
+}
+
+watch(rightAuxOpen, visible => {
   if (!visible) return;
   nextTick(() => {
     rightWidth.value = getSecondPresetBounds(getPresetWorkspaceWidth()).center;
   });
 });
+
+watch(
+  () =>
+    manager.mainPrompts
+      .map(prompt => `${String((prompt as any).identifier ?? getPromptKey(prompt))}:${String((prompt as any).content ?? '').length}`)
+      .join('|'),
+  () => readMainPresetTokenTotal(),
+);
 
 const parentDoc = inject<Document>('parentDocument')!;
 const iframeEl = inject<HTMLIFrameElement>('iframeElement')!;
@@ -762,19 +1197,6 @@ function resetUiSettingsDefaults() {
   };
   saveUiPresets();
   applyUiPreset('standard');
-}
-
-function previewLabel(lines: number) {
-  return lines === 0 ? '无预览' : `${lines}行`;
-}
-
-function isCurrentUiPreset(key: UiPresetKey) {
-  const preset = uiPresets.value[key];
-  return (
-    Math.abs(uiScale.value - preset.uiScale) < 0.001 &&
-    Math.abs(promptScale.value - preset.promptScale) < 0.001 &&
-    promptPreviewLines.value === preset.promptPreviewLines
-  );
 }
 
 function applyTheme(nextTheme: AppTheme) {
@@ -980,8 +1402,166 @@ function onFavorite(prompt: PresetPrompt) {
   }
 }
 
+function syncPresetFromTavern() {
+  if (isWaitingForTavernPresetSwitch()) return;
+  const tavernPresetName = getTavernPresetName();
+  if (!tavernPresetName) return;
+  if (tavernPresetName === manager.presetName) return;
+  const synced = manager.syncMainPresetFromTavern(tavernPresetName);
+  if (synced && manager.presetName) {
+    history.createSnapshot(manager.presetName, undefined, true);
+  }
+}
+
+function isWaitingForTavernPresetSwitch() {
+  if (!pendingTavernPresetName) return false;
+  if (getTavernPresetName() === pendingTavernPresetName) {
+    pendingTavernPresetName = '';
+    pendingTavernPresetUntil = 0;
+    return false;
+  }
+  if (Date.now() > pendingTavernPresetUntil) {
+    pendingTavernPresetName = '';
+    pendingTavernPresetUntil = 0;
+    return false;
+  }
+  return true;
+}
+
+function getTavernPresetName() {
+  try {
+    return getLoadedPresetName();
+  } catch (error) {
+    console.warn('[PresetManager] failed to read current tavern preset:', error);
+    return '';
+  }
+}
+
+function startPresetSyncFromTavern() {
+  syncPresetFromTavern();
+  if (presetSyncTimer !== null) return;
+  presetSyncTimer = window.setInterval(syncPresetFromTavern, 700);
+}
+
+function parseNativeTokenText(text: string | null | undefined) {
+  if (!text) return null;
+  const compact = text.replace(/\s+/g, ' ').trim();
+  const match = compact.match(/[\d,.]+/);
+  if (!match) return null;
+  const value = Number(match[0].replace(/,/g, ''));
+  return Number.isFinite(value) ? Math.max(0, Math.round(value)) : null;
+}
+
+function readPromptManagerHeaderTokenTotal() {
+  const headerNode = parentDoc.querySelector('.completion_prompt_manager_header') ?? null;
+  if (!headerNode) return null;
+
+  const totalNode = Array.from(headerNode.querySelectorAll('div')).find(node =>
+    /Total Tokens:/i.test(node.textContent ?? ''),
+  ) ?? headerNode;
+  return parseNativeTokenText(totalNode.textContent);
+}
+
+function readPromptManagerRowTokenTotal() {
+  let total = 0;
+  let matched = 0;
+  parentDoc.querySelectorAll('#completion_prompt_manager [data-pm-identifier]').forEach(row => {
+    const tokenValue = row.querySelector('.prompt_manager_prompt_tokens')?.getAttribute('data-pm-tokens') ?? '';
+    const parsed = parseNativeTokenText(tokenValue);
+    if (parsed === null) return;
+    total += parsed;
+    matched += 1;
+  });
+  return matched > 0 ? total : null;
+}
+
+function readLegacyResultTokenTotal() {
+  return parseNativeTokenText(parentDoc.querySelector('#result_info_total_tokens')?.textContent);
+}
+
+function readNativePromptTokenTotal() {
+  nativePromptTokenTotal.value =
+    readPromptManagerHeaderTokenTotal()
+    ?? readLegacyResultTokenTotal()
+    ?? readPromptManagerRowTokenTotal();
+}
+
+function readMainPresetTokenTotal() {
+  const visiblePromptKeys = new Set(manager.mainPrompts.map(prompt => String((prompt as any).identifier ?? getPromptKey(prompt))));
+  if (!visiblePromptKeys.size) {
+    mainPresetTokenTotal.value = 0;
+    return;
+  }
+
+  let total = 0;
+  let matched = 0;
+  parentDoc.querySelectorAll('#completion_prompt_manager [data-pm-identifier]').forEach(row => {
+    const identifier = row.getAttribute('data-pm-identifier');
+    if (!identifier || !visiblePromptKeys.has(identifier)) return;
+    const tokenValue = row.querySelector('.prompt_manager_prompt_tokens')?.getAttribute('data-pm-tokens') ?? '';
+    const parsed = parseNativeTokenText(tokenValue);
+    if (parsed === null) return;
+    total += parsed;
+    matched += 1;
+  });
+
+  mainPresetTokenTotal.value = matched > 0 ? total : null;
+}
+
+function startNativePromptTokenSync() {
+  readNativePromptTokenTotal();
+  readMainPresetTokenTotal();
+  const tokenTotalNode = parentDoc.querySelector('.completion_prompt_manager_header') ?? parentDoc.querySelector('#result_info_total_tokens');
+  const promptManagerNode = parentDoc.querySelector('#completion_prompt_manager');
+  const observedNodes = [tokenTotalNode, promptManagerNode].filter((node): node is Element => Boolean(node));
+  if (observedNodes.length) {
+    nativeTokenObserver = new MutationObserver(() => {
+      readNativePromptTokenTotal();
+      readMainPresetTokenTotal();
+    });
+    observedNodes.forEach(node => {
+      nativeTokenObserver?.observe(node, { childList: true, characterData: true, subtree: true, attributes: true });
+    });
+  }
+  nativeTokenPollTimer = window.setInterval(() => {
+    readNativePromptTokenTotal();
+    readMainPresetTokenTotal();
+  }, 1200);
+}
+
+function exposePresetManagerDebug() {
+  const debugWindow = window as typeof window & {
+    __presetManagerDebug?: () => Record<string, unknown>;
+  };
+  debugWindow.__presetManagerDebug = () => ({
+    presetName: manager.presetName,
+    activeMainPresetName: activeMainPresetName.value,
+    currentPresetName: manager.currentPresetName,
+    tavernPresetName: getTavernPresetName(),
+    aiShowConfig: ai.showConfig,
+    sidebarMode: sidebarMode.value,
+    contextMenuCount: document.querySelectorAll('.preset-context-menu').length,
+    runtimeMarker: 'preset-manager-runtime-fix-20260605',
+    mainPromptCount: manager.mainPrompts.length,
+    mainPresetTokenTotal: mainPresetTokenTotal.value,
+    nativePromptTokenTotal: nativePromptTokenTotal.value,
+    presetNames: manager.presetNames.slice(0, 12),
+    titleText: document.querySelector('.preset-title-text')?.textContent ?? null,
+    activeSidebarItems: Array.from(document.querySelectorAll('.sidebar-preset-item.active')).map(
+      item => item.textContent?.trim() ?? '',
+    ),
+    sidebarItems: Array.from(document.querySelectorAll('.sidebar-preset-item')).slice(0, 12).map(
+      item => item.textContent?.trim() ?? '',
+    ),
+  });
+}
+
 onMounted(() => {
   applyTheme(theme.value);
+  exposePresetManagerDebug();
+  ai.startTavernApiProfileSync();
+  startPresetSyncFromTavern();
+  startNativePromptTokenSync();
 
   const savedState = readWindowState();
   if (savedState) applyWindowState(savedState);
@@ -996,10 +1576,17 @@ onMounted(() => {
   });
 
   document.addEventListener('preset-manager-code-inspector-select', event => {
-    const detail = (event as CustomEvent<{ path: string; label: string; tag: string; matchedCount: number }>).detail;
+    const detail = (event as CustomEvent<CodeInspectorSelectPayload>).detail;
     if (!detail?.path) return;
     devTheme.setSelectedElement(detail);
   });
+
+  document.addEventListener('pointerdown', closeRightPresetMenuFromOutside, true);
+  document.addEventListener('mousedown', closeRightPresetMenuFromOutside, true);
+  document.addEventListener('click', closeRightPresetMenuFromOutside, true);
+  parentDoc.addEventListener('pointerdown', closeRightPresetMenuFromOutside, true);
+  parentDoc.addEventListener('mousedown', closeRightPresetMenuFromOutside, true);
+  parentDoc.addEventListener('click', closeRightPresetMenuFromOutside, true);
 
   document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
@@ -1013,6 +1600,23 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  if (presetSyncTimer !== null) {
+    window.clearInterval(presetSyncTimer);
+    presetSyncTimer = null;
+  }
+  if (nativeTokenPollTimer !== null) {
+    window.clearInterval(nativeTokenPollTimer);
+    nativeTokenPollTimer = null;
+  }
+  nativeTokenObserver?.disconnect();
+  nativeTokenObserver = null;
+  document.removeEventListener('pointerdown', closeRightPresetMenuFromOutside, true);
+  document.removeEventListener('mousedown', closeRightPresetMenuFromOutside, true);
+  document.removeEventListener('click', closeRightPresetMenuFromOutside, true);
+  parentDoc.removeEventListener('pointerdown', closeRightPresetMenuFromOutside, true);
+  parentDoc.removeEventListener('mousedown', closeRightPresetMenuFromOutside, true);
+  parentDoc.removeEventListener('click', closeRightPresetMenuFromOutside, true);
+  ai.stopTavernApiProfileSync();
   removeCodeInspectorSelectListener?.();
   removeCodeInspectorSelectListener = null;
   parentFloatingRoot?.remove();
@@ -1031,20 +1635,23 @@ body {
 }
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--pm-scrollbar-thumb) transparent;
 }
 
 body[data-pm-theme='dark'],
 .theme-dark {
   /* Codex dark mode tokens — reverse-engineered from openai.com/codex via SkillUI */
-  --pm-bg: #000000;
-  --pm-bg-transparent: rgba(0, 0, 0, 0);
+  --pm-bg: #15171a;
+  --pm-bg-transparent: rgba(21, 23, 26, 0);
   --pm-bg-soft: #0a0a0c;
   --pm-bg-panel: #111114;
-  --pm-bg-titlebar: #000000;
-  --pm-bg-workspace: #000000;
+  --pm-bg-titlebar: #15171a;
+  --pm-bg-workspace: #15171a;
   --pm-bg-sidebar: rgba(255, 255, 255, 0.025);
   --pm-bg-elevated: #1f1f23;
-  --pm-bg-card: #16161a;
+  --pm-bg-card: #2a2d32;
+  --pm-bg-card-hover: #30343a;
 
   /* Rows */
   --pm-row-bg: transparent;
@@ -1061,6 +1668,9 @@ body[data-pm-theme='dark'],
   --pm-sidebar-edge: rgba(255, 255, 255, 0.28);
   --pm-split-line: rgba(255, 255, 255, 0.28);
   --pm-split-line-hover: rgba(255, 255, 255, 0.38);
+  --pm-scrollbar-thumb: rgba(255, 255, 255, 0.06);
+  --pm-scrollbar-thumb-hover: rgba(255, 255, 255, 0.1);
+  --pm-scrollbar-thumb-active: rgba(255, 255, 255, 0.2);
 
   /* Text */
   --pm-text: #ffffff;
@@ -1079,6 +1689,7 @@ body[data-pm-theme='dark'],
 
   /* Inputs */
   --pm-input-bg: rgba(255, 255, 255, 0.04);
+  --pm-left-entry-editor-bg: rgba(255, 255, 255, 0.06);
 
   --pm-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
 
@@ -1108,6 +1719,10 @@ body[data-pm-theme='dark'],
   --pm-sidebar-glow: rgba(255, 255, 255, 0);
   --pm-sidebar-glow-soft: rgba(255, 255, 255, 0);
   --pm-sidebar-shadow: rgba(0, 0, 0, 0.4);
+  --pm-sidebar-default-backdrop: blur(0px) saturate(90%) brightness(55%) contrast(105%);
+  --pm-sidebar-default-bottom-fade: linear-gradient(180deg, rgba(0, 0, 0, 0) 54%, rgba(0, 0, 0, 0.59) 65%, rgba(0, 0, 0, 0.59) 100%);
+  --pm-sidebar-default-mask: linear-gradient(rgba(48, 51, 68, 0.7), rgba(48, 51, 68, 0.7));
+  --pm-sidebar-default-image: none;
   --pm-btn-radius: 8px;
   --pm-btn-radius-pill: 999px;
   --pm-btn-size: 30px;
@@ -1130,6 +1745,7 @@ body[data-pm-theme='codex-minimal-v1'],
   --pm-bg-sidebar: #15171a;
   --pm-bg-elevated: #24272c;
   --pm-bg-card: #2a2d32;
+  --pm-bg-card-hover: #30343a;
   --pm-row-bg: transparent;
   --pm-row-hover: rgba(255, 255, 255, 0.04);
   --pm-row-active: rgba(255, 255, 255, 0.07);
@@ -1142,6 +1758,9 @@ body[data-pm-theme='codex-minimal-v1'],
   --pm-sidebar-edge: rgba(255, 255, 255, 0.06);
   --pm-split-line: rgba(255, 255, 255, 0.06);
   --pm-split-line-hover: rgba(255, 255, 255, 0.18);
+  --pm-scrollbar-thumb: rgba(255, 255, 255, 0.05);
+  --pm-scrollbar-thumb-hover: rgba(255, 255, 255, 0.08);
+  --pm-scrollbar-thumb-active: rgba(255, 255, 255, 0.16);
   --pm-text: #ecedef;
   --pm-text-muted: #b0b3b9;
   --pm-text-subtle: #8c8f96;
@@ -1152,6 +1771,7 @@ body[data-pm-theme='codex-minimal-v1'],
   --pm-warning: #ffc533;
   --pm-danger: #ff6f6f;
   --pm-input-bg: #1f2226;
+  --pm-left-entry-editor-bg: rgba(255, 255, 255, 0.055);
   --pm-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
   --pm-ai-surface: #1d2024;
   --pm-ai-capsule: rgba(36, 39, 44, 0.92);
@@ -1172,6 +1792,10 @@ body[data-pm-theme='codex-minimal-v1'],
   --pm-sidebar-glow: rgba(255, 255, 255, 0);
   --pm-sidebar-glow-soft: rgba(255, 255, 255, 0);
   --pm-sidebar-shadow: rgba(0, 0, 0, 0.22);
+  --pm-sidebar-default-backdrop: blur(0px) saturate(90%) brightness(55%) contrast(105%);
+  --pm-sidebar-default-bottom-fade: linear-gradient(180deg, rgba(0, 0, 0, 0) 54%, rgba(0, 0, 0, 0.59) 65%, rgba(0, 0, 0, 0.59) 100%);
+  --pm-sidebar-default-mask: linear-gradient(rgba(48, 51, 68, 0.7), rgba(48, 51, 68, 0.7));
+  --pm-sidebar-default-image: none;
   --pm-btn-radius: 8px;
   --pm-btn-radius-pill: 999px;
   --pm-btn-size: 30px;
@@ -1192,6 +1816,7 @@ body[data-pm-theme='light'],
   --pm-bg-sidebar: #f5f5f4;
   --pm-bg-elevated: #ffffff;
   --pm-bg-card: #fafaf9;
+  --pm-bg-card-hover: #ffffff;
 
   --pm-row-bg: transparent;
   --pm-row-hover: rgba(15, 17, 21, 0.04);
@@ -1206,6 +1831,9 @@ body[data-pm-theme='light'],
   --pm-sidebar-edge: rgba(15, 17, 21, 0.07);
   --pm-split-line: rgba(15, 17, 21, 0.07);
   --pm-split-line-hover: rgba(15, 17, 21, 0.18);
+  --pm-scrollbar-thumb: rgba(15, 17, 21, 0.08);
+  --pm-scrollbar-thumb-hover: rgba(15, 17, 21, 0.12);
+  --pm-scrollbar-thumb-active: rgba(15, 17, 21, 0.22);
 
   --pm-text: #15171a;
   --pm-text-muted: #555960;
@@ -1220,6 +1848,7 @@ body[data-pm-theme='light'],
   --pm-danger: #c64545;
 
   --pm-input-bg: #ffffff;
+  --pm-left-entry-editor-bg: rgba(255, 255, 255, 0.78);
   --pm-shadow: 0 24px 80px rgba(24, 31, 44, 0.16);
 
   --pm-ai-surface: #ffffff;
@@ -1240,6 +1869,10 @@ body[data-pm-theme='light'],
   --pm-sidebar-glow: rgba(255, 255, 255, 0);
   --pm-sidebar-glow-soft: rgba(255, 255, 255, 0);
   --pm-sidebar-shadow: rgba(126, 143, 174, 0.16);
+  --pm-sidebar-default-backdrop: blur(0px) saturate(97%) brightness(100%) contrast(105%);
+  --pm-sidebar-default-bottom-fade: none;
+  --pm-sidebar-default-mask: linear-gradient(rgba(245, 245, 244, 0.72), rgba(245, 245, 244, 0.72));
+  --pm-sidebar-default-image: linear-gradient(135deg, rgba(103, 129, 255, 0.28), rgba(188, 211, 255, 0.52));
   --pm-btn-radius: 8px;
   --pm-btn-radius-pill: 999px;
   --pm-btn-size: 30px;
@@ -1271,8 +1904,21 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--pm-border-strong);
+  background: var(--pm-scrollbar-thumb);
+  background-clip: content-box;
   border-radius: 999px;
+  border: 1px solid transparent;
+  transition: background 0.12s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--pm-scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--pm-scrollbar-thumb-active);
+  background-clip: content-box;
 }
 
 ::-webkit-scrollbar-track {
@@ -1384,11 +2030,61 @@ button {
   z-index: 0;
 }
 .app-root::after {
-  display: none;
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--pm-left-rail-width);
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  background-color: rgba(48, 51, 68, 0.7);
+  background-image: var(--pm-sidebar-default-bottom-fade), var(--pm-sidebar-default-mask), var(--pm-sidebar-default-image);
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  backdrop-filter: var(--pm-sidebar-default-backdrop);
+  -webkit-backdrop-filter: var(--pm-sidebar-default-backdrop);
+  filter: var(--pm-sidebar-default-backdrop);
+  box-shadow:
+    inset -1px 0 0 var(--pm-sidebar-edge),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.app-root[data-dev-sidebar='on'] :deep(.left-sidebar),
+.app-root[data-dev-sidebar='on'] :deep(.title-left) {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .app-root > * {
   position: relative;
   z-index: 1;
+}
+.app-root > .annotation-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 950;
+}
+.app-root > .api-settings-page {
+  position: absolute;
+  inset: 0;
+  z-index: 900;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--pm-bg-workspace);
+}
+.app-root > :deep(.preset-context-menu) {
+  position: absolute;
+  z-index: 940;
+}
+.app-root > :deep(.prompt-context-menu) {
+  position: absolute;
+  z-index: 940;
+}
+.app-root > :deep(.prompt-context-backdrop) {
+  position: absolute;
+  z-index: 939;
 }
 .app-root.fullscreen {
   border: 0;
@@ -1399,7 +2095,7 @@ button {
   position: relative;
 }
 .title-bar {
-  z-index: 30;
+  z-index: 300;
   overflow: visible;
 }
 .main-body {
@@ -1492,21 +2188,14 @@ button {
   overflow: hidden;
   background: var(--pm-bg-workspace);
 }
-.preset-workspace-content,
-.api-settings-page {
+.preset-workspace-content {
   position: absolute;
   inset: 0;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-}
-.preset-workspace-content {
   display: flex;
   flex-direction: column;
-}
-.api-settings-page {
-  z-index: 90;
-  background: var(--pm-bg-workspace);
 }
 .preset-panels {
   position: relative;
@@ -1516,198 +2205,275 @@ button {
   overflow: hidden;
 }
 .center-area {
+  position: relative;
   min-width: 0;
-  background: transparent;
-}
-.second-preset-area {
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: transparent;
 }
-.second-toggle {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 14px;
-  height: 44px;
+.right-aux-area {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: transparent;
+  --pm-right-aux-gutter: 24px;
+}
+.right-aux-tab-strip {
+  flex: 0 0 42px;
+  min-width: 0;
   display: flex;
   align-items: center;
+  gap: 4px;
+  padding: 7px var(--pm-right-aux-gutter) 8px;
+  border-bottom: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+.right-aux-tab-item {
+  min-width: 0;
+  max-width: 138px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pm-text-subtle);
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.right-aux-tab-item:hover,
+.right-aux-tab-item.active {
+  background: var(--pm-row-active);
+  color: var(--pm-text);
+}
+.right-aux-tab {
+  min-width: 0;
+  height: 28px;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px 0 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 560;
+}
+.right-aux-tab span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.right-aux-tab-close,
+.right-aux-add-button {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  border: 1px solid transparent;
-  border-right: 0;
-  border-radius: 8px 0 0 8px;
-  background: color-mix(in srgb, var(--pm-bg-elevated) 24%, transparent);
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
   color: var(--pm-text-subtle);
   cursor: pointer;
-  z-index: 20;
-  backdrop-filter: blur(18px);
-  transition:
-    background 0.12s,
-    color 0.12s,
-    opacity 0.12s;
 }
-.second-toggle:hover {
+.right-aux-tab-close:hover,
+.right-aux-add-button:hover {
+  background: var(--pm-row-hover);
   color: var(--pm-text);
-  border-color: var(--pm-border);
-  background: color-mix(in srgb, var(--pm-bg-hover) 62%, transparent);
 }
-.second-toggle.active {
-  right: auto;
+.right-aux-add-wrap {
   position: relative;
-  align-self: center;
-  margin-left: -1px;
+  flex: 0 0 auto;
 }
-.ui-settings-panel {
-  position: absolute;
-  top: calc(var(--pm-titlebar-height, 52px) + 2px);
-  right: 18px;
-  z-index: 800;
-  width: 260px;
-  padding: 12px;
-  border: 1px solid var(--pm-border-strong);
-  border-radius: 14px;
-  background: var(--pm-bg-panel);
+.right-aux-empty {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 48px var(--pm-right-aux-gutter);
+}
+.right-aux-choice-grid {
+  width: min(100%, 460px);
+  display: grid;
+  gap: 56px;
+}
+.right-aux-choice-card {
+  min-height: 118px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 16px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--pm-bg-elevated) 70%, transparent);
   color: var(--pm-text);
-  box-shadow: var(--pm-shadow);
+  cursor: pointer;
+  text-align: center;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
 }
-.settings-head,
-.settings-row {
+.right-aux-choice-card:hover {
+  background: color-mix(in srgb, var(--pm-bg-elevated) 90%, transparent);
+}
+.right-aux-choice-icon {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--pm-row-active);
+  color: var(--pm-text);
+}
+.right-aux-choice-title {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.right-aux-choice-card small {
+  color: var(--pm-text-subtle);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.right-preset-select-row {
+  flex: 0 0 40px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px var(--pm-right-aux-gutter) 10px;
+  border-bottom: 0;
+}
+.right-preset-select-wrap {
+  position: relative;
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+}
+.right-preset-select {
+  width: 100%;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--pm-text);
+  font-size: 13px;
+  font-weight: 650;
+  outline: none;
+  cursor: pointer;
+  text-align: left;
+}
+.right-preset-select:hover,
+.right-preset-select.open {
+  color: var(--pm-text);
+}
+.right-preset-select span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.right-preset-select-chevron {
+  flex: 0 0 auto;
+  color: var(--pm-text-subtle);
+  transition: transform 0.14s ease, color 0.12s ease;
+}
+.right-preset-select:hover .right-preset-select-chevron,
+.right-preset-select.open .right-preset-select-chevron {
+  color: var(--pm-text);
+}
+.right-preset-select.open .right-preset-select-chevron {
+  transform: rotate(180deg);
+}
+.right-preset-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 920;
+  width: 100%;
+  min-width: 0;
+  max-height: 320px;
+  padding: 4px;
+  overflow: auto;
+  border: 1px solid var(--pm-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--pm-bg-elevated) 94%, transparent);
+  box-shadow: var(--pm-menu-shadow, 0 8px 24px rgba(0, 0, 0, 0.28));
+  backdrop-filter: var(--pm-menu-backdrop, blur(16px) saturate(150%));
+  -webkit-backdrop-filter: var(--pm-menu-backdrop, blur(16px) saturate(150%));
+}
+.right-preset-menu-item {
+  width: 100%;
+  min-height: 30px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-}
-.settings-head {
-  margin-bottom: 12px;
-  font-weight: 650;
-}
-.settings-presets {
-  display: grid;
-  gap: 7px;
-  margin-bottom: 10px;
-}
-.settings-preset-slot {
-  display: grid;
-  grid-template-columns: 1fr 30px;
-  gap: 6px;
-}
-.settings-preset-apply,
-.settings-reset-btn {
-  border: 1px solid var(--pm-border);
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   background: transparent;
   color: var(--pm-text-muted);
   cursor: pointer;
-}
-.settings-preset-apply {
-  min-width: 0;
-  min-height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 9px;
   text-align: left;
+  font-size: 13px;
 }
-.settings-preset-apply span {
-  color: var(--pm-text);
-  font-weight: 620;
-}
-.settings-preset-apply small {
+.right-preset-menu-item span {
+  min-width: 0;
   overflow: hidden;
-  color: var(--pm-text-subtle);
-  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.settings-preset-save {
-  width: 30px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: transparent;
+.right-preset-menu-item:hover,
+.right-preset-menu-item.active {
+  background: var(--pm-pill-bg-hover);
+  color: var(--pm-text);
+}
+.right-preset-menu-empty {
+  padding: 8px 10px;
   color: var(--pm-text-subtle);
-  cursor: pointer;
-}
-.settings-preset-apply:hover,
-.settings-preset-apply.active,
-.settings-preset-save:hover,
-.settings-reset-btn:hover {
-  border-color: var(--pm-border-strong);
-  background: var(--pm-bg-hover);
-  color: var(--pm-text);
-}
-.settings-reset-btn {
-  width: 100%;
-  height: 30px;
-  margin-bottom: 14px;
-  border-radius: 9px;
-}
-.settings-close {
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--pm-text-muted);
-  cursor: pointer;
-}
-.settings-close:hover {
-  border-color: var(--pm-border);
-  background: var(--pm-bg-hover);
-  color: var(--pm-text);
-}
-.settings-row {
-  color: var(--pm-text-muted);
   font-size: 12px;
 }
-.settings-row-spaced {
-  margin-top: 14px;
-}
-.settings-value {
-  color: var(--pm-text);
-}
-.settings-range {
-  width: 100%;
-  margin: 10px 0 12px;
-  accent-color: var(--pm-accent);
-}
-.settings-actions {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-}
-.settings-actions button {
+.right-preset-migration-action {
   height: 28px;
-  border: 1px solid var(--pm-border);
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 0;
   border-radius: 999px;
   background: transparent;
   color: var(--pm-text-muted);
   cursor: pointer;
+  font-size: 12px;
+  font-weight: 560;
 }
-.settings-actions button:hover,
-.settings-actions button.active {
-  border-color: var(--pm-accent);
-  background: var(--pm-accent);
-  color: var(--pm-accent-text);
+.right-preset-migration-action:hover,
+.right-preset-migration-action.active {
+  background: var(--pm-row-hover);
+  color: var(--pm-text);
 }
-.settings-pop-enter-active,
-.settings-pop-leave-active {
-  transition:
-    opacity 0.12s ease,
-    transform 0.12s ease;
-}
-.settings-pop-enter-from,
-.settings-pop-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
+.right-aux-area :deep(.preset-panel) {
+  width: auto;
+  margin-inline: 0;
+  padding: 0 0 14px;
 }
 </style>

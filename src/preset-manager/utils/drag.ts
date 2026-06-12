@@ -1,6 +1,7 @@
 export type DragSession = {
   startEvent: MouseEvent;
   cursor?: string;
+  expectFocusInsideSourceFrame?: boolean;
   onMove: (event: MouseEvent) => void;
   onEnd?: () => void;
 };
@@ -31,6 +32,16 @@ export function cleanupPresetManagerDragOverlays(parentDoc: Document) {
   });
 }
 
+function shouldIgnoreBlurForSourceFrame(parentDoc: Document, sourceDoc: Document, event: Event) {
+  if (sourceDoc !== parentDoc && event.currentTarget === sourceDoc.defaultView) return true;
+  if (event.currentTarget !== parentDoc.defaultView) return false;
+
+  const sourceFrame = sourceDoc.defaultView?.frameElement;
+  if (!sourceFrame || sourceFrame.ownerDocument !== parentDoc) return false;
+
+  return parentDoc.activeElement === sourceFrame;
+}
+
 export function startParentDrag(parentDoc: Document, session: DragSession) {
   const sourceDoc = ((session.startEvent.currentTarget as Node | null)?.ownerDocument ?? session.startEvent.view?.document ?? document);
   const docs = Array.from(new Set([sourceDoc, parentDoc]));
@@ -38,6 +49,9 @@ export function startParentDrag(parentDoc: Document, session: DragSession) {
   const previousUserSelect = new Map<Document, string>();
   const previousCursor = new Map<Document, string>();
   const overlay = parentDoc.createElement('div');
+  const dragOptions = {
+    expectFocusInsideSourceFrame: session.expectFocusInsideSourceFrame ?? true,
+  };
   let active = true;
 
   cleanupPresetManagerDragOverlays(parentDoc);
@@ -74,7 +88,7 @@ export function startParentDrag(parentDoc: Document, session: DragSession) {
     }
     for (const win of windows) {
       win.removeEventListener('mouseup', finish, true);
-      win.removeEventListener('blur', finish, true);
+      win.removeEventListener('blur', onBlur, true);
     }
     session.onEnd?.();
   };
@@ -91,12 +105,19 @@ export function startParentDrag(parentDoc: Document, session: DragSession) {
     session.onMove(event);
   };
 
+  const onBlur = (event: Event) => {
+    if (dragOptions.expectFocusInsideSourceFrame) {
+      if (shouldIgnoreBlurForSourceFrame(parentDoc, sourceDoc, event)) return;
+    }
+    finish();
+  };
+
   for (const doc of docs) {
     doc.addEventListener('mousemove', onMove, true);
     doc.addEventListener('mouseup', finish, true);
   }
   for (const win of windows) {
     win.addEventListener('mouseup', finish, true);
-    win.addEventListener('blur', finish, true);
+    win.addEventListener('blur', onBlur, true);
   }
 }

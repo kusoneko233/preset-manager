@@ -17,23 +17,29 @@
       <div class="title-main">
         <div ref="presetMenuRef" class="preset-title-wrap">
           <button
+            type="button"
             class="preset-title-button"
             :class="{ open: presetMenuOpen }"
             :title="currentPresetName || '选择预设'"
+            @pointerdown.stop
             @click.stop="togglePresetMenu"
           >
             <span class="preset-title-text">{{ currentPresetName || '选择预设' }}</span>
             <Icon name="chevron-down" :size="13" class="preset-title-arrow" />
           </button>
+          <span v-if="currentPresetName && tokenRatioLabel" class="preset-token-ratio">{{ tokenRatioLabel }}</span>
 
           <Transition name="preset-menu-pop">
-            <div v-if="presetMenuOpen" class="preset-menu" @mousedown.stop>
+            <div v-if="presetMenuOpen" class="preset-menu" @pointerdown.stop @mousedown.stop>
               <button
                 v-for="name in presetNames"
                 :key="name"
+                type="button"
                 class="preset-menu-item"
                 :class="{ active: name === currentPresetName }"
-                @click="selectPreset(name)"
+                @pointerdown.stop
+                @mousedown.stop
+                @click.stop="selectPreset(name)"
               >
                 <span>{{ name }}</span>
                 <Icon v-if="name === currentPresetName" name="check" :size="13" />
@@ -43,88 +49,21 @@
           </Transition>
         </div>
 
-        <div class="preset-meta-group">
-          <span v-if="currentPresetName" class="preset-meta-chip">{{ promptCount }} 条</span>
-          <span v-if="currentPresetName && tokenEstimate" class="preset-meta-chip">约 {{ tokenLabel }} tokens</span>
-        </div>
       </div>
 
       <div class="title-controls">
         <IconButton name="corner-up-left" size="md" :disabled="!canUndo" title="撤回 (Ctrl+Z)" @click="$emit('undo')" />
         <IconButton name="corner-up-right" size="md" :disabled="!canRedo" title="重做 (Ctrl+Shift+Z)" @click="$emit('redo')" />
-        <IconButton name="highlighter" size="md" :active="annotationVisible" title="UI 批注模式" @click="$emit('toggleAnnotation')" />
-        <IconButton name="crosshair" size="md" :active="codeInspectorEnabled" title="开发者检查器" @click="$emit('toggleCodeInspector')" />
-        <IconButton name="palette" size="md" title="开发者背景面板" @click="$emit('toggleDevThemePanel')" />
-
-        <div ref="moreMenuRef" class="more-menu-wrap">
-          <IconButton
-            name="more-horizontal"
-            size="md"
-            :active="moreMenuOpen"
-            title="更多"
-            @click="onMoreButtonClick"
-          />
-
-          <Transition name="title-menu-pop">
-            <div v-if="moreMenuOpen" class="title-more-menu" @mousedown.stop>
-              <button class="title-more-item" @click="runMoreAction('history')">
-                <Icon name="history" :size="14" />
-                <span>历史备份</span>
-              </button>
-              <button class="title-more-item" @click="runMoreAction('createPreset')">
-                <Icon name="folder" :size="14" />
-                <span>新建预设</span>
-              </button>
-              <button class="title-more-item" @click="runMoreAction('renamePreset')">
-                <Icon name="pen-line" :size="14" />
-                <span>重命名预设</span>
-              </button>
-              <button class="title-more-item danger" @click="runMoreAction('deletePreset')">
-                <Icon name="trash-2" :size="14" />
-                <span>删除预设</span>
-              </button>
-              <div class="title-more-divider" />
-              <button class="title-more-item" @click="runMoreAction('appendUnusedPrompt')">
-                <Icon name="list" :size="14" />
-                <span>添加未使用条目</span>
-              </button>
-              <button class="title-more-item" @click="runMoreAction('importPrompts')">
-                <Icon name="upload" :size="14" />
-                <span>导入条目</span>
-              </button>
-              <button class="title-more-item" @click="runMoreAction('exportPrompts')">
-                <Icon name="download" :size="14" />
-                <span>导出条目</span>
-              </button>
-              <button class="title-more-item" @click="runMoreAction('resetPromptOrder')">
-                <Icon name="refresh-cw" :size="14" />
-                <span>重置顺序</span>
-              </button>
-              <div class="title-more-divider" />
-              <button class="title-more-item" @click="runMoreAction('ui')">
-                <Icon name="sliders-horizontal" :size="14" />
-                <span>界面比例</span>
-              </button>
-              <button class="title-more-item" @click="runMoreAction('theme')">
-                <Icon :name="theme === 'dark' ? 'sun' : 'moon'" :size="14" />
-                <span>{{ theme === 'dark' ? '白天模式' : '黑夜模式' }}</span>
-              </button>
-            </div>
-          </Transition>
-        </div>
-
-        <PillButton
-          variant="primary"
-          size="sm"
-          leading-icon="plus"
-          class="title-cta"
-          title="新建条目"
-          @click="$emit('createPrompt')"
+        <button
+          type="button"
+          class="sidebar-toggle-button"
+          :class="{ active: rightSidebarOpen }"
+          :title="rightSidebarOpen ? '收起侧边栏辅助区' : '打开侧边栏辅助区'"
+          @click="$emit('toggleRightSidebar')"
         >
-          新建条目
-        </PillButton>
-
-        <div class="title-separator" />
+          <span>侧边栏</span>
+          <span class="sidebar-status-dot" :class="{ active: rightSidebarOpen }" aria-hidden="true" />
+        </button>
 
         <IconButton
           :name="isFullscreen ? 'minimize-2' : 'maximize-2'"
@@ -141,7 +80,6 @@
 <script setup lang="ts">
 import Icon from './Icon.vue';
 import IconButton from './IconButton.vue';
-import PillButton from './PillButton.vue';
 import { startParentDrag } from '../utils/drag';
 import { clampWindowStateWithVisibleArea, type WindowState } from '../utils/panelLayout';
 
@@ -149,35 +87,20 @@ const props = defineProps<{
   isFullscreen: boolean;
   canUndo: boolean;
   canRedo: boolean;
-  annotationVisible: boolean;
-  codeInspectorEnabled: boolean;
-  theme: 'dark' | 'light';
   leftCollapsed: boolean;
   currentPresetName: string;
   presetNames: string[];
-  promptCount: number;
-  tokenEstimate: number;
+  presetTokenTotal: number | null;
+  nativeTokenTotal: number | null;
+  rightSidebarOpen: boolean;
 }>();
 
 const emit = defineEmits<{
   undo: [];
   redo: [];
-  toggleHistory: [];
-  toggleTheme: [];
-  toggleUiSettings: [];
-  toggleAnnotation: [];
-  toggleDevThemePanel: [];
-  toggleCodeInspector: [];
   toggleLeftSidebar: [];
+  toggleRightSidebar: [];
   selectPreset: [name: string];
-  createPrompt: [];
-  createPreset: [];
-  renamePreset: [];
-  deletePreset: [];
-  appendUnusedPrompt: [];
-  importPrompts: [];
-  exportPrompts: [];
-  resetPromptOrder: [];
   toggleFullscreen: [];
   close: [];
 }>();
@@ -190,52 +113,23 @@ const windowStateVersion = inject<string>('presetManagerWindowStateVersion', '')
 const windowMinVisibleRatio = inject<number>('presetManagerWindowMinVisibleRatio', 0.1);
 
 const presetMenuOpen = ref(false);
-const moreMenuOpen = ref(false);
 const presetMenuRef = ref<HTMLElement>();
-const moreMenuRef = ref<HTMLElement>();
-const tokenLabel = computed(() => props.tokenEstimate >= 1000 ? `${(props.tokenEstimate / 1000).toFixed(1)}k` : String(props.tokenEstimate));
+const tokenRatioLabel = computed(() => {
+  const preset = formatTokenAmount(props.presetTokenTotal);
+  const total = formatTokenAmount(props.nativeTokenTotal);
+  return `${preset} / ${total} tokens`;
+});
+
+const tokenNumberFormatter = new Intl.NumberFormat('en-US');
+
+function formatTokenAmount(value: number | null | undefined) {
+  // Example: 12,345 / 134,817 tokens
+  if (value === null || value === undefined || !Number.isFinite(value)) return '--';
+  return tokenNumberFormatter.format(Math.max(0, Math.round(value)));
+}
 
 function togglePresetMenu() {
   presetMenuOpen.value = !presetMenuOpen.value;
-  if (presetMenuOpen.value) moreMenuOpen.value = false;
-}
-
-function toggleMoreMenu() {
-  moreMenuOpen.value = !moreMenuOpen.value;
-  if (moreMenuOpen.value) presetMenuOpen.value = false;
-}
-
-function onMoreButtonClick(event: MouseEvent) {
-  event.stopPropagation();
-  toggleMoreMenu();
-}
-
-function runMoreAction(
-  action:
-    | 'history'
-    | 'theme'
-    | 'ui'
-    | 'createPrompt'
-    | 'createPreset'
-    | 'renamePreset'
-    | 'deletePreset'
-    | 'appendUnusedPrompt'
-    | 'importPrompts'
-    | 'exportPrompts'
-    | 'resetPromptOrder',
-) {
-  moreMenuOpen.value = false;
-  if (action === 'history') emit('toggleHistory');
-  if (action === 'theme') emit('toggleTheme');
-  if (action === 'ui') emit('toggleUiSettings');
-  if (action === 'createPrompt') emit('createPrompt');
-  if (action === 'createPreset') emit('createPreset');
-  if (action === 'renamePreset') emit('renamePreset');
-  if (action === 'deletePreset') emit('deletePreset');
-  if (action === 'appendUnusedPrompt') emit('appendUnusedPrompt');
-  if (action === 'importPrompts') emit('importPrompts');
-  if (action === 'exportPrompts') emit('exportPrompts');
-  if (action === 'resetPromptOrder') emit('resetPromptOrder');
 }
 
 function selectPreset(name: string) {
@@ -243,13 +137,10 @@ function selectPreset(name: string) {
   if (name) emit('selectPreset', name);
 }
 
-function closePresetMenu(e: MouseEvent) {
-  if (!presetMenuRef.value?.contains(e.target as Node)) {
-    presetMenuOpen.value = false;
-  }
-  if (!moreMenuRef.value?.contains(e.target as Node)) {
-    moreMenuOpen.value = false;
-  }
+function closePresetMenuFromOutside(event?: Event) {
+  const target = event?.target as Node | null;
+  if (target && presetMenuRef.value?.contains(target)) return;
+  presetMenuOpen.value = false;
 }
 
 function onDragStart(e: MouseEvent) {
@@ -329,11 +220,21 @@ function onDragStart(e: MouseEvent) {
 }
 
 onMounted(() => {
-  document.addEventListener('mousedown', closePresetMenu);
+  document.addEventListener('pointerdown', closePresetMenuFromOutside, true);
+  document.addEventListener('mousedown', closePresetMenuFromOutside, true);
+  document.addEventListener('click', closePresetMenuFromOutside, true);
+  parentDoc.addEventListener('pointerdown', closePresetMenuFromOutside, true);
+  parentDoc.addEventListener('mousedown', closePresetMenuFromOutside, true);
+  parentDoc.addEventListener('click', closePresetMenuFromOutside, true);
 });
 
 onUnmounted(() => {
-  document.removeEventListener('mousedown', closePresetMenu);
+  document.removeEventListener('pointerdown', closePresetMenuFromOutside, true);
+  document.removeEventListener('mousedown', closePresetMenuFromOutside, true);
+  document.removeEventListener('click', closePresetMenuFromOutside, true);
+  parentDoc.removeEventListener('pointerdown', closePresetMenuFromOutside, true);
+  parentDoc.removeEventListener('mousedown', closePresetMenuFromOutside, true);
+  parentDoc.removeEventListener('click', closePresetMenuFromOutside, true);
 });
 </script>
 
@@ -355,10 +256,9 @@ onUnmounted(() => {
   align-items: center;
   justify-content: flex-end;
   padding: 0 14px 0 20px;
-  /* Same acrylic as the sidebar, so sidebar + this section read as ONE glass column. */
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border-right: 1px solid var(--pm-sidebar-edge);
 }
 .title-bar.left-collapsed .title-left {
@@ -387,7 +287,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 0 16px 0 22px;
+  padding: 0 16px 0 12px;
   background: var(--pm-bg-titlebar);
   /* Bottom rule only on the right side — sidebar + title-left stay one continuous glass. */
   border-bottom: 1px solid var(--pm-divider);
@@ -443,6 +343,15 @@ onUnmounted(() => {
   flex-shrink: 0;
   color: var(--pm-text-muted);
   transition: transform 0.16s ease, color 0.12s ease;
+}
+.preset-token-ratio {
+  flex: 0 0 auto;
+  margin-left: 4px;
+  color: var(--pm-text-subtle);
+  font-size: 12px;
+  font-weight: 520;
+  line-height: 1;
+  white-space: nowrap;
 }
 .preset-title-button:hover .preset-title-arrow,
 .preset-title-button.open .preset-title-arrow {
@@ -508,85 +417,47 @@ onUnmounted(() => {
   opacity: 0;
   transform: translateY(-3px);
 }
-.preset-meta-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.preset-meta-chip {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 8px;
-  border: 1px solid var(--pm-border);
-  border-radius: 999px;
-  color: var(--pm-text-subtle);
-  font-size: 11.5px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  line-height: 1;
-  white-space: nowrap;
-}
 .title-controls {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 2px;
 }
-.title-cta {
+.sidebar-toggle-button {
+  min-width: 0;
+  height: 28px;
   margin-left: 4px;
-}
-.title-separator {
-  width: 1px;
-  height: 18px;
-  margin: 0 6px;
-  background: var(--pm-divider);
-}
-.more-menu-wrap {
-  position: relative;
-}
-.title-more-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 900;
-  width: 184px;
-  padding: 4px;
-  border: 1px solid var(--pm-border-strong);
-  border-radius: 10px;
-  background: var(--pm-bg-elevated);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
-}
-.title-more-item {
-  width: 100%;
-  min-height: 32px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--pm-text-muted);
+  gap: 6px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pm-bg-elevated) 72%, transparent);
+  color: var(--pm-text);
   cursor: pointer;
-  text-align: left;
   font-size: 13px;
+  font-weight: 580;
+  letter-spacing: 0;
+  white-space: nowrap;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
 }
-.title-more-item:hover {
-  background: var(--pm-pill-bg-hover);
+.sidebar-toggle-button:hover {
+  background: color-mix(in srgb, var(--pm-bg-elevated) 92%, transparent);
   color: var(--pm-text);
 }
-.title-more-item.danger {
-  color: var(--pm-danger);
+.sidebar-status-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pm-text-muted) 58%, transparent);
+  transition: background 0.14s ease;
 }
-.title-more-item.danger:hover {
-  color: var(--pm-danger);
-  background: color-mix(in srgb, var(--pm-danger) 14%, transparent);
-}
-.title-more-divider {
-  height: 1px;
-  margin: 4px 6px;
-  background: var(--pm-divider);
+.sidebar-status-dot.active {
+  background: var(--pm-success);
 }
 .title-menu-pop-enter-active,
 .title-menu-pop-leave-active {

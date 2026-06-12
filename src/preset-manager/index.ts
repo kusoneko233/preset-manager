@@ -1,4 +1,3 @@
-import '@fontsource-variable/inter';
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import { createScriptIdIframe, teleportStyle } from '@util/script';
@@ -37,6 +36,8 @@ const PANEL_ROLE = 'panel';
 const DEFAULT_BUTTON_POSITION = instance.defaultPosition;
 const CODE_INSPECTOR_STATE_EVENT = 'preset-manager-code-inspector-state';
 const CODE_INSPECTOR_SELECT_EVENT = 'preset-manager-code-inspector-select';
+const DEV_THEME_STABLE_ID_ATTR = 'data-preset-manager-dev-stable-id';
+let devThemeStableIdCounter = 0;
 
 type FloatingButtonPosition = { left: number; top: number };
 
@@ -47,8 +48,10 @@ type InspectorLocateTarget = {
 
 type CodeInspectorSelectPayload = {
   path: string;
+  selectors: string[];
   label: string;
   tag: string;
+  stability: 'source' | 'stable' | 'fallback';
   matchedCount: number;
   rect?: { width: number; height: number };
 };
@@ -157,8 +160,10 @@ function dispatchCodeInspectorState(iframeDoc: Document, parentDoc: Document, en
 
 function dispatchCodeInspectorSelect(iframeDoc: Document, parentDoc: Document, payload: {
   path: string;
+  selectors: string[];
   label: string;
   tag: string;
+  stability: 'source' | 'stable' | 'fallback';
   matchedCount: number;
 }) {
   dispatchPresetManagerEvent(iframeDoc, parentDoc, CODE_INSPECTOR_SELECT_EVENT, payload);
@@ -168,17 +173,91 @@ function buildSelectedElementPath(target: HTMLElement, sourceInfo: InspectorSour
   return buildInspectorSourcePathKey(sourceInfo) || `__selected_element__:${target.tagName.toLowerCase()}`;
 }
 
-function buildInspectorSourceSelectors(path: string) {
-  if (!path) return '';
-  const escaped = path.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
-  const escapedWithColon = `${escaped}:`;
+function escapeAttributeValue(value: string) {
+  return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+}
+
+function escapeCssIdentifier(value: string) {
+  const css = window.CSS as (typeof CSS | undefined);
+  if (css?.escape) return css.escape(value);
+  return value.replace(/[^a-zA-Z0-9_-]/g, character => `\\${character}`);
+}
+
+function buildInspectorSourceSelectorList(path: string) {
+  if (!path) return [];
+  const escaped = escapeAttributeValue(path);
+  const escapedWithColon = escapeAttributeValue(`${path}:`);
   return [
     `[data-insp-path="${escaped}"]`,
     `[data-insp-path^="${escapedWithColon}"]`,
     `[data-v-inspector="${escaped}"]`,
     `[data-v-inspector^="${escapedWithColon}"]`,
     `[data-preset-manager-selected-source="${escaped}"]`,
-  ].join(',');
+  ];
+}
+
+function buildInspectorSourceSelectors(path: string) {
+  return buildInspectorSourceSelectorList(path).join(',');
+}
+
+function ensureStableElementId(target: HTMLElement) {
+  const existing = target.getAttribute(DEV_THEME_STABLE_ID_ATTR);
+  if (existing) return existing;
+  devThemeStableIdCounter += 1;
+  const next = `pm-stable-${Date.now().toString(36)}-${devThemeStableIdCounter.toString(36)}`;
+  target.setAttribute(DEV_THEME_STABLE_ID_ATTR, next);
+  return next;
+}
+
+function buildElementSegment(element: HTMLElement) {
+  const tag = element.tagName.toLowerCase();
+  const classes = Array.from(element.classList)
+    .filter(className => className && !className.startsWith('pm-inspector-'))
+    .slice(0, 3)
+    .map(className => `.${escapeCssIdentifier(className)}`)
+    .join('');
+  const siblings = element.parentElement
+    ? Array.from(element.parentElement.children).filter(child => child.tagName === element.tagName)
+    : [];
+  const nth = siblings.length > 1 ? `:nth-of-type(${siblings.indexOf(element) + 1})` : '';
+  return `${tag}${classes}${nth}`;
+}
+
+function buildDomPathSelector(target: HTMLElement) {
+  const parts: string[] = [];
+  let current: HTMLElement | null = target;
+  for (let depth = 0; current && depth < 5; depth += 1) {
+    if (current.id) {
+      parts.unshift(`#${escapeCssIdentifier(current.id)}`);
+      break;
+    }
+    parts.unshift(buildElementSegment(current));
+    if (current.matches('.app-root, .left-sidebar, .preset-workspace, .preset-panel, .dev-theme-panel, .ai-assistant')) {
+      break;
+    }
+    current = current.parentElement;
+  }
+  return parts.length ? parts.join(' > ') : '';
+}
+
+function buildSelectedElementSelectors(target: HTMLElement, path: string, sourceInfo: InspectorSourceInfo) {
+  const selectors = new Set<string>();
+  if (sourceInfo.path) {
+    buildInspectorSourceSelectorList(path).forEach(selector => selectors.add(selector));
+  }
+
+  const stableId = ensureStableElementId(target);
+  selectors.add(`[${DEV_THEME_STABLE_ID_ATTR}="${escapeAttributeValue(stableId)}"]`);
+
+  if (target.id) selectors.add(`#${escapeCssIdentifier(target.id)}`);
+  const domPathSelector = buildDomPathSelector(target);
+  if (domPathSelector) selectors.add(domPathSelector);
+  return Array.from(selectors);
+}
+
+function inferSelectedElementStability(sourceInfo: InspectorSourceInfo, selectors: string[]): CodeInspectorSelectPayload['stability'] {
+  if (sourceInfo.path) return 'source';
+  return selectors.some(selector => !selector.includes(DEV_THEME_STABLE_ID_ATTR)) ? 'stable' : 'fallback';
 }
 
 function clearDevThemeSelectionMarks(iframeDoc: Document) {
@@ -192,6 +271,15 @@ function countSelectedMatches(iframeDoc: Document, path: string) {
   if (!path) return 0;
   try {
     return iframeDoc.querySelectorAll(buildInspectorSourceSelectors(path)).length;
+  } catch {
+    return 0;
+  }
+}
+
+function countSelectorMatches(iframeDoc: Document, selectors: string[]) {
+  if (!selectors.length) return 0;
+  try {
+    return iframeDoc.querySelectorAll(selectors.join(',')).length;
   } catch {
     return 0;
   }
@@ -212,8 +300,13 @@ function markSelectedMatches(iframeDoc: Document, path: string) {
   }
 }
 
-function markSelectedTarget(iframeDoc: Document, target: HTMLElement, path: string) {
-  const markedCount = markSelectedMatches(iframeDoc, path);
+function markSelectedTarget(iframeDoc: Document, target: HTMLElement, path: string, sourceInfo: InspectorSourceInfo) {
+  let markedCount = 0;
+  if (sourceInfo.path) {
+    markedCount = markSelectedMatches(iframeDoc, path);
+  } else {
+    clearDevThemeSelectionMarks(iframeDoc);
+  }
   if (!path) return markedCount;
   if (!target.matches('[data-preset-manager-selected-source]')) {
     target.setAttribute('data-preset-manager-selected-source', path);
@@ -494,14 +587,17 @@ function bindCodeInspectorControls(iframeDoc: Document, parentDoc: Document): Co
   const dispatchSelectFor = (target: HTMLElement) => {
     const sourceInfo = getInspectorSourceInfo(target);
     const pathKey = buildSelectedElementPath(target, sourceInfo);
-    const markedCount = markSelectedTarget(iframeDoc, target, pathKey);
-    const matchedCount = markedCount || countSelectedMatches(iframeDoc, pathKey) || 1;
+    const selectors = buildSelectedElementSelectors(target, pathKey, sourceInfo);
+    const markedCount = markSelectedTarget(iframeDoc, target, pathKey, sourceInfo);
+    const matchedCount = markedCount || countSelectorMatches(iframeDoc, selectors) || countSelectedMatches(iframeDoc, pathKey) || 1;
     const shortPath = sourceInfo.path ? normalizeInspectorSourcePath(sourceInfo.path) : target.tagName.toLowerCase();
     const rect = target.getBoundingClientRect();
     const payload: CodeInspectorSelectPayload = {
       path: pathKey,
+      selectors: buildSelectedElementSelectors(target, pathKey, sourceInfo),
       label: sourceInfo.path ? `${shortPath}:${sourceInfo.line ?? 1}` : `${shortPath}（仅样式选中，暂无源码定位）`,
       tag: target.tagName.toLowerCase(),
+      stability: sourceInfo.path ? 'source' : inferSelectedElementStability(sourceInfo, selectors),
       matchedCount,
       rect: { width: Math.round(rect.width), height: Math.round(rect.height) },
     };
@@ -983,6 +1079,19 @@ function togglePanel() {
   schedulePanelMount(iframeElement);
 }
 
+function registerScriptButton() {
+  try {
+    updateScriptButtonsWith(buttons => {
+      const nextButtons = INSTANCE_KEY === 'default' ? buttons : buttons.filter(button => button.name !== '预设管理器');
+      if (nextButtons.some(button => button.name === BUTTON_NAME)) return nextButtons;
+      return [...nextButtons, { name: BUTTON_NAME, visible: true }];
+    });
+    eventOn(getButtonEvent(BUTTON_NAME), () => togglePanel());
+  } catch (error) {
+    console.warn('[Preset Manager] script button registration failed:', error);
+  }
+}
+
 $(() => {
   console.info('[Preset Manager] loaded', {
     instance: INSTANCE_KEY,
@@ -997,14 +1106,8 @@ $(() => {
   cleanupPresetManagerDragOverlays(window.parent.document);
   cleanupPresetManagerInstanceElements(window.parent.document);
 
-  updateScriptButtonsWith(buttons => {
-    const nextButtons = INSTANCE_KEY === 'default' ? buttons : buttons.filter(button => button.name !== '预设管理器');
-    if (nextButtons.some(button => button.name === BUTTON_NAME)) return nextButtons;
-    return [...nextButtons, { name: BUTTON_NAME, visible: true }];
-  });
-  eventOn(getButtonEvent(BUTTON_NAME), () => togglePanel());
-
   $floatingBtn = createFloatingButton();
+  registerScriptButton();
 
   $(window).on('pagehide', () => {
     cleanupPanelApp();

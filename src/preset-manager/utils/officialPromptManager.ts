@@ -132,6 +132,12 @@ export function isOfficialPromptDeletable(prompt: OfficialCompatiblePrompt | nul
   return Boolean(prompt && !isOfficialSystemOrMarkerPrompt(prompt));
 }
 
+export function isPresetPlaceholderPrompt(prompt: OfficialCompatiblePrompt | null | undefined): boolean {
+  if (!prompt) return true;
+  const key = getOfficialPromptKey(prompt);
+  return Boolean(prompt.marker || OFFICIAL_MARKER_PROMPT_IDS.has(key));
+}
+
 export function normalizeOfficialPrompt(prompt: OfficialCompatiblePrompt): OfficialCompatibleNormalPrompt {
   const promptKey = String(prompt.identifier ?? prompt.id ?? createPromptIdentifier());
   const normalized = {

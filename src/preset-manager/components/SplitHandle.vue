@@ -1,7 +1,7 @@
 <template>
   <div
     ref="handleRef"
-    :class="['split-handle', direction, { dragging: isDragging }]"
+    :class="['split-handle', direction, `hit-${props.hitArea}`, { dragging: isDragging }]"
     @mousedown.stop.prevent="onMouseDown"
   >
     <div class="split-handle-bar" />
@@ -11,9 +11,10 @@
 <script setup lang="ts">
 import { startParentDrag } from '../utils/drag';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   direction: 'horizontal' | 'vertical';
-}>();
+  hitArea?: 'normal' | 'narrow';
+}>(), { hitArea: 'normal' });
 
 const parentDoc = inject<Document>('parentDocument')!;
 
@@ -76,6 +77,10 @@ function onMouseDown(e: MouseEvent) {
   inset-block: 0;
   left: -6px;
   width: 13px;
+}
+.split-handle.vertical.hit-narrow::before {
+  left: -2px;
+  width: 5px;
 }
 .split-handle.horizontal::before {
   inset-inline: 0;

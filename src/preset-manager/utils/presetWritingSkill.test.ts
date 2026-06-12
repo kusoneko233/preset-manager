@@ -31,11 +31,16 @@ async function main() {
   expectEqual(detectPresetWritingIntent('优化这个提示词的文风控制'), 'style');
   expectEqual(detectPresetWritingIntent('Claude 的 role 顺序和 API 上下文怎么适配'), 'model');
   expectEqual(detectPresetWritingIntent('帮我查一下 lost in the middle 导致的重复和遗忘'), 'diagnose');
+  expectEqual(detectPresetWritingIntent('接管这个预设编写，帮我先解析结构'), 'diagnose');
+  expectEqual(detectPresetWritingIntent('帮我把这个预设整理成 Claude 用的结构'), 'model');
+  expectEqual(detectPresetWritingIntent('测试一下这个预设哪里不好用'), 'diagnose');
   expectEqual(detectPresetWritingIntent('今天天气怎么样'), 'none');
 
   expectEqual(shouldUsePresetWritingSkill('帮我写预设'), true);
   expectEqual(shouldUsePresetWritingSkill('解释一下这个条目的 role 和位置'), true);
   expectEqual(shouldUsePresetWritingSkill('怎么给这个角色做叙事风格锚点'), true);
+  expectEqual(shouldUsePresetWritingSkill('帮我接管预设编写'), true);
+  expectEqual(shouldUsePresetWritingSkill('解析一下 izumi 这个预设的结构'), true);
   expectEqual(shouldUsePresetWritingSkill('打开设置'), false);
 
   const skillPrompt = buildPresetWritingSkillPrompt({

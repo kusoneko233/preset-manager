@@ -31,6 +31,11 @@ const INTENT_PATTERNS: Array<{ intent: Exclude<PresetWritingIntent, 'none'>; wor
       '查错',
       '重复',
       '遗忘',
+      '解析结构',
+      '解析预设',
+      '预设结构',
+      '测试预设',
+      '预设不好用',
       'lost in the middle',
     ],
   },
@@ -63,6 +68,20 @@ export function detectPresetWritingIntent(input: string): PresetWritingIntent {
   }
 
   if (text.includes('提示词') || text.includes('条目') || text.includes('位置') || text.includes('预填充')) {
+    return 'optimize';
+  }
+
+  if (
+    text.includes('预设')
+    && ['解析', '检查', '诊断', '结构', '测试', '不好用', '哪里有问题'].some(word => text.includes(word))
+  ) {
+    return 'diagnose';
+  }
+
+  if (
+    text.includes('预设')
+    && ['编写', '接管', '整理', '修改', '重构', '优化'].some(word => text.includes(word))
+  ) {
     return 'optimize';
   }
 

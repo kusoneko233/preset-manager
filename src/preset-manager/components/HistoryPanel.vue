@@ -41,16 +41,29 @@
             <section class="section">
               <div class="section-title">
                 <span>快照备份</span>
-                <button class="snapshot-btn" @click="createManualSnapshot">
-                  <Icon name="camera" :size="13" />
-                  <span>创建快照</span>
-                </button>
+                <div class="snapshot-head-actions">
+                  <button class="snapshot-btn" :disabled="!autoSnapshotCount" @click="clearAutoSnapshots">
+                    <Icon name="trash-2" :size="13" />
+                    <span>清理自动</span>
+                  </button>
+                  <button class="snapshot-btn" @click="createManualSnapshot">
+                    <Icon name="camera" :size="13" />
+                    <span>创建快照</span>
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="history.snapshots.length" class="snapshot-search-row">
+                <Icon name="search" :size="13" />
+                <input v-model="snapshotSearch" type="search" placeholder="搜索快照、预设名或条目内容" />
+                <span>{{ filteredSnapshots.length }} / {{ history.snapshots.length }}</span>
               </div>
 
               <div v-if="!history.snapshots.length" class="empty-state">无备份快照</div>
+              <div v-else-if="!filteredSnapshots.length" class="empty-state">没有匹配的快照</div>
 
               <div v-else class="snapshot-list">
-                <div v-for="snap in history.snapshots" :key="snap.id" class="snapshot-item">
+                <div v-for="snap in filteredSnapshots" :key="snap.id" class="snapshot-item">
                   <div class="snap-info">
                     <div class="snap-title-row">
                       <span class="snap-name">{{ snap.name }}</span>
@@ -61,6 +74,9 @@
                   <div class="snap-actions">
                     <button class="icon-btn" title="重命名" @click="renameSnapshot(snap)">
                       <Icon name="pen-line" :size="13" />
+                    </button>
+                    <button class="icon-btn" title="导出快照" @click="exportSnapshot(snap)">
+                      <Icon name="download" :size="13" />
                     </button>
                     <button class="icon-btn" title="恢复快照" @click="restoreSnapshot(snap.id, snap.name)">
                       <Icon name="corner-up-left" :size="13" />
@@ -85,14 +101,28 @@ import type { Snapshot } from '../stores/history';
 import type { OperationRecord } from '../stores/history';
 import { useHistoryStore } from '../stores/history';
 import { useManagerStore } from '../stores/manager';
+import { useConfirmStore } from '../stores/confirm';
+import { useTextPromptStore } from '../stores/textPrompt';
+import {
+  buildSnapshotExport,
+  buildSnapshotRestoreSummary,
+  filterSnapshots,
+  getAutoSnapshotCleanupIds,
+  sanitizeSnapshotFileName,
+} from '../utils/snapshotHistory';
 
 defineProps<{ visible: boolean }>();
 defineEmits<{ close: [] }>();
 
 const history = useHistoryStore();
 const manager = useManagerStore();
+const confirmDialog = useConfirmStore();
+const textPrompt = useTextPromptStore();
+const snapshotSearch = ref('');
 
 const operationItems = computed(() => history.undoStack.map((record, index) => ({ record, index })).reverse());
+const filteredSnapshots = computed(() => filterSnapshots(history.snapshots, snapshotSearch.value));
+const autoSnapshotCount = computed(() => history.snapshots.filter(snap => snap.auto).length);
 
 function formatDateTime(ts: number) {
   const d = new Date(ts);
@@ -114,18 +144,31 @@ function refreshPresets() {
   manager.refreshSecondPreset();
 }
 
+function tryGetPresetForSummary(presetName: string) {
+  try {
+    return getPreset(presetName);
+  } catch {
+    return null;
+  }
+}
+
 function getDefaultSnapshotName(presetName: string) {
   return `手动备份 - ${presetName} - ${formatDateTime(Date.now())}`;
 }
 
-function createManualSnapshot() {
+async function createManualSnapshot() {
   const presetName = manager.presetName;
   if (!presetName) {
     toastr.warning('请先选择主预设', '', { timeOut: 2000 });
     return;
   }
 
-  const input = prompt('快照名称', getDefaultSnapshotName(presetName));
+  const input = await textPrompt.prompt({
+    title: '创建快照',
+    label: '快照名称',
+    defaultValue: getDefaultSnapshotName(presetName),
+    confirmLabel: '创建',
+  });
   if (input === null) return;
 
   const snapshotName = input.trim();
@@ -139,7 +182,12 @@ function createManualSnapshot() {
 }
 
 async function restoreOperation(index: number, description: string) {
-  if (!confirm(`确定回到这条历史记录之后的状态吗？\n\n${description}\n\n当前状态会先写入撤销历史。`)) return;
+  if (!await confirmDialog.confirm({
+    title: '恢复操作记录',
+    message: '确定回到这条历史记录之后的状态吗？',
+    details: `${description}\n\n当前状态会先写入撤销历史。`,
+    confirmLabel: '恢复',
+  })) return;
 
   const record = await history.restoreOperation(index);
   if (record) {
@@ -150,8 +198,13 @@ async function restoreOperation(index: number, description: string) {
   }
 }
 
-function renameSnapshot(snapshot: Snapshot) {
-  const input = prompt('快照名称', snapshot.name);
+async function renameSnapshot(snapshot: Snapshot) {
+  const input = await textPrompt.prompt({
+    title: '重命名快照',
+    label: '快照名称',
+    defaultValue: snapshot.name,
+    confirmLabel: '重命名',
+  });
   if (input === null) return;
 
   const ok = history.renameSnapshot(snapshot.id, input);
@@ -163,7 +216,20 @@ function renameSnapshot(snapshot: Snapshot) {
 }
 
 async function restoreSnapshot(id: string, name: string) {
-  if (!confirm(`确定恢复快照吗？\n\n${name}\n\n当前更改会先写入撤销历史。`)) return;
+  const snapshot = history.snapshots.find(item => item.id === id);
+  const restoreSummary = snapshot
+    ? buildSnapshotRestoreSummary({
+      currentPreset: tryGetPresetForSummary(snapshot.presetName),
+      snapshotPreset: snapshot.preset,
+    })
+    : '';
+
+  if (!await confirmDialog.confirm({
+    title: '恢复快照',
+    message: '确定恢复快照吗？',
+    details: `${name}\n${restoreSummary ? `\n${restoreSummary}` : ''}\n\n当前更改会先写入撤销历史。`,
+    confirmLabel: '恢复',
+  })) return;
 
   const ok = await history.restoreSnapshot(id);
   if (ok) {
@@ -174,8 +240,45 @@ async function restoreSnapshot(id: string, name: string) {
   }
 }
 
-function deleteSnapshot(id: string, name: string) {
-  if (!confirm(`确定删除这个快照吗？\n\n${name}`)) return;
+function downloadSnapshotFile(fileName: string, content: string) {
+  const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportSnapshot(snapshot: Snapshot) {
+  const baseName = sanitizeSnapshotFileName(`${snapshot.presetName}-${snapshot.name}`);
+  downloadSnapshotFile(`${baseName}.snapshot.json`, JSON.stringify(buildSnapshotExport(snapshot), null, 2));
+  toastr.success('快照已导出', '', { timeOut: 1400 });
+}
+
+async function clearAutoSnapshots() {
+  const ids = getAutoSnapshotCleanupIds(history.snapshots);
+  if (!ids.length) return;
+
+  if (!await confirmDialog.confirm({
+    title: '清理自动快照',
+    message: `确定删除 ${ids.length} 个自动快照吗？手动快照会保留。`,
+    confirmLabel: '清理',
+    tone: 'danger',
+  })) return;
+
+  const removed = history.deleteSnapshots(ids);
+  if (removed) toastr.info(`已清理 ${removed} 个自动快照`, '', { timeOut: 1400 });
+}
+
+async function deleteSnapshot(id: string, name: string) {
+  if (!await confirmDialog.confirm({
+    title: '删除快照',
+    message: '确定删除这个快照吗？',
+    details: name,
+    confirmLabel: '删除',
+    tone: 'danger',
+  })) return;
 
   const ok = history.deleteSnapshot(id);
   if (ok) {

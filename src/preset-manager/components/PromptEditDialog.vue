@@ -86,7 +86,7 @@
 
             <label class="field content-field">
               <span>内容</span>
-              <textarea v-model="draft.content" class="content-input" />
+              <textarea ref="contentInput" v-model="draft.content" class="content-input" />
             </label>
           </div>
 
@@ -134,6 +134,7 @@ const TRIGGER_OPTIONS = [
 const props = defineProps<{
   visible: boolean;
   prompt: PresetPrompt;
+  initialFocus?: 'name' | 'content';
 }>();
 
 const emit = defineEmits<{
@@ -142,6 +143,7 @@ const emit = defineEmits<{
 }>();
 
 const nameInput = ref<HTMLInputElement>();
+const contentInput = ref<HTMLTextAreaElement>();
 const draft = reactive<PromptEditDraft>({
   name: '',
   role: 'system',
@@ -178,7 +180,15 @@ function resetDraft() {
     ? [...(props.prompt as any).injection_trigger]
     : [];
   draft.forbidOverrides = Boolean((props.prompt as any).forbid_overrides);
-  nextTick(() => nameInput.value?.focus());
+  nextTick(() => focusInitialField());
+}
+
+function focusInitialField() {
+  if (props.initialFocus === 'content') {
+    contentInput.value?.focus();
+    return;
+  }
+  nameInput.value?.focus();
 }
 
 function save() {
@@ -200,7 +210,7 @@ function save() {
 }
 
 watch(
-  () => [props.visible, props.prompt?.id],
+  () => [props.visible, props.prompt?.id, props.initialFocus],
   () => {
     if (props.visible) resetDraft();
   },

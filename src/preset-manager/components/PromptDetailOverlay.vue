@@ -26,9 +26,6 @@
           </div>
 
           <div v-if="showActions" class="overlay-footer">
-            <button class="footer-btn" @click="$emit('edit')">
-              <Icon name="pen-line" :size="13" /> 编辑
-            </button>
             <button class="footer-btn" @click="$emit('toggleFavorite')">
               <Icon name="star" :size="13" :class="isFavorited ? 'is-favorited' : ''" />
               {{ isFavorited ? '取消收藏' : '收藏' }}
@@ -52,7 +49,6 @@ const props = defineProps<{
 
 defineEmits<{
   close: [];
-  edit: [];
   toggleFavorite: [];
 }>();
 

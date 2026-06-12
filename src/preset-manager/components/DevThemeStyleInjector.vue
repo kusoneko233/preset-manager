@@ -55,6 +55,7 @@ function syncStyle() {
     targets: store.livePreviewActive ? livePreviewTargets.value : store.currentTargets,
     background: store.currentDraft,
     selectedPaths: store.livePreviewActive ? livePreviewSelectedPaths.value : selectedPaths.value,
+    pinnedStyles: store.pinnedStyles,
   });
   const iframeDoc = getIframeDocument();
   syncStyleElement(iframeDoc, css);
@@ -62,7 +63,7 @@ function syncStyle() {
 }
 
 watch(
-  () => [store.enabled, store.currentTargets, store.currentDraft, store.livePreviewActive, selectedPaths.value, livePreviewSelectedPaths.value],
+  () => [store.enabled, store.currentTargets, store.currentDraft, store.pinnedStyles, store.livePreviewActive, selectedPaths.value, livePreviewSelectedPaths.value],
   syncStyle,
   { deep: true, immediate: true },
 );

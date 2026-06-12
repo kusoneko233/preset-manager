@@ -42,6 +42,17 @@ export type AiCustomApiConfig = {
   source?: string;
 };
 
+export const TAVERN_API_PROFILE_ID = 'tavern_api_profile';
+const TAVERN_API_PROFILE_NAME = '酒馆 API';
+const TAVERN_API_PROFILE_GROUP = '酒馆';
+
+export type TavernApiProfileSnapshot = {
+  apiUrl: string;
+  key: string;
+  source: string;
+  model: string;
+};
+
 function createId(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -103,8 +114,162 @@ export function addModelToProfile(profile: AiApiProfile, name: string, group = p
   return model;
 }
 
+export function addModelsToProfile(profile: AiApiProfile, names: string[], group = profile.group) {
+  return names
+    .map(name => addModelToProfile(profile, name, group))
+    .filter((model): model is AiApiModel => Boolean(model));
+}
+
+export function createTavernApiProfile(snapshot: Partial<TavernApiProfileSnapshot> = {}): AiApiProfile {
+  const profile = createAiApiProfile({
+    id: TAVERN_API_PROFILE_ID,
+    name: TAVERN_API_PROFILE_NAME,
+    group: TAVERN_API_PROFILE_GROUP,
+    apiUrl: snapshot.apiUrl || '',
+    key: snapshot.key || '',
+    source: snapshot.source || 'openai',
+  });
+  if (snapshot.model) addModelToProfile(profile, snapshot.model, TAVERN_API_PROFILE_GROUP);
+  return profile;
+}
+
+function firstString(...values: unknown[]) {
+  for (const value of values) {
+    const text = asString(value).trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+function getRuntimeTavernContext() {
+  try {
+    return (globalThis as any).SillyTavern?.getContext?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function callString(fn: (() => unknown) | undefined) {
+  if (!fn) return '';
+  try {
+    return asString(fn()).trim();
+  } catch {
+    return '';
+  }
+}
+
+function readChatModelBySource(settings: Record<string, any>, source: string) {
+  const modelBySource: Record<string, string[]> = {
+    claude: ['claude_model'],
+    openai: ['openai_model'],
+    makersuite: ['google_model'],
+    google: ['google_model'],
+    vertexai: ['vertexai_model'],
+    openrouter: ['openrouter_model'],
+    ai21: ['ai21_model'],
+    mistralai: ['mistralai_model'],
+    custom: ['custom_model'],
+    cohere: ['cohere_model'],
+    perplexity: ['perplexity_model'],
+    groq: ['groq_model'],
+    siliconflow: ['siliconflow_model'],
+    electronhub: ['electronhub_model'],
+    chutes: ['chutes_model'],
+    nanogpt: ['nanogpt_model'],
+    deepseek: ['deepseek_model'],
+    aimlapi: ['aimlapi_model'],
+    xai: ['xai_model'],
+    pollinations: ['pollinations_model'],
+    cometapi: ['cometapi_model'],
+    moonshot: ['moonshot_model'],
+    fireworks: ['fireworks_model'],
+    azure_openai: ['azure_openai_model'],
+    zai: ['zai_model'],
+  };
+  return firstString(...(modelBySource[source] || []).map(key => settings[key]));
+}
+
+function readTextCompletionModel(settings: Record<string, any>) {
+  return firstString(
+    settings.custom_model,
+    settings.generic_model,
+    settings.mancer_model,
+    settings.togetherai_model,
+    settings.infermaticai_model,
+    settings.dreamgen_model,
+    settings.openrouter_model,
+    settings.vllm_model,
+    settings.aphrodite_model,
+    settings.ollama_model,
+    settings.featherless_model,
+    settings.tabby_model,
+    settings.llamacpp_model,
+  );
+}
+
+export function readTavernApiProfileSnapshot(context?: any): TavernApiProfileSnapshot | null {
+  const ctx = context ?? getRuntimeTavernContext();
+  if (!ctx || typeof ctx !== 'object') return null;
+
+  const chatSettings = (ctx.chatCompletionSettings ?? ctx.oai_settings ?? ctx.oaiSettings ?? {}) as Record<string, any>;
+  const textSettings = (
+    ctx.textCompletionSettings ??
+    ctx.textgenerationwebui_settings ??
+    ctx.textCompletionSettings ??
+    {}
+  ) as Record<string, any>;
+  const runtimeMainApi = firstString((globalThis as any).main_api, ctx.main_api, ctx.mainApi);
+
+  if (runtimeMainApi === 'textgenerationwebui' && textSettings && Object.keys(textSettings).length) {
+    const source = firstString(textSettings.type, 'textgenerationwebui');
+    return {
+      apiUrl: firstString(
+        callString(() => ctx.getTextGenServer?.(source)),
+        textSettings.server_urls?.[source],
+        textSettings.api_server,
+      ),
+      key: firstString(textSettings.key, textSettings.api_key, textSettings.apiKey),
+      source,
+      model: readTextCompletionModel(textSettings),
+    };
+  }
+
+  if (!chatSettings || !Object.keys(chatSettings).length) return null;
+  const source = firstString(chatSettings.chat_completion_source, chatSettings.source, 'openai');
+  const model = firstString(
+    callString(() => ctx.getChatCompletionModel?.(chatSettings)),
+    callString(() => ctx.getChatCompletionModel?.()),
+    readChatModelBySource(chatSettings, source),
+  );
+
+  return {
+    apiUrl: firstString(
+      chatSettings.reverse_proxy,
+      chatSettings.custom_url,
+      chatSettings.azure_base_url,
+      chatSettings.zai_endpoint,
+      chatSettings.apiUrl,
+      chatSettings.api_url,
+    ),
+    key: firstString(
+      chatSettings.proxy_password,
+      chatSettings.key,
+      chatSettings.api_key,
+      chatSettings.apiKey,
+      chatSettings.custom_api_key,
+    ),
+    source,
+    model,
+  };
+}
+
 function createLegacyProfile(raw: Partial<AiConfigShape>) {
-  const hasEndpoint = Boolean(asString(raw.apiUrl).trim() || asString(raw.key).trim() || asString(raw.source, 'openai').trim());
+  const hasEndpoint = Boolean(
+    asString(raw.apiUrl).trim() ||
+    asString(raw.key).trim() ||
+    asString(raw.model).trim() ||
+    asString(raw.source).trim()
+  );
   if (!hasEndpoint) return null;
   const profile = createAiApiProfile({
     name: '默认 API',
@@ -117,16 +282,32 @@ function createLegacyProfile(raw: Partial<AiConfigShape>) {
   return profile;
 }
 
+function ensureTavernApiProfile(profiles: AiApiProfile[], snapshot?: Partial<TavernApiProfileSnapshot>) {
+  const existingIndex = profiles.findIndex(profile => profile.id === TAVERN_API_PROFILE_ID);
+  if (existingIndex < 0) return [createTavernApiProfile(snapshot), ...profiles];
+  if (existingIndex === 0) return profiles;
+
+  const nextProfiles = profiles.slice();
+  const [tavernProfile] = nextProfiles.splice(existingIndex, 1);
+  nextProfiles.unshift(tavernProfile);
+  return nextProfiles;
+}
+
 export function normalizeAiConfig(raw: Partial<AiConfigShape> | null | undefined): AiConfigShape {
   const source = raw ?? {};
   const profiles = Array.isArray(source.apiProfiles)
     ? source.apiProfiles.map((profile, index) => normalizeProfile(profile, index))
     : [];
   const legacyProfile = profiles.length > 0 ? null : createLegacyProfile(source);
-  const apiProfiles = legacyProfile ? [legacyProfile] : profiles;
-  const activeProfileId = apiProfiles.some(profile => profile.id === source.activeProfileId)
-    ? asString(source.activeProfileId)
-    : apiProfiles[0]?.id ?? '';
+  const userProfiles = legacyProfile ? [legacyProfile] : profiles;
+  const apiProfiles = ensureTavernApiProfile(userProfiles);
+  const requestedActiveProfileId = asString(source.activeProfileId);
+  const fallbackActiveProfileId = legacyProfile?.id || profiles[0]?.id || TAVERN_API_PROFILE_ID;
+  const activeProfileId = apiProfiles.some(profile => profile.id === requestedActiveProfileId)
+    ? requestedActiveProfileId
+    : apiProfiles.some(profile => profile.id === fallbackActiveProfileId)
+      ? fallbackActiveProfileId
+      : apiProfiles[0]?.id ?? '';
 
   return {
     apiUrl: asString(source.apiUrl),
@@ -138,6 +319,59 @@ export function normalizeAiConfig(raw: Partial<AiConfigShape> | null | undefined
     activeProfileId,
     apiProfiles,
   };
+}
+
+export function applyTavernApiProfileSnapshot(config: AiConfigShape, snapshot: TavernApiProfileSnapshot | null): boolean {
+  let changed = false;
+  let profile = config.apiProfiles.find(item => item.id === TAVERN_API_PROFILE_ID);
+
+  if (!profile) {
+    profile = createTavernApiProfile(snapshot ?? {});
+    config.apiProfiles.unshift(profile);
+    if (!config.activeProfileId) config.activeProfileId = profile.id;
+    changed = true;
+  } else {
+    const currentIndex = config.apiProfiles.findIndex(item => item.id === TAVERN_API_PROFILE_ID);
+    if (currentIndex > 0) {
+      config.apiProfiles.splice(currentIndex, 1);
+      config.apiProfiles.unshift(profile);
+      changed = true;
+    }
+  }
+
+  if (!config.activeProfileId) {
+    config.activeProfileId = profile.id;
+    changed = true;
+  }
+
+  if (!profile || !snapshot) return changed;
+
+  const nextFields: Partial<AiApiProfile> = {
+    name: TAVERN_API_PROFILE_NAME,
+    group: TAVERN_API_PROFILE_GROUP,
+    apiUrl: snapshot.apiUrl,
+    key: snapshot.key,
+    source: snapshot.source || 'openai',
+  };
+
+  for (const [key, value] of Object.entries(nextFields) as Array<[keyof AiApiProfile, string]>) {
+    if (profile[key] !== value) {
+      (profile[key] as string) = value;
+      changed = true;
+    }
+  }
+
+  if (snapshot.model) {
+    const modelCount = profile.models.length;
+    addModelToProfile(profile, snapshot.model, TAVERN_API_PROFILE_GROUP);
+    changed = profile.models.length !== modelCount || changed;
+    if (config.activeProfileId === TAVERN_API_PROFILE_ID && config.model !== snapshot.model) {
+      config.model = snapshot.model;
+      changed = true;
+    }
+  }
+
+  return changed;
 }
 
 export function getActiveAiApiProfile(config: Pick<AiConfigShape, 'activeProfileId' | 'apiProfiles'>) {
@@ -162,9 +396,11 @@ export function buildAiCustomApi(config: Pick<AiConfigShape, 'apiProfiles' | 'ac
     customApi.proxy_preset = config.proxyPreset.trim();
   } else {
     const profile = getActiveAiApiProfile(config);
-    if (profile?.apiUrl.trim()) customApi.apiurl = profile.apiUrl.trim();
-    if (profile?.key) customApi.key = profile.key;
-    if (profile?.source.trim()) customApi.source = profile.source.trim();
+    if (profile?.id !== TAVERN_API_PROFILE_ID) {
+      if (profile?.apiUrl.trim()) customApi.apiurl = profile.apiUrl.trim();
+      if (profile?.key) customApi.key = profile.key;
+      if (profile?.source.trim()) customApi.source = profile.source.trim();
+    }
   }
   if (model) customApi.model = model;
   return customApi;

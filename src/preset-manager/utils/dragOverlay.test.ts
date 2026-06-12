@@ -23,6 +23,13 @@ expectIncludes(drag, "export function cleanupPresetManagerDragOverlays(parentDoc
 expectIncludes(drag, 'if (isLegacyDragOverlay(element, parentDoc)) element.remove();');
 expectIncludes(drag, "overlay.setAttribute(DRAG_OVERLAY_ATTRIBUTE, 'true');");
 expectIncludes(drag, "pointerEvents: 'none',");
+expectIncludes(drag, 'function shouldIgnoreBlurForSourceFrame(parentDoc: Document, sourceDoc: Document, event: Event)');
+expectIncludes(drag, 'if (sourceDoc !== parentDoc && event.currentTarget === sourceDoc.defaultView) return true;');
+expectIncludes(drag, 'if (event.currentTarget !== parentDoc.defaultView) return false;');
+expectIncludes(drag, "if (shouldIgnoreBlurForSourceFrame(parentDoc, sourceDoc, event)) return;");
+expectIncludes(drag, "win.addEventListener('blur', onBlur, true);");
+expectIncludes(drag, "win.removeEventListener('blur', onBlur, true);");
+expectIncludes(drag, "expectFocusInsideSourceFrame: session.expectFocusInsideSourceFrame ?? true,");
 expectIncludes(drag, 'const failsafeTimer = parentDoc.defaultView?.setTimeout(finish, DRAG_OVERLAY_FAILSAFE_MS);');
 expectIncludes(drag, 'parentDoc.defaultView?.clearTimeout(failsafeTimer);');
 expectIncludes(index, 'cleanupPresetManagerDragOverlays(window.parent.document);');

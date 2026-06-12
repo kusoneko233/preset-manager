@@ -22,7 +22,7 @@ function expectNotIncludes(content: string, unexpected: string) {
 
 const devThemeIO = readProjectFile('src/preset-manager/utils/devThemeIO.ts');
 
-expectIncludes(devThemeIO, "import { createDefaultDevThemeBackground, type DevThemeBackground, type DevThemeTarget } from './devThemeCss';");
+expectIncludes(devThemeIO, "import { createDefaultDevThemeBackground, type DevThemeBackground, type DevThemePinnedStyle, type DevThemeTarget } from './devThemeCss';");
 expectIncludes(devThemeIO, 'export const DEV_THEME_IMAGE_MAX_BYTES = 20 * 1024 * 1024;');
 expectIncludes(devThemeIO, 'export function sanitizePresetFileName(name: string)');
 expectIncludes(devThemeIO, '.replace(/[\\\\/:*?"<>|]+/g, \'-\')');
@@ -30,10 +30,23 @@ expectIncludes(devThemeIO, 'export function validateImageFileLike(file: Pick<Fil
 expectIncludes(devThemeIO, "if (!file.type.startsWith('image/')) return '请选择图片文件';");
 expectIncludes(devThemeIO, "if (file.size > DEV_THEME_IMAGE_MAX_BYTES) return '图片不能超过 20MB';");
 expectIncludes(devThemeIO, 'export function serializeDevThemeConfig(input: DevThemeExportInput)');
-expectIncludes(devThemeIO, 'imageDataUrl: null,');
-expectIncludes(devThemeIO, 'originalImageDataUrl: null,');
+expectIncludes(devThemeIO, 'imageDataUrl: input.background.imageDataUrl,');
+expectIncludes(devThemeIO, 'originalImageDataUrl: input.background.originalImageDataUrl,');
+expectIncludes(devThemeIO, 'pinnedStyles: input.pinnedStyles ?? [],');
+expectIncludes(devThemeIO, 'function asImageFit');
+expectIncludes(devThemeIO, "if (value === 'framed') return 'contain';");
+expectIncludes(devThemeIO, 'function asPinnedStyles(value: unknown): DevThemePinnedStyle[]');
+expectIncludes(devThemeIO, 'pinnedStyles: asPinnedStyles(parsed.pinnedStyles),');
+expectIncludes(devThemeIO, 'imagePositionX: asNumber(source.imagePositionX, defaults.imagePositionX),');
+expectIncludes(devThemeIO, 'imagePositionY: asNumber(source.imagePositionY, defaults.imagePositionY),');
 expectIncludes(devThemeIO, 'export function parseDevThemeConfig(raw: string): DevThemeExportConfig');
-expectIncludes(devThemeIO, 'originalImageDataUrl: null,');
+expectIncludes(devThemeIO, 'imageDataUrl: asNullableImageDataUrl(source.imageDataUrl),');
+expectIncludes(devThemeIO, 'originalImageDataUrl: asNullableImageDataUrl(source.originalImageDataUrl),');
+expectIncludes(devThemeIO, 'function asNullableImageDataUrl(value: unknown)');
+expectIncludes(devThemeIO, 'function isAllowedBackgroundImageSource(value: string)');
+expectIncludes(devThemeIO, "value.startsWith('http://127.0.0.1:')");
+expectIncludes(devThemeIO, "value.startsWith('http://localhost:')");
+expectIncludes(devThemeIO, "value.startsWith('https://')");
 expectNotIncludes(devThemeIO, 'vitest');
 expectNotIncludes(devThemeIO, 'declare const require');
 

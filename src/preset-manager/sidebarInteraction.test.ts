@@ -1,0 +1,347 @@
+declare const require: any;
+declare const process: any;
+
+const fs = require('fs');
+const path = require('path');
+
+function readProjectFile(file: string) {
+  return fs.readFileSync(path.join(process.cwd(), file), 'utf8') as string;
+}
+
+function expectIncludes(content: string, expected: string) {
+  if (!content.includes(expected)) {
+    throw new Error(`Expected file to include: ${expected}`);
+  }
+}
+
+function expectNotIncludes(content: string, unexpected: string) {
+  if (content.includes(unexpected)) {
+    throw new Error(`Expected file not to include: ${unexpected}`);
+  }
+}
+
+function expectOrder(content: string, first: string, second: string) {
+  const firstIndex = content.indexOf(first);
+  const secondIndex = content.indexOf(second);
+  if (firstIndex < 0) throw new Error(`Expected file to include first marker: ${first}`);
+  if (secondIndex < 0) throw new Error(`Expected file to include second marker: ${second}`);
+  if (firstIndex > secondIndex) {
+    throw new Error(`Expected "${first}" to appear before "${second}"`);
+  }
+}
+
+function extractFunctionBlock(content: string, name: string) {
+  const start = content.indexOf(`function ${name}`);
+  if (start < 0) throw new Error(`Expected function to exist: ${name}`);
+  const nextFunction = content.indexOf('\nfunction ', start + 1);
+  return content.slice(start, nextFunction < 0 ? undefined : nextFunction);
+}
+
+function cssBlock(content: string, selector: string) {
+  const start = content.indexOf(`${selector} {`);
+  if (start < 0) throw new Error(`Expected CSS selector to exist: ${selector}`);
+  const end = content.indexOf('\n}', start);
+  if (end < 0) throw new Error(`Expected CSS selector to close: ${selector}`);
+  return content.slice(start, end + 2);
+}
+
+const app = readProjectFile('src/preset-manager/App.vue');
+const leftSidebar = readProjectFile('src/preset-manager/components/LeftSidebar.vue');
+const sidebarPresetList = readProjectFile('src/preset-manager/components/SidebarPresetList.vue');
+const workbenchPanel = readProjectFile('src/preset-manager/components/WorkbenchPanel.vue');
+const favoritesPanel = readProjectFile('src/preset-manager/components/FavoritesPanel.vue');
+const presetPanel = readProjectFile('src/preset-manager/components/PresetPanel.vue');
+const titleBar = readProjectFile('src/preset-manager/components/TitleBar.vue');
+
+expectIncludes(leftSidebar, "type SidebarMode = 'presets' | 'workbench' | 'favorites' | 'chat';");
+expectIncludes(leftSidebar, 'activeMode: SidebarMode;');
+expectIncludes(leftSidebar, "'change-mode': [mode: SidebarMode];");
+expectNotIncludes(leftSidebar, "const activeMode = ref<SidebarMode>('presets');");
+expectIncludes(leftSidebar, 'class="sidebar-mode-list"');
+expectIncludes(leftSidebar, "setMode('presets')");
+expectIncludes(leftSidebar, "setMode('chat')");
+expectIncludes(leftSidebar, "setMode('workbench')");
+expectIncludes(leftSidebar, "setMode('favorites')");
+expectIncludes(leftSidebar, '@click="createMainChat"');
+expectIncludes(leftSidebar, 'v-if="activeMode === \'chat\'"');
+expectIncludes(leftSidebar, 'class="sidebar-new-chat-button"');
+expectIncludes(leftSidebar, 'class="new-chat-icon"');
+expectIncludes(leftSidebar, 'class="new-chat-label"');
+expectOrder(leftSidebar, "setMode('presets')", "setMode('chat')");
+expectOrder(leftSidebar, "setMode('chat')", "setMode('workbench')");
+expectOrder(leftSidebar, "setMode('workbench')", "setMode('favorites')");
+expectOrder(leftSidebar, 'class="sidebar-new-chat-button"', 'class="sidebar-settings-button"');
+expectIncludes(cssBlock(leftSidebar, '.sidebar-new-chat-button'), 'position: relative;');
+expectIncludes(leftSidebar, '.new-chat-icon');
+expectIncludes(leftSidebar, 'left: calc(50% - 46px);');
+expectIncludes(leftSidebar, '.new-chat-label');
+expectIncludes(leftSidebar, 'left: 50%;');
+expectIncludes(leftSidebar, 'transform: translateX(-50%);');
+expectIncludes(leftSidebar, "'new-chat': [];");
+expectIncludes(leftSidebar, '新聊天');
+expectIncludes(leftSidebar, '增添预设条目');
+expectNotIncludes(leftSidebar, '<span>新建条目</span>');
+expectNotIncludes(leftSidebar, "setMode('workspace')");
+expectIncludes(leftSidebar, '<SidebarPresetList');
+expectIncludes(leftSidebar, 'v-if="activeMode === \'presets\'"');
+expectIncludes(leftSidebar, '@preset-action="emit(\'preset-action\', $event)"');
+expectNotIncludes(leftSidebar, ':theme="theme"');
+expectIncludes(leftSidebar, "'preset-action': [payload: SidebarPresetActionPayload];");
+expectIncludes(leftSidebar, "theme: 'dark' | 'light';");
+expectIncludes(leftSidebar, "import type { SidebarPresetActionPayload } from './SidebarPresetList.vue';");
+expectIncludes(leftSidebar, '<WorkbenchPanel v-else-if="activeMode === \'workbench\'" />');
+expectIncludes(leftSidebar, '<FavoritesPanel v-else-if="activeMode === \'favorites\'" />');
+expectNotIncludes(leftSidebar, 'class="sidebar-workspace-content"');
+expectIncludes(leftSidebar, 'activePresetName: string;');
+expectIncludes(leftSidebar, '@select-preset="emit(\'select-preset\', $event)"');
+
+expectIncludes(sidebarPresetList, 'class="sidebar-preset-list"');
+expectIncludes(sidebarPresetList, 'activePresetName: string;');
+expectNotIncludes(sidebarPresetList, "theme: 'dark' | 'light';");
+expectIncludes(sidebarPresetList, ':class="getPresetItemClass(name, i)"');
+expectIncludes(sidebarPresetList, "'select-preset': [name: string];");
+expectIncludes(sidebarPresetList, "export type SidebarPresetAction = 'createPreset' | 'openSecondPreset' | 'renamePreset' | 'deletePreset';");
+expectIncludes(sidebarPresetList, "export interface SidebarPresetActionPayload");
+expectIncludes(sidebarPresetList, "'preset-action': [payload: SidebarPresetActionPayload];");
+expectIncludes(sidebarPresetList, 'class="sidebar-section-create"');
+expectIncludes(sidebarPresetList, 'title="新建预设"');
+expectIncludes(sidebarPresetList, 'aria-label="新建预设"');
+expectIncludes(sidebarPresetList, "emit('preset-action', { action: 'createPreset', presetName: props.activePresetName });");
+expectNotIncludes(sidebarPresetList, 'class="sidebar-section-count"');
+expectNotIncludes(sidebarPresetList, '@click.left="openPreset(name)"');
+expectIncludes(sidebarPresetList, "import { startParentDrag } from '../utils/drag';");
+expectIncludes(sidebarPresetList, '@mousedown="onPresetMouseDown($event, name)"');
+expectNotIncludes(sidebarPresetList, '@pointerdown="onPresetPointerDown($event, name)"');
+expectNotIncludes(sidebarPresetList, '@pointerup="selectPresetFromPointer($event, name)"');
+expectIncludes(sidebarPresetList, '@click.prevent.stop="selectPresetFromClick($event, name)"');
+expectIncludes(sidebarPresetList, '@mousedown.right.prevent.stop');
+expectIncludes(sidebarPresetList, '@contextmenu.prevent.stop="openPresetContextMenu($event, name)"');
+expectIncludes(sidebarPresetList, '<Teleport v-if="contextMenuTarget" :to="contextMenuTarget">');
+expectIncludes(sidebarPresetList, 'const contextMenuTarget = ref<HTMLElement | null>(null);');
+expectIncludes(sidebarPresetList, "contextMenuTarget.value = sidebarRoot.value?.closest('.app-root') as HTMLElement | null;");
+expectNotIncludes(sidebarPresetList, '<Teleport to="body">');
+expectNotIncludes(sidebarPresetList, 'class="preset-context-backdrop"');
+expectNotIncludes(sidebarPresetList, '@pointerdown.prevent.stop="closePresetContextMenu()"');
+expectNotIncludes(sidebarPresetList, '@click.prevent.stop="closePresetContextMenu()"');
+expectIncludes(sidebarPresetList, 'class="preset-context-menu"');
+expectIncludes(sidebarPresetList, 'function getContextMenuPosition(event: MouseEvent)');
+expectIncludes(sidebarPresetList, 'const targetRect = contextMenuTarget.value?.getBoundingClientRect();');
+expectIncludes(sidebarPresetList, 'x: event.clientX - (targetRect?.left ?? 0)');
+expectIncludes(sidebarPresetList, 'y: event.clientY - (targetRect?.top ?? 0)');
+expectNotIncludes(extractFunctionBlock(sidebarPresetList, 'openPresetContextMenu'), 'contextMenuPosition.x = event.clientX;');
+expectNotIncludes(extractFunctionBlock(sidebarPresetList, 'openPresetContextMenu'), 'contextMenuPosition.y = event.clientY;');
+expectNotIncludes(sidebarPresetList, "runPresetAction('createPreset')");
+expectIncludes(sidebarPresetList, "runPresetAction('openSecondPreset', $event)");
+expectIncludes(sidebarPresetList, '在侧边栏打开');
+expectIncludes(sidebarPresetList, "runPresetAction('renamePreset', $event)");
+expectIncludes(sidebarPresetList, "runPresetAction('deletePreset', $event)");
+expectNotIncludes(sidebarPresetList, "runPresetAction('history')");
+expectNotIncludes(sidebarPresetList, "runPresetAction('appendUnusedPrompt')");
+expectNotIncludes(sidebarPresetList, "runPresetAction('importPrompts')");
+expectNotIncludes(sidebarPresetList, "runPresetAction('exportPrompts')");
+expectNotIncludes(sidebarPresetList, "runPresetAction('resetPromptOrder')");
+expectNotIncludes(sidebarPresetList, "runPresetAction('ui')");
+expectNotIncludes(sidebarPresetList, "runPresetAction('theme')");
+expectNotIncludes(sidebarPresetList, "'history'");
+expectNotIncludes(sidebarPresetList, "'theme'");
+expectNotIncludes(sidebarPresetList, "'ui'");
+expectNotIncludes(sidebarPresetList, "'appendUnusedPrompt'");
+expectNotIncludes(sidebarPresetList, "'importPrompts'");
+expectNotIncludes(sidebarPresetList, "'exportPrompts'");
+expectNotIncludes(sidebarPresetList, "'resetPromptOrder'");
+expectIncludes(sidebarPresetList, "document.addEventListener('pointerdown', closePresetContextMenuFromPointer, true);");
+expectIncludes(sidebarPresetList, "document.addEventListener('mousedown', closePresetContextMenuFromPointer, true);");
+expectIncludes(sidebarPresetList, "document.addEventListener('click', closePresetContextMenuFromPointer, true);");
+expectIncludes(sidebarPresetList, "window.addEventListener('keydown', closePresetContextMenuFromKey, true);");
+expectIncludes(sidebarPresetList, "parentDocument.addEventListener('pointerdown', closePresetContextMenuFromPointer, true);");
+expectIncludes(sidebarPresetList, "parentDocument.addEventListener('mousedown', closePresetContextMenuFromPointer, true);");
+expectIncludes(sidebarPresetList, "parentDocument.addEventListener('click', closePresetContextMenuFromPointer, true);");
+expectIncludes(sidebarPresetList, "if (event.key === 'Escape') closePresetContextMenu();");
+expectIncludes(extractFunctionBlock(sidebarPresetList, 'openPreset'), "emit('select-preset', name);");
+expectIncludes(extractFunctionBlock(sidebarPresetList, 'onPresetMouseDown'), 'if (event.button === 2)');
+expectIncludes(extractFunctionBlock(sidebarPresetList, 'onPresetMouseDown'), 'event.preventDefault();');
+expectIncludes(extractFunctionBlock(sidebarPresetList, 'onPresetMouseDown'), 'event.stopPropagation();');
+expectIncludes(extractFunctionBlock(sidebarPresetList, 'onPresetMouseDown'), 'startParentDrag(parentDocument, {');
+expectNotIncludes(extractFunctionBlock(sidebarPresetList, 'onPresetMouseDown'), 'openPresetContextMenu(event, name);');
+expectIncludes(extractFunctionBlock(sidebarPresetList, 'selectPresetFromClick'), 'if (suppressPresetClick)');
+expectIncludes(extractFunctionBlock(sidebarPresetList, 'selectPresetFromClick'), 'openPreset(name);');
+expectNotIncludes(extractFunctionBlock(sidebarPresetList, 'openPresetContextMenu'), "emit('select-preset', name);");
+expectIncludes(sidebarPresetList, "presetName: contextPresetName.value,");
+expectIncludes(sidebarPresetList, "anchor: getPresetContextActionAnchor(action, event),");
+expectIncludes(extractFunctionBlock(sidebarPresetList, 'closePresetContextMenuFromPointer'), 'contextMenuRef.value?.contains(target)');
+expectIncludes(extractFunctionBlock(sidebarPresetList, 'closePresetContextMenuFromPointer'), 'closePresetContextMenu();');
+expectIncludes(extractFunctionBlock(sidebarPresetList, 'closePresetContextMenuFromKey'), "event.key === 'Escape'");
+expectNotIncludes(sidebarPresetList, "document.addEventListener('mousedown', closePresetContextMenu);");
+expectNotIncludes(sidebarPresetList, "name === store.presetName");
+expectNotIncludes(sidebarPresetList, "store.loadMainPreset(name)");
+expectNotIncludes(sidebarPresetList, "type: 'preset-reorder'");
+expectIncludes(sidebarPresetList, 'const draggedPresetName = ref(\'\');');
+expectIncludes(sidebarPresetList, 'const dragOverPresetName = ref(\'\');');
+expectIncludes(sidebarPresetList, 'const PRESET_DRAG_START_DISTANCE = 4;');
+expectIncludes(sidebarPresetList, 'const presetMouseDrag = reactive');
+expectIncludes(sidebarPresetList, ':draggable="false"');
+expectIncludes(sidebarPresetList, 'function onPresetMouseMove');
+expectIncludes(sidebarPresetList, 'function finishPresetMouseDrag');
+expectIncludes(sidebarPresetList, "cursor: 'grabbing',");
+expectNotIncludes(sidebarPresetList, 'document.addEventListener(\'pointermove\', onPresetPointerMove, true);');
+expectNotIncludes(sidebarPresetList, 'document.addEventListener(\'pointerup\', finishPresetPointerDrag, true);');
+expectNotIncludes(sidebarPresetList, 'parentDocument.addEventListener(\'pointermove\', onPresetPointerMove, true);');
+expectNotIncludes(sidebarPresetList, 'parentDocument.addEventListener(\'pointerup\', finishPresetPointerDrag, true);');
+expectNotIncludes(sidebarPresetList, '@dragover.prevent="onPresetDragOver($event, name)"');
+expectNotIncludes(sidebarPresetList, '@drop.prevent="onPresetDrop($event, name)"');
+expectNotIncludes(sidebarPresetList, '@dragend="onPresetDragEnd"');
+expectIncludes(sidebarPresetList, 'function getPresetItemClass(name: string, index: number)');
+expectIncludes(sidebarPresetList, 'dragging: name === draggedPresetName.value');
+expectIncludes(sidebarPresetList, "'drop-target': presetDropIndex.value === index && name !== draggedPresetName.value");
+expectIncludes(extractFunctionBlock(sidebarPresetList, 'finishPresetMouseDrag'), 'store.reorderPresetDisplayToIndex(sourceName, targetIndex);');
+expectNotIncludes(sidebarPresetList, 'function onPresetDragStart');
+expectNotIncludes(sidebarPresetList, 'function onPresetPointerDown');
+expectNotIncludes(sidebarPresetList, 'const presetPointerDrag = reactive');
+expectNotIncludes(sidebarPresetList, 'dataTransfer');
+expectIncludes(sidebarPresetList, '.sidebar-preset-item.dragging');
+expectIncludes(sidebarPresetList, '.sidebar-preset-item.drop-target');
+expectIncludes(sidebarPresetList, 'transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)');
+expectIncludes(sidebarPresetList, 'opacity 0.14s ease');
+expectNotIncludes(sidebarPresetList, 'width: 228px;');
+expectIncludes(sidebarPresetList, 'width: 184px;');
+const presetContextMenuBlock = cssBlock(sidebarPresetList, '.preset-context-menu');
+expectIncludes(presetContextMenuBlock, 'position: absolute;');
+expectNotIncludes(presetContextMenuBlock, 'position: fixed;');
+expectNotIncludes(sidebarPresetList, '.preset-context-backdrop');
+expectNotIncludes(sidebarPresetList, 'window.innerWidth - menu.offsetWidth');
+expectNotIncludes(sidebarPresetList, 'window.innerHeight - menu.offsetHeight');
+expectIncludes(sidebarPresetList, 'border-radius: 8px;');
+expectIncludes(sidebarPresetList, 'background: var(--pm-left-entry-editor-bg);');
+expectIncludes(sidebarPresetList, 'box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);');
+expectIncludes(sidebarPresetList, 'backdrop-filter: blur(32px) saturate(140%);');
+expectIncludes(sidebarPresetList, 'animation: presetContextPop');
+
+expectIncludes(readProjectFile('src/preset-manager/stores/manager.ts'), 'syncMainPresetFromTavern');
+expectIncludes(readProjectFile('src/preset-manager/stores/manager.ts'), 'getLoadedPresetName()');
+expectIncludes(readProjectFile('src/preset-manager/stores/manager.ts'), "if (name === 'in_use') return false;");
+expectIncludes(readProjectFile('src/preset-manager/stores/manager.ts'), 'presetOrder: string[];');
+expectIncludes(readProjectFile('src/preset-manager/stores/manager.ts'), 'presetOrder: loadPresetOrder()');
+expectIncludes(readProjectFile('src/preset-manager/stores/manager.ts'), 'function loadPresetOrder()');
+expectIncludes(readProjectFile('src/preset-manager/stores/manager.ts'), 'function savePresetOrder');
+expectIncludes(readProjectFile('src/preset-manager/stores/manager.ts'), 'function applyPresetOrder');
+expectIncludes(readProjectFile('src/preset-manager/stores/manager.ts'), 'presetNames(state): string[] {');
+expectIncludes(readProjectFile('src/preset-manager/stores/manager.ts'), 'return applyPresetOrder(getLoadablePresetNames(), state.presetOrder);');
+expectIncludes(readProjectFile('src/preset-manager/stores/manager.ts'), 'reorderPresetDisplay(sourceName: string, targetName: string)');
+expectIncludes(readProjectFile('src/preset-manager/stores/manager.ts'), 'reorderPresetDisplayToIndex(sourceName: string, targetIndex: number)');
+expectIncludes(readProjectFile('src/preset-manager/stores/manager.ts'), 'savePresetOrder(this.presetOrder);');
+
+expectIncludes(app, 'const activeMainPresetName = computed(() => manager.presetName);');
+expectNotIncludes(app, 'const activeMainPresetName = ref(\'\');');
+expectIncludes(app, ':current-preset-name="activeMainPresetName"');
+expectIncludes(app, ':active-preset-name="activeMainPresetName"');
+expectIncludes(app, "const sidebarMode = ref<SidebarMode>('presets');");
+expectIncludes(app, "type SidebarMode = 'presets' | 'workbench' | 'favorites' | 'chat';");
+expectIncludes(app, ':active-mode="sidebarMode"');
+expectIncludes(app, '@change-mode="setSidebarMode"');
+expectIncludes(app, 'function setSidebarMode(mode: SidebarMode)');
+expectIncludes(app, "if (mode === 'chat') ensureMainChatTab();");
+expectIncludes(app, 'class="preset-panels"');
+expectNotIncludes(app, 'v-if="sidebarMode === \'presets\'" class="preset-panels"');
+expectNotIncludes(app, 'v-else class="workspace-page"');
+expectNotIncludes(app, '<div class="workspace-page-grid">');
+expectNotIncludes(app, "import WorkbenchPanel from './components/WorkbenchPanel.vue';");
+expectNotIncludes(app, "import FavoritesPanel from './components/FavoritesPanel.vue';");
+expectIncludes(app, '@select-preset="selectMainPreset"');
+expectIncludes(app, '@preset-action="runSidebarPresetAction"');
+expectNotIncludes(app, ':active-mode="sidebarMode"\n        :theme="theme"');
+expectIncludes(app, 'async function runSidebarPresetAction');
+expectNotIncludes(extractFunctionBlock(app, 'runSidebarPresetAction'), 'selectMainPreset(payload.presetName);');
+expectNotIncludes(extractFunctionBlock(app, 'runSidebarPresetAction'), "payload.action === 'history'");
+expectNotIncludes(extractFunctionBlock(app, 'runSidebarPresetAction'), "payload.action === 'theme'");
+expectNotIncludes(extractFunctionBlock(app, 'runSidebarPresetAction'), "payload.action === 'ui'");
+expectIncludes(app, "if (payload.action === 'createPreset') await createOfficialPreset();");
+expectIncludes(app, "if (payload.action === 'openSecondPreset') openPresetInRightSidebar(payload.presetName);");
+expectIncludes(app, "if (payload.action === 'renamePreset') await renameOfficialPreset(payload.presetName);");
+expectIncludes(app, "if (payload.action === 'deletePreset') await deleteOfficialPreset(payload.presetName, payload.anchor);");
+expectIncludes(app, 'function openPresetInRightSidebar(presetName: string, tabIdToReplace?: string)');
+expectIncludes(extractFunctionBlock(app, 'openPresetInRightSidebar'), 'manager.loadSecondPreset(presetName)');
+expectIncludes(extractFunctionBlock(app, 'openPresetInRightSidebar'), 'upsertRightAuxTab');
+expectIncludes(extractFunctionBlock(app, 'openPresetInRightSidebar'), 'rightAuxOpen.value = true;');
+expectIncludes(extractFunctionBlock(app, 'openPresetInRightSidebar'), 'setActiveRightAuxTab(tab.id);');
+expectNotIncludes(extractFunctionBlock(app, 'openPresetInRightSidebar'), "rightAuxMode.value = 'second';");
+expectNotIncludes(extractFunctionBlock(app, 'openPresetInRightSidebar'), 'selectMainPreset');
+expectNotIncludes(extractFunctionBlock(app, 'runSidebarPresetAction'), "payload.action === 'appendUnusedPrompt'");
+expectNotIncludes(extractFunctionBlock(app, 'runSidebarPresetAction'), "payload.action === 'importPrompts'");
+expectNotIncludes(extractFunctionBlock(app, 'runSidebarPresetAction'), "payload.action === 'exportPrompts'");
+expectNotIncludes(extractFunctionBlock(app, 'runSidebarPresetAction'), "payload.action === 'resetPromptOrder'");
+expectIncludes(app, 'async function renameOfficialPreset(targetPresetName = manager.presetName)');
+expectIncludes(app, "async function deleteOfficialPreset(targetPresetName = manager.presetName, anchor?: SidebarPresetActionPayload['anchor'])");
+expectIncludes(app, '<PresetPanel');
+expectIncludes(app, 'panel-id="main"');
+expectIncludes(app, ':active-preset-name="activeMainPresetName"');
+expectIncludes(app, ':active-preset-name="activeRightAuxTab.presetName"');
+expectNotIncludes(app, 'syncActiveMainPresetName()');
+expectIncludes(app, 'startPresetSyncFromTavern');
+expectIncludes(app, 'presetSyncTimer = window.setInterval');
+expectIncludes(app, 'window.clearInterval(presetSyncTimer)');
+expectIncludes(extractFunctionBlock(app, 'selectMainPreset'), 'if (!name) return;');
+expectIncludes(extractFunctionBlock(app, 'selectMainPreset'), 'const tavernPresetName = getTavernPresetName();');
+expectIncludes(extractFunctionBlock(app, 'selectMainPreset'), 'if (name === manager.presetName && manager.preset && tavernPresetName === name) return;');
+expectIncludes(extractFunctionBlock(app, 'selectMainPreset'), 'if (tavernPresetName !== name) loadPreset(name);');
+expectNotIncludes(extractFunctionBlock(app, 'selectMainPreset'), 'name === activeMainPresetName.value');
+expectOrder(app, 'const loaded = manager.loadMainPreset(name);', 'loadPreset(name);');
+expectNotIncludes(app, 'activeMainPresetName.value = name;');
+expectIncludes(app, 'let pendingTavernPresetName = \'\';');
+expectIncludes(app, 'function getTavernPresetName()');
+expectIncludes(app, 'const TAVERN_PRESET_SWITCH_GRACE_MS = 2500;');
+expectOrder(app, 'pendingTavernPresetName = name;', 'loadPreset(name);');
+expectIncludes(app, 'if (isWaitingForTavernPresetSwitch()) return;');
+expectIncludes(app, 'getTavernPresetName() === pendingTavernPresetName');
+expectNotIncludes(app, 'manager.presetName || manager.currentPresetName');
+
+expectNotIncludes(titleBar, 'runMoreAction');
+expectNotIncludes(titleBar, 'title-more-menu');
+expectIncludes(leftSidebar, "runSettingsAction('history')");
+expectNotIncludes(titleBar, "runMoreAction('appendUnusedPrompt')");
+expectNotIncludes(titleBar, "runMoreAction('importPrompts')");
+expectNotIncludes(titleBar, "runMoreAction('exportPrompts')");
+expectNotIncludes(titleBar, "runMoreAction('resetPromptOrder')");
+expectIncludes(leftSidebar, 'ui-settings-panel');
+expectIncludes(leftSidebar, "runSettingsAction('theme')");
+expectNotIncludes(titleBar, "runMoreAction('createPreset')");
+expectNotIncludes(titleBar, "runMoreAction('renamePreset')");
+expectNotIncludes(titleBar, "runMoreAction('deletePreset')");
+expectNotIncludes(titleBar, 'toggleHistory: []');
+expectNotIncludes(titleBar, 'toggleTheme: []');
+expectNotIncludes(titleBar, 'toggleUiSettings: []');
+expectNotIncludes(titleBar, 'appendUnusedPrompt: []');
+expectNotIncludes(titleBar, 'importPrompts: []');
+expectNotIncludes(titleBar, 'exportPrompts: []');
+expectNotIncludes(titleBar, 'resetPromptOrder: []');
+expectIncludes(titleBar, 'rightSidebarOpen: boolean;');
+expectIncludes(titleBar, 'toggleRightSidebar: []');
+expectIncludes(titleBar, 'class="sidebar-status-dot"');
+expectIncludes(titleBar, '侧边栏');
+expectIncludes(app, '@toggle-history="showHistory = !showHistory"');
+expectIncludes(app, '@toggle-theme="toggleTheme"');
+expectIncludes(app, '@open-api-settings="openAiConfig"');
+expectNotIncludes(app, '@toggle-ui-settings="showUiSettings = !showUiSettings"');
+expectIncludes(app, ':right-sidebar-open="showRightAuxArea"');
+expectIncludes(app, '@toggle-right-sidebar="toggleRightSidebar"');
+expectNotIncludes(app, '@create-prompt="createOfficialPrompt"');
+expectNotIncludes(app, '@append-unused-prompt="showUnusedPromptPicker = true"');
+expectNotIncludes(app, '@import-prompts="officialPromptImportInput?.click()"');
+expectNotIncludes(app, '@export-prompts="downloadPresetPromptExport"');
+expectNotIncludes(app, '@reset-prompt-order="resetOfficialPromptOrder"');
+expectIncludes(app, '.app-root > :deep(.preset-context-menu) {');
+expectIncludes(app, '.app-root > :deep(.preset-context-menu) {\n  position: absolute;');
+expectNotIncludes(app, '.app-root > :deep(.preset-context-backdrop) {');
+
+expectIncludes(presetPanel, 'activePresetName?: string;');
+expectIncludes(presetPanel, 'watch(() => props.activePresetName');
+expectNotIncludes(presetPanel, "if (props.panelId !== 'main') return;");
+expectIncludes(presetPanel, "props.panelId === 'main' ? store.loadMainPreset(name) : store.loadSecondPreset(name)");
+expectIncludes(presetPanel, 'watch(currentPresetName');
+expectIncludes(presetPanel, 'selectedPreset.value = name;');
+expectIncludes(presetPanel, 'syncPromptsFromStore();');
+expectIncludes(workbenchPanel, '新建 / 草稿');
+expectIncludes(favoritesPanel, '收藏');
+expectIncludes(presetPanel, "data.type === 'preset'");
+expectIncludes(presetPanel, 'loadDroppedPreset');
+
+console.info('sidebarInteraction tests passed');

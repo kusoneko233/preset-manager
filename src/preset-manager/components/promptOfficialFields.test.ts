@@ -16,20 +16,19 @@ function expectIncludes(content: string, expected: string) {
   }
 }
 
-const dialog = readProjectFile('src/preset-manager/components/PromptEditDialog.vue');
 const item = readProjectFile('src/preset-manager/components/PromptItem.vue');
 const panel = readProjectFile('src/preset-manager/components/PresetPanel.vue');
 const manager = readProjectFile('src/preset-manager/stores/manager.ts');
 
-expectIncludes(dialog, 'injection_trigger');
-expectIncludes(dialog, 'injection_position');
-expectIncludes(dialog, 'injection_depth');
-expectIncludes(dialog, 'injection_order');
-expectIncludes(dialog, 'forbid_overrides');
-expectIncludes(dialog, 'TRIGGER_OPTIONS');
-expectIncludes(dialog, 'positionType');
-expectIncludes(dialog, 'v-model="draft.triggers"');
-expectIncludes(dialog, 'v-if="draft.positionType === \'in_chat\'"');
+expectIncludes(item, 'injection_trigger');
+expectIncludes(item, 'injection_position');
+expectIncludes(item, 'injection_depth');
+expectIncludes(item, 'injection_order');
+expectIncludes(manager, 'forbid_overrides');
+expectIncludes(item, 'TRIGGER_OPTIONS');
+expectIncludes(item, 'positionType');
+expectIncludes(item, 'v-model="draft.triggers"');
+expectIncludes(item, 'v-if="draft.positionType === \'in_chat\'"');
 expectIncludes(item, 'triggerLabel');
 expectIncludes(item, 'positionLabel');
 expectIncludes(panel, 'identifier: promptKey');

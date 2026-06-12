@@ -5,6 +5,7 @@ const {
   buildOfficialPromptExport,
   getOfficialPromptOrder,
   isOfficialPromptDeletable,
+  isPresetPlaceholderPrompt,
   readOfficialPromptImport,
   splitPromptsByOfficialDefaultOrder,
   splitPromptsByOfficialOrder,
@@ -67,6 +68,9 @@ expectEqual(importData.promptOrder, [{ identifier: 'imported', enabled: false }]
 expectEqual(isOfficialPromptDeletable({ id: 'custom', identifier: 'custom' }), true);
 expectEqual(isOfficialPromptDeletable({ id: 'main', identifier: 'main', system_prompt: true }), false);
 expectEqual(isOfficialPromptDeletable({ id: 'worldInfoBefore', identifier: 'worldInfoBefore', marker: true }), false);
+expectEqual(isPresetPlaceholderPrompt({ id: 'main', identifier: 'main', system_prompt: true }), false);
+expectEqual(isPresetPlaceholderPrompt({ id: 'worldInfoBefore', identifier: 'worldInfoBefore', marker: true }), true);
+expectEqual(isPresetPlaceholderPrompt({ id: 'custom', identifier: 'custom', marker: false }), false);
 
 const splitByImport = splitPromptsByOfficialOrder(prompts, [{ identifier: 'c', enabled: false }]);
 expectEqual(splitByImport.active.map((prompt: any) => [prompt.identifier, prompt.enabled]), [['c', false]]);

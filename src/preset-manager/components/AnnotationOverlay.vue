@@ -753,7 +753,7 @@ function clampToolbarToViewport() {
   inset: 0;
   z-index: 950;
   cursor: crosshair;
-  background: rgba(0, 0, 0, 0.04);
+  background: transparent;
 }
 .annotation-overlay.erasing {
   cursor: cell;

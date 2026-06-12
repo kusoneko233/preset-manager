@@ -26,11 +26,22 @@
             <div v-if="hasSelected" class="dev-theme-selected-box">
               <code>&lt;{{ store.selectedElement?.tag }}&gt;</code>
               <b>{{ store.selectedElement?.label }}</b>
-              <span>{{ store.selectedElement?.matchedCount ?? 1 }} 个命中</span>
+              <span>{{ stabilityLabel(store.selectedElement?.stability) }} · {{ store.selectedElement?.matchedCount ?? 1 }} 个命中</span>
             </div>
             <div v-else class="dev-theme-empty-box">
               <b>Alt + Shift</b>
               <span>开启检查器后点击元素。无源码定位的元素也能调样式。</span>
+            </div>
+            <div class="dev-theme-button-row">
+              <button type="button" :disabled="!hasSelected" @click="store.pinSelectedElementStyle()">固定当前样式</button>
+              <button type="button" :disabled="!store.pinnedStyles.length" @click="store.clearPinnedStyles()">清空固定</button>
+            </div>
+            <div v-if="store.pinnedStyles.length" class="dev-theme-pinned-list">
+              <div v-for="pinned in store.pinnedStyles" :key="pinned.id" class="dev-theme-pinned-item">
+                <span>{{ pinned.label }}</span>
+                <small class="dev-theme-pinned-meta">{{ stabilityLabel(pinned.stability) }} · {{ pinned.matchedCount }} 个命中</small>
+                <button type="button" title="删除固定样式" @click="store.removePinnedStyle(pinned.id)">×</button>
+              </div>
             </div>
           </section>
 
@@ -74,41 +85,9 @@
             </div>
             <button type="button" class="dev-theme-drop" @dragover.prevent @drop.prevent="onDrop" @click="fileInput?.click()">
               <input ref="fileInput" class="dev-theme-file" type="file" accept="image/*" @change="onFileChange" />
-              <img v-if="store.currentDraft.imageDataUrl" :src="store.currentDraft.imageDataUrl" alt="背景预览" />
+              <div v-if="backgroundPreviewSource" class="dev-theme-drop-preview" :style="backgroundPreviewStyle" aria-label="背景预览" />
               <span v-else>点击 / 拖拽 / 粘贴图片</span>
             </button>
-            <div v-if="cropState.open" class="dev-theme-cropper">
-              <div class="dev-theme-crop-meta">
-                <span>裁剪比例</span>
-                <code>{{ cropAspect.label }} {{ cropAspect.width }}:{{ cropAspect.height }}</code>
-              </div>
-              <div
-                class="dev-theme-crop-stage"
-                :style="cropStageStyle"
-                @pointerdown.stop.prevent="onCropDragStart"
-                @wheel.stop.prevent="onCropWheel"
-              >
-                <img
-                  v-if="cropSource"
-                  :src="cropSource"
-                  alt="裁剪预览"
-                  :style="cropImageStyle"
-                  draggable="false"
-                />
-                <div class="dev-theme-crop-frame" />
-              </div>
-              <div class="dev-theme-button-row">
-                <button type="button" @click="applyCropPreset('left')">左半边</button>
-                <button type="button" @click="applyCropPreset('right')">右半边</button>
-                <button type="button" @click="applyCropPreset('center')">居中</button>
-                <button type="button" @click="applyCropPreset('cover')">铺满</button>
-              </div>
-              <RangeControl label="取景缩放" suffix="%" :min="50" :max="260" :step="1" :model-value="Math.round(cropState.scale * 100)" :effect-info="controlInfo('imageScale')" @update:model-value="cropState.scale = $event / 100" />
-              <div class="dev-theme-button-row">
-                <button type="button" @click="applyImageCrop">应用裁剪</button>
-                <button type="button" @click="cropState.open = false">取消</button>
-              </div>
-            </div>
             <div class="dev-theme-button-row">
               <select v-model="store.currentDraft.imageFit">
                 <option value="cover">铺满</option>
@@ -116,7 +95,7 @@
                 <option value="center">居中</option>
                 <option value="repeat">平铺</option>
               </select>
-              <button type="button" :disabled="!cropSource" @click="openImageCropper">裁剪</button>
+              <button type="button" :disabled="!cropSource" @click="openImageCropper">编辑图片</button>
               <button type="button" @click="clearBackgroundImage">清除</button>
             </div>
           </section>
@@ -127,6 +106,8 @@
             <RangeControl label="透明度" suffix="%" :min="0" :max="100" :step="1" :model-value="Math.round(store.currentDraft.opacity * 100)" :effect-info="controlInfo('opacity')" @update:model-value="store.currentDraft.opacity = $event / 100" />
             <RangeControl label="毛玻璃" suffix="px" :min="0" :max="64" :step="1" :model-value="store.currentDraft.blur" :effect-info="controlInfo('blur')" @update:model-value="store.currentDraft.blur = $event" />
             <RangeControl label="暗化" suffix="%" :min="0" :max="100" :step="1" :model-value="Math.round(store.currentDraft.maskOpacity * 100)" :effect-info="controlInfo('mask')" @update:model-value="store.currentDraft.maskOpacity = $event / 100" />
+            <RangeControl label="底部压黑" suffix="%" :min="0" :max="100" :step="1" :model-value="Math.round(store.currentDraft.bottomFadeOpacity * 100)" :effect-info="controlInfo('bottomFade')" @update:model-value="store.currentDraft.bottomFadeOpacity = $event / 100" />
+            <RangeControl label="纯黑起点" suffix="%" :min="0" :max="100" :step="1" :model-value="Math.round(store.currentDraft.bottomFadeSolidStart)" :effect-info="controlInfo('bottomFade')" @update:model-value="store.currentDraft.bottomFadeSolidStart = $event" />
             <RangeControl label="图片缩放" suffix="%" :min="50" :max="200" :step="1" :model-value="Math.round(store.currentDraft.imageScale * 100)" :effect-info="controlInfo('imageScale')" @update:model-value="store.currentDraft.imageScale = $event / 100" />
             <RangeControl label="饱和度" suffix="%" :min="0" :max="200" :step="1" :model-value="Math.round(store.currentDraft.saturate * 100)" :effect-info="controlInfo('saturate')" @update:model-value="store.currentDraft.saturate = $event / 100" />
             <RangeControl label="亮度" suffix="%" :min="50" :max="150" :step="1" :model-value="Math.round(store.currentDraft.brightness * 100)" :effect-info="controlInfo('brightness')" @update:model-value="store.currentDraft.brightness = $event / 100" />
@@ -176,19 +157,63 @@
         </main>
       </div>
 
+      <div v-if="cropState.open" class="dev-theme-image-editor">
+        <div class="dev-theme-image-editor-head">
+          <div>
+            <strong>编辑图片</strong>
+            <span>不会改动图片文件，参考框只用于查看目标区域比例</span>
+          </div>
+          <button type="button" class="dev-theme-icon-btn" title="关闭参考框" @click="closeCropReference">×</button>
+        </div>
+        <div class="dev-theme-image-stage-wrap">
+          <div
+            class="dev-theme-image-stage"
+            :style="cropStageStyle"
+            @wheel.stop.prevent="onCropWheel"
+          >
+            <img
+              v-if="cropSource"
+              :src="cropSource"
+              alt="图片预览"
+              draggable="false"
+            />
+            <div class="dev-theme-image-dim" />
+            <div class="dev-theme-image-frame" :style="cropFrameStyle" @pointerdown.stop.prevent="onCropDragStart">
+              <span>{{ cropAspect.label }} {{ cropAspect.width }}:{{ cropAspect.height }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="dev-theme-image-editor-foot">
+          <div class="dev-theme-image-actions">
+            <button type="button" @click="applyCropPreset('left')">左半边</button>
+            <button type="button" @click="applyCropPreset('right')">右半边</button>
+            <button type="button" @click="applyCropPreset('center')">居中</button>
+            <button type="button" @click="applyCropPreset('cover')">铺满</button>
+            <button type="button" class="dev-theme-primary-action" @click="confirmSelectionAsBackground">确认选择为背景</button>
+          </div>
+          <RangeControl label="参考框大小" suffix="%" :min="20" :max="100" :step="1" :model-value="Math.round(cropState.scale * 100)" :effect-info="controlInfo('imageScale')" @update:model-value="cropState.scale = $event / 100" />
+          <div class="dev-theme-image-ratio">
+            <span>参考比例</span>
+            <code>{{ cropAspect.label }} {{ cropAspect.width }}:{{ cropAspect.height }}</code>
+          </div>
+        </div>
+      </div>
+
       <div v-for="handle in resizeHandles" :key="handle" :class="['dev-theme-resize', `dev-theme-resize-${handle}`]" @pointerdown.stop.prevent="onResizeStart($event, handle)" />
     </div>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, inject, onBeforeUnmount, onMounted, ref, type PropType } from 'vue';
+import { computed, defineComponent, h, inject, onBeforeUnmount, onMounted, reactive, ref, type PropType } from 'vue';
 import { useDevThemeStore, type DevThemeSelectedElement } from '../stores/devTheme';
-import { buildDevThemeCss, type DevThemeTarget } from '../utils/devThemeCss';
+import { buildDevThemeCss, type DevThemePinnedStyle, type DevThemeTarget } from '../utils/devThemeCss';
 import { getDevThemeControlTraces, type DevThemeControlTrace } from '../utils/devThemeControls';
-import { getDevThemeCropAspect, getDevThemeCropCanvasSize, getDevThemeCropPreviewSize } from '../utils/devThemeCrop';
+import { getDevThemeContainedImageRect, getDevThemeCropAspect, getDevThemeCropFrameRect, getDevThemeCropStageSize, getDevThemeSelectionCanvasSize } from '../utils/devThemeCrop';
 import { parseDevThemeConfig, readFileAsDataUrl, sanitizePresetFileName, serializeDevThemeConfig } from '../utils/devThemeIO';
 import { clampFloatingPanelRect } from '../utils/panelLayout';
+import { useConfirmStore } from '../stores/confirm';
+import { useTextPromptStore } from '../stores/textPrompt';
 
 type PanelPointerDragSession = {
   startEvent: PointerEvent;
@@ -207,8 +232,8 @@ type CropPreset = 'left' | 'right' | 'center' | 'cover';
 type ImageCropState = {
   open: boolean;
   scale: number;
-  offsetX: number;
-  offsetY: number;
+  centerX: number;
+  centerY: number;
 };
 
 const RangeControl = defineComponent({
@@ -298,14 +323,16 @@ const ToggleRange = defineComponent({
 });
 
 const store = useDevThemeStore();
+const confirmDialog = useConfirmStore();
+const textPrompt = useTextPromptStore();
 const parentDoc = inject<Document | null>('parentDocument', null);
 const parentFloatingRoot = inject<HTMLElement | null>('presetManagerParentFloatingRoot', null);
 const fileInput = ref<HTMLInputElement>();
 const cropState = reactive<ImageCropState>({
   open: false,
   scale: 1,
-  offsetX: 0,
-  offsetY: 0,
+  centerX: 120,
+  centerY: 80,
 });
 const resizeHandles = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const;
 let parentStyleEl: HTMLStyleElement | null = null;
@@ -323,19 +350,36 @@ const selectedTargetActive = computed(() => hasSelected.value && store.currentTa
 const activePreset = computed(() => store.presets.find(item => item.id === store.activePresetId));
 const isBuiltinPreset = computed(() => Boolean(activePreset.value?.builtin));
 const cropSource = computed(() => store.currentDraft.originalImageDataUrl || store.currentDraft.imageDataUrl || '');
+const backgroundPreviewSource = computed(() => store.currentDraft.imageDataUrl || store.currentDraft.originalImageDataUrl || '');
+const backgroundPreviewStyle = computed(() => {
+  if (!backgroundPreviewSource.value) return {};
+  const imageScale = Math.round(Math.max(0.5, Math.min(store.currentDraft.imageScale, 2)) * 100);
+  const backgroundSize = store.currentDraft.imageFit === 'repeat' || store.currentDraft.imageFit === 'center'
+    ? `${imageScale}% auto`
+    : store.currentDraft.imageFit;
+  return {
+    backgroundImage: `url("${backgroundPreviewSource.value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}")`,
+    backgroundSize,
+    backgroundPosition: 'center center',
+    backgroundRepeat: store.currentDraft.imageFit === 'repeat' ? 'repeat' : 'no-repeat',
+  };
+});
 const cropAspect = computed(() => getDevThemeCropAspect({
   targets: store.currentTargets,
   selectedRect: store.selectedElement?.rect ?? null,
 }));
-const cropCanvasSize = computed(() => getDevThemeCropCanvasSize(cropAspect.value));
-const cropPreviewSize = computed(() => getDevThemeCropPreviewSize(cropAspect.value));
+const cropStageSize = computed(() => getDevThemeCropStageSize());
 const cropStageStyle = computed(() => ({
-  aspectRatio: `${cropAspect.value.width} / ${cropAspect.value.height}`,
-  width: `${cropPreviewSize.value.width}px`,
-  height: `${cropPreviewSize.value.height}px`,
+  aspectRatio: `${cropStageSize.value.width} / ${cropStageSize.value.height}`,
+  width: `${cropStageSize.value.width}px`,
+  height: `${cropStageSize.value.height}px`,
 }));
-const cropImageStyle = computed(() => ({
-  transform: `translate(-50%, -50%) translate(${cropState.offsetX}px, ${cropState.offsetY}px) scale(${cropState.scale})`,
+const cropFrameRect = computed(() => getDevThemeCropFrameRect(cropAspect.value, cropStageSize.value, cropState));
+const cropFrameStyle = computed(() => ({
+  left: `${cropFrameRect.value.left}px`,
+  top: `${cropFrameRect.value.top}px`,
+  width: `${cropFrameRect.value.width}px`,
+  height: `${cropFrameRect.value.height}px`,
 }));
 
 const currentCss = computed(() => buildDevThemeCss({
@@ -343,6 +387,7 @@ const currentCss = computed(() => buildDevThemeCss({
   targets: store.currentTargets,
   background: store.currentDraft,
   selectedPaths: store.currentTargets.selected && store.selectedElement?.path ? [store.selectedElement.path] : [],
+  pinnedStyles: store.pinnedStyles,
 }));
 
 const activeTargetLabel = computed(() => targetOptions.filter(target => store.currentTargets[target.key]).map(target => target.label).join(' / ') || '未选择范围');
@@ -353,6 +398,12 @@ function controlInfo(id: string): ControlEffectInfo {
   const activeForSelection = selectedOnly ? selectedTargetActive.value && trace.enabled : trace.enabled;
   const targetText = selectedOnly ? '选中元素' : '背景范围';
   return { ...trace, activeForSelection, targetText };
+}
+
+function stabilityLabel(stability: DevThemePinnedStyle['stability'] | DevThemeSelectedElement['stability'] | undefined) {
+  if (stability === 'source') return '源码定位';
+  if (stability === 'stable') return '稳定';
+  return '低稳定性';
 }
 
 function onSelected(event: Event) {
@@ -479,32 +530,32 @@ function onResizeStart(event: PointerEvent, handle: typeof resizeHandles[number]
 function openImageCropper() {
   if (!cropSource.value) return;
   cropState.open = true;
-  applyCropPreset('cover');
+  applyCropPreset('center');
 }
 
 function applyCropPreset(preset: CropPreset) {
   cropState.open = true;
   if (preset === 'left') {
-    cropState.scale = 1;
-    cropState.offsetX = 72;
-    cropState.offsetY = 0;
+    cropState.scale = 0.5;
+    cropState.centerX = cropStageSize.value.width * 0.25;
+    cropState.centerY = cropStageSize.value.height / 2;
     return;
   }
   if (preset === 'right') {
-    cropState.scale = 1;
-    cropState.offsetX = -72;
-    cropState.offsetY = 0;
+    cropState.scale = 0.5;
+    cropState.centerX = cropStageSize.value.width * 0.75;
+    cropState.centerY = cropStageSize.value.height / 2;
     return;
   }
   if (preset === 'center') {
-    cropState.scale = 1;
-    cropState.offsetX = 0;
-    cropState.offsetY = 0;
+    cropState.scale = 0.62;
+    cropState.centerX = cropStageSize.value.width / 2;
+    cropState.centerY = cropStageSize.value.height / 2;
     return;
   }
-  cropState.scale = 1.15;
-  cropState.offsetX = 0;
-  cropState.offsetY = 0;
+  cropState.scale = 1;
+  cropState.centerX = cropStageSize.value.width / 2;
+  cropState.centerY = cropStageSize.value.height / 2;
 }
 
 function clearBackgroundImage() {
@@ -551,57 +602,73 @@ function startCropPointerDrag(session: PanelPointerDragSession) {
 function onCropDragStart(event: PointerEvent) {
   if (event.button !== 0) return;
   const startPoint = { x: event.clientX, y: event.clientY };
-  const start = { x: cropState.offsetX, y: cropState.offsetY };
+  const start = { x: cropState.centerX, y: cropState.centerY };
   startCropPointerDrag({
     startEvent: event,
     cursor: 'move',
     onMove: ev => {
-      cropState.offsetX = start.x + ev.clientX - startPoint.x;
-      cropState.offsetY = start.y + ev.clientY - startPoint.y;
+      cropState.centerX = start.x + ev.clientX - startPoint.x;
+      cropState.centerY = start.y + ev.clientY - startPoint.y;
     },
   });
 }
 
 function onCropWheel(event: WheelEvent) {
-  const next = cropState.scale + (event.deltaY > 0 ? -0.06 : 0.06);
-  cropState.scale = Math.max(0.5, Math.min(2.6, Math.round(next * 100) / 100));
+  const next = cropState.scale + (event.deltaY > 0 ? -0.05 : 0.05);
+  cropState.scale = Math.max(0.2, Math.min(1, Math.round(next * 100) / 100));
+}
+
+function closeCropReference() {
+  cropState.open = false;
 }
 
 function loadImage(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error('图片裁剪失败'));
+    image.onerror = () => reject(new Error('图片读取失败'));
     image.src = src;
   });
 }
 
-async function applyImageCrop() {
+async function confirmSelectionAsBackground() {
   if (!cropSource.value) return;
   try {
     const image = await loadImage(cropSource.value);
+    const stage = cropStageSize.value;
+    const imageRect = getDevThemeContainedImageRect(stage, { width: image.naturalWidth, height: image.naturalHeight });
+    const frame = cropFrameRect.value;
+    const sourceLeft = (frame.left - imageRect.left) / imageRect.width * image.naturalWidth;
+    const sourceTop = (frame.top - imageRect.top) / imageRect.height * image.naturalHeight;
+    const sourceWidth = frame.width / imageRect.width * image.naturalWidth;
+    const sourceHeight = frame.height / imageRect.height * image.naturalHeight;
+    const canvasSize = getDevThemeSelectionCanvasSize(cropAspect.value);
     const canvas = document.createElement('canvas');
-    const size = cropCanvasSize.value;
-    canvas.width = size.width;
-    canvas.height = size.height;
+    canvas.width = canvasSize.width;
+    canvas.height = canvasSize.height;
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('图片裁剪失败');
-
-    const baseScale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
-    const drawScale = baseScale * cropState.scale;
-    const drawWidth = image.naturalWidth * drawScale;
-    const drawHeight = image.naturalHeight * drawScale;
-    const drawX = (canvas.width - drawWidth) / 2 + cropState.offsetX;
-    const drawY = (canvas.height - drawHeight) / 2 + cropState.offsetY;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
-    store.currentDraft.imageDataUrl = canvas.toDataURL('image/png');
-    if (!store.currentDraft.originalImageDataUrl) store.currentDraft.originalImageDataUrl = cropSource.value;
+    if (!ctx) throw new Error('无法创建图片画布');
+    ctx.drawImage(
+      image,
+      Math.max(0, sourceLeft),
+      Math.max(0, sourceTop),
+      Math.min(image.naturalWidth, sourceWidth),
+      Math.min(image.naturalHeight, sourceHeight),
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+    store.currentDraft.imageDataUrl = canvas.toDataURL('image/webp', 0.82);
+    store.currentDraft.originalImageDataUrl = null;
     store.currentDraft.imageFit = 'cover';
+    store.currentDraft.imageScale = 1;
+    store.currentDraft.imagePositionX = 50;
+    store.currentDraft.imagePositionY = 50;
     cropState.open = false;
+    toastr.success('已确认选择为背景');
   } catch (error) {
-    toastr.error(error instanceof Error ? error.message : '图片裁剪失败');
+    toastr.error(error instanceof Error ? error.message : '背景生成失败');
   }
 }
 
@@ -635,29 +702,53 @@ function selectPreset(id: string) {
   if (id) store.applyPreset(id);
 }
 
-function saveNew() {
-  const name = prompt('新预设名称', '背景预设');
-  if (name) store.saveAsNewPreset(name);
+async function saveNew() {
+  const name = await textPrompt.prompt({
+    title: '另存背景预设',
+    label: '预设名称',
+    defaultValue: '背景预设',
+    confirmLabel: '保存',
+  });
+  if (name?.trim()) store.saveAsNewPreset(name.trim());
 }
 
-function saveCurrent() {
-  if (confirm('覆盖当前预设？')) store.overwriteCurrentPreset();
+async function saveCurrent() {
+  if (await confirmDialog.confirm({
+    title: '覆盖背景预设',
+    message: '覆盖当前预设？',
+    confirmLabel: '覆盖',
+  })) store.overwriteCurrentPreset();
 }
 
-function renameCurrent() {
+async function renameCurrent() {
   const current = store.presets.find(item => item.id === store.activePresetId);
   if (!current) return;
-  const name = prompt('新名称', current.name);
-  if (name) store.renamePreset(current.id, name);
+  const name = await textPrompt.prompt({
+    title: '重命名背景预设',
+    label: '新名称',
+    defaultValue: current.name,
+    confirmLabel: '重命名',
+  });
+  if (name?.trim()) store.renamePreset(current.id, name.trim());
 }
 
-function deleteCurrent() {
+async function deleteCurrent() {
   const current = store.presets.find(item => item.id === store.activePresetId);
-  if (current && confirm(`删除「${current.name}」？`)) store.deletePreset(current.id);
+  if (current && await confirmDialog.confirm({
+    title: '删除背景预设',
+    message: `删除「${current.name}」？`,
+    confirmLabel: '删除',
+    tone: 'danger',
+  })) store.deletePreset(current.id);
 }
 
-function resetDraft() {
-  if (confirm('放弃未保存修改？')) store.resetDraft();
+async function resetDraft() {
+  if (await confirmDialog.confirm({
+    title: '放弃修改',
+    message: '放弃未保存修改？',
+    confirmLabel: '放弃',
+    tone: 'danger',
+  })) store.resetDraft();
 }
 
 async function copyCss() {
@@ -675,25 +766,19 @@ function downloadText(fileName: string, content: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
-function downloadDataUrl(fileName: string, dataUrl: string) {
-  const anchor = document.createElement('a');
-  anchor.href = dataUrl;
-  anchor.download = fileName;
-  anchor.click();
-}
-
 function exportCurrent() {
   const current = store.presets.find(item => item.id === store.activePresetId);
   const name = current?.name ?? '未保存背景预设';
   const baseName = sanitizePresetFileName(name);
-  const imageFileName = store.currentDraft.imageDataUrl ? `${baseName}.png` : null;
+  const imageDataUrl = store.currentDraft.imageDataUrl || store.currentDraft.originalImageDataUrl;
+  const imageFileName = imageDataUrl ? `${baseName}.json 内嵌图片` : null;
   downloadText(`${baseName}.json`, serializeDevThemeConfig({
     name,
     imageFileName,
-    targets: store.currentTargets,
-    background: store.currentDraft,
+      targets: store.currentTargets,
+      pinnedStyles: store.pinnedStyles,
+      background: store.currentDraft,
   }), 'application/json');
-  if (imageFileName && store.currentDraft.imageDataUrl) downloadDataUrl(imageFileName, store.currentDraft.imageDataUrl);
 }
 
 function importConfig() {
@@ -705,8 +790,7 @@ function importConfig() {
     if (!file) return;
     try {
       const config = parseDevThemeConfig(await file.text());
-      store.importPreset(config.name, config.background, config.targets);
-      if (config.imageFileName) toastr.info(`已导入配置，请再手动选择图片文件：${config.imageFileName}`, '', { timeOut: 3200 });
+      store.importPreset(config.name, config.background, config.targets, config.pinnedStyles);
     } catch (error) {
       toastr.error(error instanceof Error ? error.message : '导入失败');
     }
@@ -798,6 +882,7 @@ function buildParentPanelStyle(rootKey: string) {
     }
     ${root} .dev-theme-selected-box,
     ${root} .dev-theme-empty-box,
+    ${root} .dev-theme-pinned-list,
     ${root} .dev-theme-target-grid,
     ${root} .dev-theme-live-grid {
       display: grid;
@@ -821,6 +906,37 @@ function buildParentPanelStyle(rootKey: string) {
       font-weight: 500;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    ${root} .dev-theme-pinned-list {
+      max-height: 116px;
+      overflow: auto;
+    }
+    ${root} .dev-theme-pinned-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 11px;
+    }
+    ${root} .dev-theme-pinned-item span {
+      grid-row: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    ${root} .dev-theme-pinned-meta {
+      grid-row: 2;
+      color: rgba(255, 255, 255, 0.48);
+      font-size: 10px;
+    }
+    ${root} .dev-theme-pinned-item button {
+      grid-row: 1 / span 2;
+      min-width: 24px;
+      padding: 3px 6px !important;
     }
     ${root} .dev-theme-target-grid label,
     ${root} .dev-theme-toggle-control,
@@ -870,6 +986,12 @@ function buildParentPanelStyle(rootKey: string) {
       opacity: 0.45;
       cursor: not-allowed;
     }
+    ${root} .dev-theme-primary-action {
+      border-color: rgba(255, 255, 255, 0.28) !important;
+      background: rgba(255, 255, 255, 0.86) !important;
+      color: rgba(15, 16, 19, 0.94) !important;
+      font-weight: 650 !important;
+    }
     ${root} .dev-theme-icon-btn {
       min-width: 30px;
     }
@@ -888,47 +1010,126 @@ function buildParentPanelStyle(rootKey: string) {
       border-style: dashed !important;
       color: rgba(255, 255, 255, 0.56);
     }
-    ${root} .dev-theme-drop img {
+    ${root} .dev-theme-drop-preview {
       width: 100%;
       height: 112px;
-      object-fit: cover;
+      border-radius: 9px;
+      background-color: rgba(0, 0, 0, 0.28);
     }
     ${root} .dev-theme-file {
       display: none;
     }
-    ${root} .dev-theme-cropper {
+    ${root} .dev-theme-image-editor {
+      position: absolute;
+      inset: 54px 12px 12px;
+      z-index: 3;
       display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 12px;
+      padding: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      background: rgba(12, 13, 16, 0.88);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.42);
+      backdrop-filter: blur(22px) saturate(130%);
+      -webkit-backdrop-filter: blur(22px) saturate(130%);
+    }
+    ${root} .dev-theme-image-editor-head,
+    ${root} .dev-theme-image-editor-foot,
+    ${root} .dev-theme-image-actions,
+    ${root} .dev-theme-image-ratio {
+      display: flex;
+      align-items: center;
       gap: 8px;
     }
-    ${root} .dev-theme-crop-stage {
+    ${root} .dev-theme-image-editor-head {
+      justify-content: space-between;
+    }
+    ${root} .dev-theme-image-editor-head > div {
+      display: grid;
+      gap: 3px;
+    }
+    ${root} .dev-theme-image-editor-head strong {
+      font-size: 13px;
+    }
+    ${root} .dev-theme-image-editor-head span,
+    ${root} .dev-theme-image-ratio span {
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 11px;
+    }
+    ${root} .dev-theme-image-stage-wrap {
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border-radius: 12px;
+      background:
+        linear-gradient(45deg, rgba(255, 255, 255, 0.035) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(255, 255, 255, 0.035) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.035) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.035) 75%),
+        rgba(0, 0, 0, 0.22);
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+      background-size: 16px 16px;
+    }
+    ${root} .dev-theme-image-stage {
       position: relative;
       max-width: 100%;
+      max-height: 100%;
       margin: 0 auto;
       overflow: hidden;
       border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 10px;
-      background: rgba(0, 0, 0, 0.28);
-      cursor: move;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.32);
       touch-action: none;
     }
-    ${root} .dev-theme-crop-stage img {
-      position: absolute;
-      top: 50%;
-      left: 50%;
+    ${root} .dev-theme-image-stage img {
+      display: block;
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
       user-select: none;
       pointer-events: none;
-      transform-origin: center center;
     }
-    ${root} .dev-theme-crop-frame {
+    ${root} .dev-theme-image-dim {
       position: absolute;
-      inset: 10px;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.20);
+      pointer-events: none;
+    }
+    ${root} .dev-theme-image-frame {
+      position: absolute;
       border: 1px solid rgba(255, 255, 255, 0.72);
       border-radius: 8px;
-      box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.28);
+      box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.30), inset 0 0 0 1px rgba(0, 0, 0, 0.32);
+      cursor: move;
+      pointer-events: auto;
+    }
+    ${root} .dev-theme-image-frame span {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      padding: 3px 6px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.48);
+      color: rgba(255, 255, 255, 0.86);
+      font: 11px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
       pointer-events: none;
+    }
+    ${root} .dev-theme-image-editor-foot {
+      display: grid;
+      grid-template-columns: minmax(0, auto) minmax(180px, 1fr) auto;
+      gap: 10px;
+    }
+    ${root} .dev-theme-image-editor-foot .dev-theme-range {
+      margin: 0;
+    }
+    ${root} .dev-theme-image-ratio code {
+      color: #79c0ff;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 11px;
     }
     ${root} .dev-theme-toggle-control input[type='range'],
     ${root} .dev-theme-range input[type='range'] {
@@ -958,6 +1159,9 @@ function buildParentPanelStyle(rootKey: string) {
     @media (max-width: 760px) {
       ${root} .dev-theme-shell,
       ${root} .dev-theme-live-grid {
+        grid-template-columns: 1fr;
+      }
+      ${root} .dev-theme-image-editor-foot {
         grid-template-columns: 1fr;
       }
     }
@@ -1069,7 +1273,8 @@ onBeforeUnmount(() => {
   font-weight: 650;
 }
 .dev-theme-selected-box,
-.dev-theme-empty-box {
+.dev-theme-empty-box,
+.dev-theme-pinned-list {
   display: grid;
   gap: 5px;
 }
@@ -1084,6 +1289,37 @@ onBeforeUnmount(() => {
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.dev-theme-pinned-list {
+  max-height: 116px;
+  overflow: auto;
+}
+.dev-theme-pinned-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+}
+.dev-theme-pinned-item span {
+  grid-row: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dev-theme-pinned-meta {
+  grid-row: 2;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 10px;
+}
+.dev-theme-pinned-item button {
+  grid-row: 1 / span 2;
+  min-width: 24px;
+  padding: 3px 6px !important;
 }
 .dev-theme-target-grid,
 .dev-theme-live-grid {
@@ -1150,6 +1386,12 @@ onBeforeUnmount(() => {
   opacity: 0.45;
   cursor: not-allowed;
 }
+.dev-theme-primary-action {
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  background: rgba(255, 255, 255, 0.86) !important;
+  color: rgba(15, 16, 19, 0.94) !important;
+  font-weight: 650 !important;
+}
 .dev-theme-icon-btn {
   min-width: 30px;
 }
@@ -1168,47 +1410,126 @@ onBeforeUnmount(() => {
   border-style: dashed !important;
   color: rgba(255, 255, 255, 0.56);
 }
-.dev-theme-drop img {
+.dev-theme-drop-preview {
   width: 100%;
   height: 112px;
-  object-fit: cover;
+  border-radius: 9px;
+  background-color: rgba(0, 0, 0, 0.28);
 }
 .dev-theme-file {
   display: none;
 }
-.dev-theme-cropper {
+.dev-theme-image-editor {
+  position: absolute;
+  inset: 54px 12px 12px;
+  z-index: 3;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(12, 13, 16, 0.88);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(22px) saturate(130%);
+  -webkit-backdrop-filter: blur(22px) saturate(130%);
+}
+.dev-theme-image-editor-head,
+.dev-theme-image-editor-foot,
+.dev-theme-image-actions,
+.dev-theme-image-ratio {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
-.dev-theme-crop-stage {
+.dev-theme-image-editor-head {
+  justify-content: space-between;
+}
+.dev-theme-image-editor-head > div {
+  display: grid;
+  gap: 3px;
+}
+.dev-theme-image-editor-head strong {
+  font-size: 13px;
+}
+.dev-theme-image-editor-head span,
+.dev-theme-image-ratio span {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+}
+.dev-theme-image-stage-wrap {
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 12px;
+  background:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.035) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.035) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.035) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.035) 75%),
+    rgba(0, 0, 0, 0.22);
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
+}
+.dev-theme-image-stage {
   position: relative;
   max-width: 100%;
+  max-height: 100%;
   margin: 0 auto;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.28);
-  cursor: move;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.32);
   touch-action: none;
 }
-.dev-theme-crop-stage img {
-  position: absolute;
-  top: 50%;
-  left: 50%;
+.dev-theme-image-stage img {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   user-select: none;
   pointer-events: none;
-  transform-origin: center center;
 }
-.dev-theme-crop-frame {
+.dev-theme-image-dim {
   position: absolute;
-  inset: 10px;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.20);
+  pointer-events: none;
+}
+.dev-theme-image-frame {
+  position: absolute;
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 8px;
-  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.30), inset 0 0 0 1px rgba(0, 0, 0, 0.32);
+  cursor: move;
+  pointer-events: auto;
+}
+.dev-theme-image-frame span {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.48);
+  color: rgba(255, 255, 255, 0.86);
+  font: 11px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
   pointer-events: none;
+}
+.dev-theme-image-editor-foot {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(180px, 1fr) auto;
+  gap: 10px;
+}
+.dev-theme-image-editor-foot .dev-theme-range {
+  margin: 0;
+}
+.dev-theme-image-ratio code {
+  color: #79c0ff;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
 }
 .dev-theme-toggle-control input[type='range'],
 .dev-theme-range input[type='range'] {
@@ -1255,6 +1576,9 @@ onBeforeUnmount(() => {
 @media (max-width: 760px) {
   .dev-theme-shell,
   .dev-theme-live-grid {
+    grid-template-columns: 1fr;
+  }
+  .dev-theme-image-editor-foot {
     grid-template-columns: 1fr;
   }
 }

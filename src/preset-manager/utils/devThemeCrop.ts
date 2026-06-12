@@ -8,6 +8,12 @@ export type DevThemeCropRect = {
   height: number;
 };
 
+export type DevThemeCropFrameState = {
+  centerX: number;
+  centerY: number;
+  scale: number;
+};
+
 export type DevThemeCropAspect = {
   label: string;
   width: number;
@@ -62,7 +68,14 @@ export function getDevThemeCropAspect(options: {
   return createAspect(DEV_THEME_CROP_ASPECTS.panel.label, DEV_THEME_CROP_ASPECTS.panel.width, DEV_THEME_CROP_ASPECTS.panel.height);
 }
 
-export function getDevThemeCropCanvasSize(aspect: DevThemeCropAspect) {
+export function getDevThemeCropStageSize(maxWidth = 720) {
+  return {
+    width: maxWidth,
+    height: Math.round(maxWidth * 2 / 3),
+  };
+}
+
+export function getDevThemeSelectionCanvasSize(aspect: DevThemeCropAspect) {
   if (aspect.ratio >= 1) {
     return {
       width: Math.round(800 * aspect.ratio),
@@ -75,15 +88,54 @@ export function getDevThemeCropCanvasSize(aspect: DevThemeCropAspect) {
   };
 }
 
-export function getDevThemeCropPreviewSize(aspect: DevThemeCropAspect, maxWidth = 240, maxHeight = 260) {
-  if (aspect.ratio >= maxWidth / maxHeight) {
-    return {
-      width: maxWidth,
-      height: Math.round(maxWidth / aspect.ratio),
-    };
+export function getDevThemeContainedImageRect(stage: DevThemeCropRect, image: DevThemeCropRect) {
+  if (!isUsableRect(stage) || !isUsableRect(image)) {
+    return { left: 0, top: 0, width: stage.width, height: stage.height };
   }
+  const scale = Math.min(stage.width / image.width, stage.height / image.height);
+  const width = image.width * scale;
+  const height = image.height * scale;
   return {
-    width: Math.round(maxHeight * aspect.ratio),
-    height: maxHeight,
+    left: Math.round((stage.width - width) / 2),
+    top: Math.round((stage.height - height) / 2),
+    width: Math.round(width),
+    height: Math.round(height),
+  };
+}
+
+function clamp(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(value, max));
+}
+
+export function getDevThemeCropFrameSize(aspect: DevThemeCropAspect, stage: DevThemeCropRect, scale: number) {
+  const safeScale = clamp(scale, 0.2, 1);
+  const stageRatio = stage.width / stage.height;
+  let width: number;
+  let height: number;
+
+  if (aspect.ratio >= stageRatio) {
+    width = stage.width * safeScale;
+    height = width / aspect.ratio;
+  } else {
+    height = stage.height * safeScale;
+    width = height * aspect.ratio;
+  }
+
+  return {
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height)),
+  };
+}
+
+export function getDevThemeCropFrameRect(aspect: DevThemeCropAspect, stage: DevThemeCropRect, state: DevThemeCropFrameState) {
+  const frame = getDevThemeCropFrameSize(aspect, stage, state.scale);
+  const maxLeft = Math.max(0, stage.width - frame.width);
+  const maxTop = Math.max(0, stage.height - frame.height);
+  return {
+    left: Math.round(clamp(state.centerX - frame.width / 2, 0, maxLeft)),
+    top: Math.round(clamp(state.centerY - frame.height / 2, 0, maxTop)),
+    width: frame.width,
+    height: frame.height,
   };
 }

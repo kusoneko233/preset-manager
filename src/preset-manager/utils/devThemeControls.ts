@@ -131,6 +131,21 @@ export const DEV_THEME_CONTROL_SPECS: DevThemeControlSpec[] = [
     buildDeclarations: () => ['background-image: linear-gradient(...);'],
   },
   {
+    id: 'bottomFade',
+    label: '底部压黑',
+    beginnerHint: '在背景底部叠加黑色渐变，让图片下方自然沉到暗色。',
+    cssProperties: ['background-image: linear-gradient(...)'],
+    sourceLocation: 'src/preset-manager/utils/devThemeCss.ts > buildLayerList',
+    scope: 'background',
+    isEnabled: background => background.bottomFadeOpacity > 0,
+    buildDeclarations: background => {
+      const alpha = Math.round(clamp(background.bottomFadeOpacity, 0, 1) * 1000) / 1000;
+      const start = round(clamp(background.bottomFadeStart, 0, 100));
+      const solidStart = round(clamp(background.bottomFadeSolidStart, start, 100));
+      return [`background-image layer: linear-gradient(180deg, rgba(0,0,0,0) ${start}%, rgba(0,0,0,${alpha}) ${solidStart}%, rgba(0,0,0,${alpha}) 100%);`];
+    },
+  },
+  {
     id: 'textColor',
     label: '文字颜色',
     beginnerHint: '改变选中元素里的文字颜色。',

@@ -69,9 +69,10 @@ expectNotIncludes(presetPanel, 'presetPromptDragPreview.y = clientY +');
 
 expectIncludes(cssBlock(presetPanel, '.prompt-drop-slot'), 'transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);');
 expectIncludes(cssBlock(presetPanel, '.prompt-drop-slot'), 'will-change: transform;');
-expectIncludes(cssBlock(presetPanel, '.prompt-drop-slot.dragging'), 'opacity: 0;');
 expectIncludes(cssBlock(presetPanel, '.prompt-drop-slot.dragging'), 'pointer-events: none;');
+expectNotIncludes(cssBlock(presetPanel, '.prompt-drop-slot.dragging'), 'opacity: 0;');
 expectNotIncludes(cssBlock(presetPanel, '.prompt-drop-slot.dragging'), 'visibility: hidden;');
+expectIncludes(cssBlock(presetPanel, '.prompt-drop-slot.dragging :deep(.prompt-item)'), 'display: none;');
 expectIncludes(cssBlock(presetPanel, '.preset-prompt-drag-preview'), 'position: fixed;');
 expectIncludes(cssBlock(presetPanel, '.preset-prompt-drag-preview'), 'pointer-events: none;');
 expectIncludes(cssBlock(presetPanel, '.preset-prompt-drag-preview'), 'transform: translate3d(var(--preset-prompt-drag-x, 0), var(--preset-prompt-drag-y, 0), 0);');

@@ -530,6 +530,7 @@ function getPresetPromptRelativeMovement(targetIndex: number) {
 
 function getPresetPromptSlotStyle(prompt: PresetPrompt, index: number) {
   if (!presetPromptDragPreview.visible || !presetPromptDragPreview.key || isPresetPromptDragging(prompt, index)) return {};
+  if (isSortingDrop.value) return {};
   const offset = getPresetPromptReflowOffset(index);
   return offset ? { transform: `translate3d(0, ${offset}px, 0)` } : {};
 }
@@ -1236,9 +1237,7 @@ function showExternalPromptInsertSpacer(index: number) {
 function showPresetPromptReorderSpacer(index: number) {
   return isSortingDrop.value
     && presetPromptMouseDrag.dragging
-    && dropIndex.value === index
-    && index !== presetPromptMouseDrag.startIndex
-    && index !== presetPromptMouseDrag.startIndex + 1;
+    && dropIndex.value === index;
 }
 
 async function insertDroppedPrompt(prompt: PresetPrompt, index: number) {
@@ -1813,8 +1812,10 @@ onUnmounted(() => {
   grid-template-columns: 22px minmax(0, 1fr);
 }
 .prompt-drop-slot.dragging {
-  opacity: 0;
   pointer-events: none;
+}
+.prompt-drop-slot.dragging :deep(.prompt-item) {
+  display: none;
 }
 .prompt-drop-slot :deep(.prompt-item) {
   min-width: 0;
@@ -1851,9 +1852,6 @@ onUnmounted(() => {
 }
 .external-insert-spacer.tail {
   margin-top: 6px;
-}
-.external-insert-spacer.preset-reorder {
-  min-height: var(--pm-preset-reorder-spacer-height, 56px);
 }
 .prompt-select-toggle,
 .prompt-select-spacer {

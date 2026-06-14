@@ -109,7 +109,11 @@ expectIncludes(presetPanel, 'showPresetPromptReorderSpacer(i)');
 expectIncludes(presetPanel, 'showPresetPromptReorderSpacer(prompts.length)');
 expectIncludes(presetPanel, 'class="external-insert-spacer preset-reorder"');
 expectIncludes(cssBlock(presetPanel, '.external-insert-spacer'), 'border: 1px dashed');
-expectIncludes(cssBlock(presetPanel, '.external-insert-spacer.preset-reorder'), 'min-height');
+expectNotIncludes(presetPanel, '.external-insert-spacer.preset-reorder');
+expectIncludes(extractFunctionBlock(presetPanel, 'getPresetPromptSlotStyle'), 'isSortingDrop.value');
+expectIncludes(extractFunctionBlock(presetPanel, 'getPresetPromptSlotStyle'), 'return {};');
+expectNotIncludes(extractFunctionBlock(presetPanel, 'showPresetPromptReorderSpacer'), 'index !== presetPromptMouseDrag.startIndex');
+expectNotIncludes(extractFunctionBlock(presetPanel, 'showPresetPromptReorderSpacer'), 'index !== presetPromptMouseDrag.startIndex + 1');
 
 expectIncludes(extractConstBlock(presetPanel, 'dropHintText'), 'const movement = getPresetPromptRelativeMovement(target);');
 expectIncludes(presetPanel, 'function getPresetPromptRelativeMovement(targetIndex: number)');

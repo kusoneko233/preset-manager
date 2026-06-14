@@ -4,6 +4,9 @@
     @dragover.prevent="onPanelDragOver"
     @dragleave="onPanelDragLeave"
     @drop.prevent="onPanelDrop"
+    @preset-manager-preset-prompt-dragover="onPresetPromptFavoritePanelDragOver"
+    @preset-manager-preset-prompt-drop="onPresetPromptFavoritePanelDrop"
+    @preset-manager-preset-prompt-dragend="onPresetPromptFavoritePanelDragEnd"
   >
     <div class="sidebar-section-head">
       <span class="sidebar-section-kicker">收藏</span>
@@ -55,10 +58,18 @@ function findDropFolderId(e: DragEvent) {
   if (folderElement?.dataset.folderId) return folderElement.dataset.folderId;
 
   const panel = e.currentTarget as HTMLElement | null;
-  const folderElements = Array.from(panel?.querySelectorAll<HTMLElement>('.folder-list [data-folder-id]') ?? []);
+  const clientY = e.clientY;
+  return findDropFolderIdFromRoot(clientY, panel);
+}
+
+function findDropFolderIdFromPoint(clientY: number) {
+  return findDropFolderIdFromRoot(clientY, document.querySelector<HTMLElement>('.favorites-panel'));
+}
+
+function findDropFolderIdFromRoot(clientY: number, root?: HTMLElement | null) {
+  const folderElements = Array.from(root?.querySelectorAll<HTMLElement>('.folder-list [data-folder-id]') ?? []);
   if (!folderElements.length) return folders.value[0]?.id || '';
 
-  const clientY = e.clientY;
   let matchedFolderId = folderElements[0]?.dataset.folderId || '';
   for (const element of folderElements) {
     const rect = element.getBoundingClientRect();
@@ -145,6 +156,29 @@ function onPanelDrop(e: DragEvent) {
   } catch (err) {
     console.error('[FavoritesPanel] Drop error:', err);
   }
+}
+
+function onPresetPromptFavoritePanelDragOver(event: Event) {
+  const detail = (event as CustomEvent<{ clientY?: number; prompt?: PresetPrompt }>).detail;
+  if (typeof detail?.clientY !== 'number' || !detail.prompt || isPresetPlaceholderPrompt(detail.prompt)) return;
+  activeDropFolderId.value = findDropFolderIdFromPoint(detail.clientY);
+}
+
+function onPresetPromptFavoritePanelDrop(event: Event) {
+  const detail = (event as CustomEvent<{ clientY?: number; prompt?: PresetPrompt }>).detail;
+  const prompt = detail?.prompt;
+  const folderId = activeDropFolderId.value || (
+    typeof detail?.clientY === 'number' ? findDropFolderIdFromPoint(detail.clientY) : folders.value[0]?.id || ''
+  );
+  clearActiveDropFolder();
+  if (!folderId || !prompt || isPresetPlaceholderPrompt(prompt)) return;
+
+  event.preventDefault();
+  addDroppedPromptToFolder(folderId, prompt);
+}
+
+function onPresetPromptFavoritePanelDragEnd() {
+  clearActiveDropFolder();
 }
 </script>
 

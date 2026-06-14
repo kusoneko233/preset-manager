@@ -8,6 +8,9 @@
     @dragover.prevent.stop="onFolderDragOver"
     @dragleave="onFolderDragLeave"
     @drop.prevent.stop="onFolderDrop"
+    @preset-manager-preset-prompt-dragover="onPresetPromptFavoriteDragOver"
+    @preset-manager-preset-prompt-drop="onPresetPromptFavoriteDrop"
+    @preset-manager-preset-prompt-dragend="onPresetPromptFavoriteDragEnd"
   >
     <div class="folder-row" @click="store.toggleFavoriteFolder(folder.id)">
       <Icon :name="folder.collapsed ? 'chevron-right' : 'chevron-down'" :size="12" class="folder-chevron" />
@@ -290,6 +293,9 @@ const FAVORITE_DRAG_START_DISTANCE = 4;
 const FAVORITE_PROMPT_DRAG_OVER_EVENT = 'preset-manager-favorite-dragover';
 const FAVORITE_PROMPT_DROP_EVENT = 'preset-manager-favorite-drop';
 const FAVORITE_PROMPT_DRAG_END_EVENT = 'preset-manager-favorite-dragend';
+const PRESET_PROMPT_FAVORITE_DRAG_OVER_EVENT = 'preset-manager-preset-prompt-dragover';
+const PRESET_PROMPT_FAVORITE_DROP_EVENT = 'preset-manager-preset-prompt-drop';
+const PRESET_PROMPT_FAVORITE_DRAG_END_EVENT = 'preset-manager-preset-prompt-dragend';
 
 const props = defineProps<{
   folder: FavoriteFolder;
@@ -640,6 +646,34 @@ function onFolderDragLeave(e: DragEvent) {
   emit('dragClear', props.folder.id);
 }
 
+function normalizeDroppedPrompt(prompt: PresetPrompt) {
+  const promptKey = getPromptKey(prompt) || prompt.id;
+  const stored = {
+    ...klona(prompt as any),
+    id: prompt.id || promptKey,
+    identifier: promptKey,
+    name: prompt.name,
+    enabled: prompt.enabled ?? true,
+    position: (prompt as any).position ?? { type: 'relative' as const },
+    role: prompt.role,
+    content: (prompt as any).content ?? '',
+  };
+  stored.injection_position = stored.injection_position
+    ?? (stored.position?.type === 'in_chat' ? 1 : 0);
+  stored.injection_depth = stored.injection_depth ?? stored.position?.depth ?? 4;
+  stored.injection_order = stored.injection_order ?? stored.position?.order ?? 100;
+  stored.injection_trigger = Array.isArray(stored.injection_trigger) ? stored.injection_trigger : [];
+  stored.forbid_overrides = false;
+  return stored as PresetNormalPrompt;
+}
+
+function addPromptToCurrentFolder(prompt: PresetPrompt) {
+  if (!prompt || isPresetPlaceholderPrompt(prompt)) return;
+  const added = store.addToFavorites(props.folder.id, normalizeDroppedPrompt(prompt));
+  if (added) toastr.success(`已收藏 "${prompt.name}"`, '', { timeOut: 1500 });
+  else toastr.warning(`"${prompt.name}" 已在这个收藏夹中`, '', { timeOut: 1500 });
+}
+
 function onFolderDrop(e: DragEvent) {
   isDragOver.value = false;
   emit('dragClear', props.folder.id);
@@ -661,29 +695,34 @@ function onFolderDrop(e: DragEvent) {
     const prompt = data.prompt as PresetPrompt;
     if (!prompt || isPresetPlaceholderPrompt(prompt)) return;
 
-    const promptKey = getPromptKey(prompt) || prompt.id;
-    const stored = {
-      ...klona(prompt as any),
-      id: prompt.id || promptKey,
-      identifier: promptKey,
-      name: prompt.name,
-      enabled: prompt.enabled ?? true,
-      position: (prompt as any).position ?? { type: 'relative' as const },
-      role: prompt.role,
-      content: (prompt as any).content ?? '',
-    };
-    stored.injection_position = stored.injection_position
-      ?? (stored.position?.type === 'in_chat' ? 1 : 0);
-    stored.injection_depth = stored.injection_depth ?? stored.position?.depth ?? 4;
-    stored.injection_order = stored.injection_order ?? stored.position?.order ?? 100;
-    stored.injection_trigger = Array.isArray(stored.injection_trigger) ? stored.injection_trigger : [];
-    stored.forbid_overrides = false;
-    const added = store.addToFavorites(props.folder.id, stored as PresetNormalPrompt);
-    if (added) toastr.success(`已收藏 "${prompt.name}"`, '', { timeOut: 1500 });
-    else toastr.warning(`"${prompt.name}" 已在这个收藏夹中`, '', { timeOut: 1500 });
+    addPromptToCurrentFolder(prompt);
   } catch (err) {
     console.error('[FavoriteFolder] Drop error:', err);
   }
+}
+
+function onPresetPromptFavoriteDragOver(event: Event) {
+  const detail = (event as CustomEvent<{ clientY?: number; prompt?: PresetPrompt }>).detail;
+  if (!detail?.prompt || isPresetPlaceholderPrompt(detail.prompt)) return;
+  isDragOver.value = true;
+  emit('dragFocus', props.folder.id);
+  favoriteDropIndex.value = null;
+}
+
+function onPresetPromptFavoriteDrop(event: Event) {
+  const detail = (event as CustomEvent<{ clientY?: number; prompt?: PresetPrompt }>).detail;
+  const prompt = detail?.prompt;
+  isDragOver.value = false;
+  emit('dragClear', props.folder.id);
+  if (!prompt || isPresetPlaceholderPrompt(prompt)) return;
+
+  event.preventDefault();
+  addPromptToCurrentFolder(prompt);
+}
+
+function onPresetPromptFavoriteDragEnd() {
+  isDragOver.value = false;
+  emit('dragClear', props.folder.id);
 }
 
 function isFavoriteDrag(e: DragEvent) {

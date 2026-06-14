@@ -73,6 +73,10 @@
             v-if="showExternalPromptInsertSpacer(i)"
             class="external-insert-spacer"
           />
+          <div
+            v-if="showPresetPromptReorderSpacer(i)"
+            class="external-insert-spacer preset-reorder"
+          />
           <button
             v-if="selectionMode && !isPresetPlaceholderPrompt(prompt)"
             class="prompt-select-toggle"
@@ -133,6 +137,10 @@
         <div
           v-if="showExternalPromptInsertSpacer(prompts.length)"
           class="external-insert-spacer tail"
+        />
+        <div
+          v-if="showPresetPromptReorderSpacer(prompts.length)"
+          class="external-insert-spacer preset-reorder tail"
         />
         <span v-if="dropIndex === prompts.length" class="drop-hint tail" aria-live="polite">{{ dropHintText }}</span>
       </div>
@@ -244,6 +252,9 @@ import {
 import { startParentDrag } from '../utils/drag';
 
 const PRESET_PROMPT_DRAG_START_DISTANCE = 4;
+const PRESET_PROMPT_FAVORITE_DRAG_OVER_EVENT = 'preset-manager-preset-prompt-dragover';
+const PRESET_PROMPT_FAVORITE_DROP_EVENT = 'preset-manager-preset-prompt-drop';
+const PRESET_PROMPT_FAVORITE_DRAG_END_EVENT = 'preset-manager-preset-prompt-dragend';
 
 const props = defineProps<{
   panelId: 'main' | 'second';
@@ -269,6 +280,7 @@ const isDropTarget = ref(false);
 const dropIndex = ref<number | null>(null);
 const isSortingDrop = ref(false);
 const externalPromptInsertPreview = ref<PresetNormalPrompt | null>(null);
+const pendingScrollAnchor = ref<{ key?: string; index?: number } | null>(null);
 const selectionMode = ref(false);
 const selectedPromptKeys = ref<string[]>([]);
 const focusedPromptKey = ref('');
@@ -309,6 +321,7 @@ const presetPromptDragPreview = reactive({
 });
 let suppressPresetPromptClick = false;
 let suppressPresetPromptClickTimer: ReturnType<typeof window.setTimeout> | null = null;
+let activePresetPromptDropFavoriteTarget: HTMLElement | null = null;
 
 const emptyPrompt: PresetPrompt = { id: '', name: '', enabled: false, role: 'system' };
 
@@ -325,7 +338,9 @@ const dropHintText = computed(() => {
   if (dropIndex.value === null) return '';
   const target = Math.max(0, Math.min(dropIndex.value, prompts.value.length));
   if (isSortingDrop.value) {
-    return target >= prompts.value.length ? '移到列表末尾' : `移到第 ${target + 1} 位`;
+    const movement = getPresetPromptRelativeMovement(target);
+    if (movement === 0) return '移到原位';
+    return movement < 0 ? `向上移动 ${Math.abs(movement)} 位` : `向下移动 ${movement} 位`;
   }
   return target >= prompts.value.length ? '插入到列表末尾' : `插入到第 ${target + 1} 位`;
 });
@@ -338,6 +353,11 @@ function syncPromptsFromStore() {
     focusedPromptKey.value = '';
   }
   pruneCollapsedPromptGroups();
+  const scrollAnchor = pendingScrollAnchor.value;
+  if (scrollAnchor) {
+    pendingScrollAnchor.value = null;
+    nextTick(() => scrollToPromptAnchor(scrollAnchor));
+  }
 }
 
 function currentPresetName() {
@@ -498,6 +518,14 @@ function isPresetPromptDragging(prompt: PresetPrompt, index: number) {
   return presetPromptMouseDrag.dragging
     && presetPromptMouseDrag.startIndex === index
     && presetPromptMouseDrag.key === getPromptKey(prompt);
+}
+
+function getPresetPromptRelativeMovement(targetIndex: number) {
+  if (!presetPromptMouseDrag.dragging || presetPromptMouseDrag.startIndex < 0) return 0;
+  const sourceIndex = presetPromptMouseDrag.startIndex;
+  const boundedTarget = Math.max(0, Math.min(targetIndex, prompts.value.length));
+  const insertIndex = boundedTarget > sourceIndex ? boundedTarget - 1 : boundedTarget;
+  return insertIndex - sourceIndex;
 }
 
 function getPresetPromptSlotStyle(prompt: PresetPrompt, index: number) {
@@ -967,10 +995,11 @@ function updatePresetPromptDragPreviewPosition(clientX = presetPromptMouseDrag.l
 }
 
 function updatePresetPromptDragFromPoint(clientX: number, clientY: number) {
-  isDropTarget.value = true;
-  isSortingDrop.value = true;
+  const overFavoriteTarget = dispatchPresetPromptFavoriteDragOver(clientX, clientY);
+  isDropTarget.value = !overFavoriteTarget;
+  isSortingDrop.value = !overFavoriteTarget;
   externalPromptInsertPreview.value = null;
-  dropIndex.value = resolvePresetPromptMouseDropIndex(clientY);
+  dropIndex.value = overFavoriteTarget ? null : resolvePresetPromptMouseDropIndex(clientY);
   requestAnimationFrame(() => updatePresetPromptDragPreviewPosition(clientX, clientY));
 }
 
@@ -996,8 +1025,9 @@ async function finishPresetPromptMouseDrag() {
   const targetIndex = dropIndex.value ?? presetPromptMouseDrag.startIndex;
   const sourceIndex = presetPromptMouseDrag.startIndex;
   const wasDragging = presetPromptMouseDrag.dragging;
+  const handledFavoriteDrop = wasDragging && dispatchPresetPromptFavoriteDrop();
 
-  if (wasDragging && prompt && isPresetPromptPointerInsidePanel()) {
+  if (wasDragging && !handledFavoriteDrop && prompt && isPresetPromptPointerInsidePanel()) {
     await recordPresetChange(`Adjust order: ${prompt.name}`, async () => {
       return store.reorderPromptInPreset(props.panelId, presetPromptMouseDrag.startIndex, targetIndex);
     });
@@ -1012,6 +1042,7 @@ async function finishPresetPromptMouseDrag() {
 }
 
 function resetPresetPromptMouseDrag() {
+  clearPresetPromptFavoriteDragTarget();
   presetPromptMouseDrag.active = false;
   presetPromptMouseDrag.dragging = false;
   presetPromptMouseDrag.key = '';
@@ -1060,6 +1091,57 @@ function getPresetPromptReflowOffset(index: number) {
 function isPresetPromptPointerInsidePanel() {
   const target = localDoc.elementFromPoint(presetPromptMouseDrag.lastX, presetPromptMouseDrag.lastY);
   return Boolean(target && panelRoot.value?.contains(target));
+}
+
+function getPresetPromptDropFavoriteTarget(clientX = presetPromptMouseDrag.lastX, clientY = presetPromptMouseDrag.lastY) {
+  const hit = localDoc.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('.favorite-folder, .favorites-panel');
+  if (hit) return hit;
+
+  for (const target of Array.from(localDoc.querySelectorAll<HTMLElement>('.favorite-folder, .favorites-panel'))) {
+    const rect = target.getBoundingClientRect();
+    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) return target;
+  }
+  return null;
+}
+
+function dispatchPresetPromptFavoriteDragOver(clientX: number, clientY: number) {
+  const target = getPresetPromptDropFavoriteTarget(clientX, clientY);
+  if (activePresetPromptDropFavoriteTarget && activePresetPromptDropFavoriteTarget !== target) {
+    activePresetPromptDropFavoriteTarget.dispatchEvent(new CustomEvent(PRESET_PROMPT_FAVORITE_DRAG_END_EVENT));
+  }
+  activePresetPromptDropFavoriteTarget = target;
+  if (!target) return false;
+
+  const prompt = prompts.value[presetPromptMouseDrag.startIndex];
+  target.dispatchEvent(new CustomEvent(PRESET_PROMPT_FAVORITE_DRAG_OVER_EVENT, {
+    detail: {
+      clientY,
+      prompt: prompt && !isPresetPlaceholderPrompt(prompt) ? klona(prompt as any) : undefined,
+    },
+  }));
+  return true;
+}
+
+function clearPresetPromptFavoriteDragTarget() {
+  if (!activePresetPromptDropFavoriteTarget) return;
+  activePresetPromptDropFavoriteTarget.dispatchEvent(new CustomEvent(PRESET_PROMPT_FAVORITE_DRAG_END_EVENT));
+  activePresetPromptDropFavoriteTarget = null;
+}
+
+function dispatchPresetPromptFavoriteDrop() {
+  const target = activePresetPromptDropFavoriteTarget ?? getPresetPromptDropFavoriteTarget();
+  const prompt = prompts.value[presetPromptMouseDrag.startIndex];
+  if (!target || !prompt || isPresetPlaceholderPrompt(prompt)) return false;
+
+  const dropEvent = new CustomEvent(PRESET_PROMPT_FAVORITE_DROP_EVENT, {
+    cancelable: true,
+    detail: {
+      clientY: presetPromptMouseDrag.lastY,
+      prompt: klona(prompt as any),
+    },
+  });
+  target.dispatchEvent(dropEvent);
+  return dropEvent.defaultPrevented;
 }
 
 function suppressNextPresetPromptClick() {
@@ -1151,9 +1233,18 @@ function showExternalPromptInsertSpacer(index: number) {
   return !isSortingDrop.value && dropIndex.value === index && !!externalPromptInsertPreview.value;
 }
 
+function showPresetPromptReorderSpacer(index: number) {
+  return isSortingDrop.value
+    && presetPromptMouseDrag.dragging
+    && dropIndex.value === index
+    && index !== presetPromptMouseDrag.startIndex
+    && index !== presetPromptMouseDrag.startIndex + 1;
+}
+
 async function insertDroppedPrompt(prompt: PresetPrompt, index: number) {
   if (!prompt || !prompt.name || isPresetPlaceholderPrompt(prompt)) return false;
 
+  pendingScrollAnchor.value = { key: getPromptKey(prompt), index };
   const inserted = await recordPresetChange(`插入条目: ${prompt.name}`, async () => {
     await store.insertPromptToPreset(normalizePrompt(prompt), props.panelId, index);
   });
@@ -1760,6 +1851,9 @@ onUnmounted(() => {
 }
 .external-insert-spacer.tail {
   margin-top: 6px;
+}
+.external-insert-spacer.preset-reorder {
+  min-height: var(--pm-preset-reorder-spacer-height, 56px);
 }
 .prompt-select-toggle,
 .prompt-select-spacer {

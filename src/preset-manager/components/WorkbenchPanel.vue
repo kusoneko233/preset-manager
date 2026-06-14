@@ -167,9 +167,21 @@
       <div v-if="draftDropIndex === drafts.length" class="draft-drag-spacer draft-drop-indicator" />
     </div>
 
-    <div v-if="draftDragPreview.visible" class="draft-drag-preview" :style="draftDragPreviewStyle">
-      <span class="draft-title-text">{{ draftDragPreview.name }}</span>
-      <div v-if="draftDragPreview.preview" class="draft-preview left-entry-preview">{{ draftDragPreview.preview }}</div>
+    <div
+      v-if="draftDragPreview.visible"
+      class="draft-drag-preview preset-drag-preview"
+      :class="{ preset: draftDragPreview.mode === 'preset' }"
+      :style="draftDragPreview.mode === 'preset' ? draftPresetDragPreviewStyle : draftDragPreviewStyle"
+    >
+      <template v-if="draftDragPreview.mode === 'sidebar'">
+        <span class="draft-title-text">{{ draftDragPreview.name }}</span>
+        <div v-if="draftDragPreview.preview" class="draft-preview left-entry-preview">{{ draftDragPreview.preview }}</div>
+      </template>
+      <PromptItem
+        v-else-if="presetPreviewPrompt"
+        :prompt="presetPreviewPrompt"
+        :preview="true"
+      />
     </div>
 
     <Transition name="sidebar-entry-context-pop">
@@ -198,6 +210,7 @@
 <script setup lang="ts">
 import Icon from './Icon.vue';
 import IconButton from './IconButton.vue';
+import PromptItem from './PromptItem.vue';
 import { useManagerStore, type DraftPrompt } from '../stores/manager';
 import { startParentDrag } from '../utils/drag';
 
@@ -229,9 +242,14 @@ const POSITION_OPTIONS: SidebarCapsuleOption<PromptPositionType>[] = [
   { value: 'in_chat', label: '插入聊天' },
 ];
 const DRAFT_DRAG_START_DISTANCE = 4;
+const DRAFT_PROMPT_DRAG_OVER_EVENT = 'preset-manager-favorite-dragover';
+const DRAFT_PROMPT_DROP_EVENT = 'preset-manager-favorite-drop';
+const DRAFT_PROMPT_DRAG_END_EVENT = 'preset-manager-favorite-dragend';
 
 const store = useManagerStore();
 const parentDocument = inject<Document>('parentDocument', document);
+const iframeElement = inject<HTMLIFrameElement | null>('iframeElement', null);
+const localDoc: Document = iframeElement?.contentDocument ?? document;
 const drafts = computed(() => store.drafts);
 const openDraftTriggerId = ref<string | null>(null);
 const openDraftRoleId = ref<string | null>(null);
@@ -266,18 +284,27 @@ const draftDragPreview = reactive({
   draftId: '',
   name: '',
   preview: '',
+  mode: 'sidebar' as 'sidebar' | 'preset',
+  prompt: null as PresetNormalPrompt | null,
   x: 0,
   y: 0,
   width: 0,
+  presetWidth: 0,
 });
 let suppressDraftClick = false;
 let suppressDraftClickTimer: ReturnType<typeof window.setTimeout> | null = null;
+let activeDraftPromptDropPanel: HTMLElement | null = null;
 const draftDragPreviewStyle = computed(() => ({
   '--draft-drag-x': `${draftDragPreview.x}px`,
   '--draft-drag-y': `${draftDragPreview.y}px`,
   width: draftDragPreview.width ? `${draftDragPreview.width}px` : undefined,
 }));
-
+const draftPresetDragPreviewStyle = computed(() => ({
+  '--draft-drag-x': `${draftDragPreview.x}px`,
+  '--draft-drag-y': `${draftDragPreview.y}px`,
+  width: draftDragPreview.presetWidth ? `${draftDragPreview.presetWidth}px` : undefined,
+}));
+const presetPreviewPrompt = computed(() => draftDragPreview.prompt);
 function toggleDraft(draft: DraftPrompt) {
   if (suppressDraftClick) {
     suppressDraftClick = false;
@@ -288,7 +315,7 @@ function toggleDraft(draft: DraftPrompt) {
 }
 
 function isDraftDragging(draft: DraftPrompt) {
-  return draftDragPreview.visible && draftDragPreview.draftId === draft.id;
+  return draftMouseDrag.dragging && draftMouseDrag.draftId === draft.id;
 }
 
 function getDraftItemStyle(draft: DraftPrompt, index: number) {
@@ -506,10 +533,12 @@ function onDraftMouseDown(event: MouseEvent, draft: DraftPrompt, index: number) 
 }
 
 function getDraftLocalPoint(event: MouseEvent) {
-  if (event.view === window || (event.target as Node | null)?.ownerDocument === document) {
+  // event.target.ownerDocument === localDoc → 事件已处于 iframe 坐标系，直接返回
+  if ((event.target as Node | null)?.ownerDocument === localDoc) {
     return { x: event.clientX, y: event.clientY };
   }
-  const frameRect = window.frameElement?.getBoundingClientRect();
+  // 事件来自酒馆主页（拖拽遮罩层），需转换为 iframe 本地坐标
+  const frameRect = (iframeElement ?? window.frameElement)?.getBoundingClientRect();
   return {
     x: event.clientX - (frameRect?.left ?? 0),
     y: event.clientY - (frameRect?.top ?? 0),
@@ -526,7 +555,10 @@ function startDraftMouseDrag(x = draftMouseDrag.lastX, y = draftMouseDrag.lastY)
   draftDragPreview.draftId = draft.id;
   draftDragPreview.name = draft.name || '未命名';
   draftDragPreview.preview = draftPreviewText(draft);
+  draftDragPreview.mode = 'sidebar';
+  draftDragPreview.prompt = klona(store.draftToPrompt(draft) as any) as PresetNormalPrompt;
   draftDragPreview.width = draftMouseDrag.width;
+  draftDragPreview.presetWidth = 0;
   draftDragPreview.visible = true;
   draftDropIndex.value = draftMouseDrag.startIndex;
   closeDraftPopupMenus();
@@ -540,7 +572,9 @@ function updateDraftDragPreviewPosition(clientX = draftMouseDrag.lastX, clientY 
 }
 
 function updateDraftDragFromPoint(clientX: number, clientY: number) {
-  draftDropIndex.value = resolveDraftMouseDropIndex(clientY);
+  const overPresetPanel = dispatchDraftPromptDragOver(clientX, clientY);
+  draftDragPreview.mode = overPresetPanel ? 'preset' : 'sidebar';
+  draftDropIndex.value = overPresetPanel ? null : resolveDraftMouseDropIndex(clientY);
   requestAnimationFrame(() => updateDraftDragPreviewPosition(clientX, clientY));
 }
 
@@ -564,8 +598,11 @@ function finishDraftMouseDrag() {
   if (!draftMouseDrag.active) return;
   const sourceId = draftMouseDrag.draftId;
   const targetIndex = draftDropIndex.value ?? draftMouseDrag.startIndex;
+  const handledPresetDrop = draftMouseDrag.dragging && dispatchDraftPromptDrop();
   if (draftMouseDrag.dragging && sourceId) {
-    store.reorderDraftToIndex(sourceId, targetIndex);
+    if (!handledPresetDrop && isDraftPointerInsideWorkbench()) {
+      store.reorderDraftToIndex(sourceId, targetIndex);
+    }
     suppressNextDraftClick();
   }
   resetDraftMouseDrag();
@@ -585,11 +622,15 @@ function resetDraftMouseDrag() {
   draftMouseDrag.offsetX = 0;
   draftMouseDrag.offsetY = 0;
   draftDropIndex.value = null;
+  clearDraftPromptDragTarget();
   draftDragPreview.visible = false;
   draftDragPreview.draftId = '';
   draftDragPreview.name = '';
   draftDragPreview.preview = '';
+  draftDragPreview.mode = 'sidebar';
+  draftDragPreview.prompt = null;
   draftDragPreview.width = 0;
+  draftDragPreview.presetWidth = 0;
 }
 
 function resolveDraftMouseDropIndex(clientY: number) {
@@ -600,6 +641,70 @@ function resolveDraftMouseDropIndex(clientY: number) {
     if (clientY < rect.top + rect.height / 2) return index;
   }
   return items.length;
+}
+
+function getDraftPromptDropPanel(clientX = draftMouseDrag.lastX, clientY = draftMouseDrag.lastY) {
+  // clientX/Y 是本地 iframe 坐标（由 getDraftLocalPoint 转换）
+  // localDoc 是 iframe 内文档，document 是外层酒馆页面
+  const hit = localDoc.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('.preset-panel');
+  if (hit) return hit;
+  for (const panel of Array.from(localDoc.querySelectorAll<HTMLElement>('.preset-panel'))) {
+    const rect = panel.getBoundingClientRect();
+    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) return panel;
+  }
+  return null;
+}
+
+function dispatchDraftPromptDragOver(clientX: number, clientY: number) {
+  const panel = getDraftPromptDropPanel(clientX, clientY);
+  if (activeDraftPromptDropPanel && activeDraftPromptDropPanel !== panel) {
+    activeDraftPromptDropPanel.dispatchEvent(new CustomEvent(DRAFT_PROMPT_DRAG_END_EVENT, {
+      detail: { previewMode: 'sidebar' },
+    }));
+  }
+  activeDraftPromptDropPanel = panel;
+  if (!panel) return false;
+
+  const draft = drafts.value[draftMouseDrag.startIndex];
+  const panelRect = panel.getBoundingClientRect();
+  draftDragPreview.presetWidth = Math.max(160, Math.round(panelRect.width - 28));
+  panel.dispatchEvent(new CustomEvent(DRAFT_PROMPT_DRAG_OVER_EVENT, {
+    detail: {
+      clientY,
+      prompt: draft ? klona(store.draftToPrompt(draft) as any) : undefined,
+      previewMode: 'preset',
+    },
+  }));
+  return true;
+}
+
+function clearDraftPromptDragTarget() {
+  if (!activeDraftPromptDropPanel) return;
+  activeDraftPromptDropPanel.dispatchEvent(new CustomEvent(DRAFT_PROMPT_DRAG_END_EVENT, {
+    detail: { previewMode: 'sidebar' },
+  }));
+  activeDraftPromptDropPanel = null;
+}
+
+function dispatchDraftPromptDrop() {
+  const panel = activeDraftPromptDropPanel ?? getDraftPromptDropPanel();
+  const draft = drafts.value[draftMouseDrag.startIndex];
+  if (!panel || !draft) return false;
+
+  const dropEvent = new CustomEvent(DRAFT_PROMPT_DROP_EVENT, {
+    cancelable: true,
+    detail: {
+      clientY: draftMouseDrag.lastY,
+      prompt: klona(store.draftToPrompt(draft) as any),
+    },
+  });
+  panel.dispatchEvent(dropEvent);
+  return dropEvent.defaultPrevented;
+}
+
+function isDraftPointerInsideWorkbench() {
+  const target = localDoc.elementFromPoint(draftMouseDrag.lastX, draftMouseDrag.lastY);
+  return Boolean(target && workbenchRoot.value?.contains(target));
 }
 
 function suppressNextDraftClick() {
@@ -669,7 +774,7 @@ onUnmounted(() => {
   padding: 2px 0 6px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 .draft-item {
   border-radius: 8px;
@@ -739,6 +844,16 @@ onUnmounted(() => {
 .draft-drag-preview .draft-preview {
   margin-bottom: 7px;
 }
+.draft-drag-preview.preset {
+  padding: 0;
+  background: transparent;
+  border-radius: 10px;
+}
+.draft-drag-preview.preset :deep(.prompt-item) {
+  opacity: 0.86;
+  box-shadow: 0 10px 26px color-mix(in srgb, #000 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pm-text) 18%, transparent);
+}
 .draft-row {
   display: flex;
   align-items: center;
@@ -802,7 +917,7 @@ onUnmounted(() => {
 }
 .left-entry-preview {
   display: -webkit-box;
-  margin: -2px 35px 6px 13px;
+  margin: -2px 35px 4px 13px;
   color: color-mix(in srgb, var(--pm-text) 66%, transparent);
   font-size: 12px;
   line-height: 1.45;

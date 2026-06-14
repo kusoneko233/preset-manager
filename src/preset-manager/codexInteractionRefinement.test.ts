@@ -97,7 +97,7 @@ expectNotIncludes(sidebarPresetList, 'function onPresetDrop');
 
 expectIncludes(favoriteFolder, 'const favoriteDragPreview = reactive');
 expectIncludes(favoriteFolder, 'const favoriteDropIndex = ref<number | null>(null);');
-expectIncludes(favoriteFolder, 'class="fav-drag-preview"');
+expectIncludes(favoriteFolder, 'class="fav-drag-preview preset-drag-preview"');
 expectIncludes(favoriteFolder, 'class="fav-drag-spacer fav-drop-indicator"');
 expectIncludes(favoriteFolder, 'class="fav-drop-indicator"');
 expectIncludes(favoriteFolder, ':style="getFavoriteItemStyle(item, i)"');

@@ -102,16 +102,14 @@ expectIncludes(favoriteFolder, 'data.targetIndex = favoriteDropIndex.value ?? pr
 expectIncludes(favoriteFolder, 'store.moveFavoriteItem(data.source, data.index, props.folder.id, data.targetIndex);');
 
 const draftListBlock = cssBlock(workbench, '.draft-list');
-expectIncludes(draftListBlock, 'gap: 6px;');
+expectIncludes(draftListBlock, 'gap: 4px;');
 const folderItemsBlock = cssBlock(favoriteFolder, '.folder-items');
-expectIncludes(folderItemsBlock, 'gap: 2px;');
-expectNotIncludes(folderItemsBlock, 'gap: 6px;');
+expectIncludes(folderItemsBlock, 'gap: 6px;');
 
 const previewBlock = cssBlock(workbench, '.left-entry-preview');
-expectIncludes(previewBlock, 'margin: -2px 35px 6px 13px;');
+expectIncludes(previewBlock, 'margin: -2px 35px 4px 13px;');
 const favPreviewBlock = cssBlock(favoriteFolder, '.fav-preview');
-expectIncludes(favPreviewBlock, 'margin: -2px 35px 2px 13px;');
-expectNotIncludes(favPreviewBlock, 'margin: -2px 35px 6px 13px;');
+expectIncludes(favPreviewBlock, 'margin: -2px 35px 4px 13px;');
 
 const favExpandedBlock = cssBlock(favoriteFolder, '.fav-item.expanded');
 expectNotIncludes(favExpandedBlock, 'margin-bottom: 8px;');

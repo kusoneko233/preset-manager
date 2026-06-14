@@ -61,11 +61,18 @@
           class="prompt-drop-slot"
           :data-preset-prompt-key="getPromptKey(prompt)"
           :data-preset-prompt-index="i"
-          :class="{ 'drop-before': dropIndex === i, focused: isPromptFocused(prompt), selecting: selectionMode }"
+          :class="{ 'drop-before': dropIndex === i, focused: isPromptFocused(prompt), selecting: selectionMode, dragging: isPresetPromptDragging(prompt, i) }"
+          :style="getPresetPromptSlotStyle(prompt, i)"
+          @click.capture="onPresetPromptClickCapture"
+          @mousedown="onPresetPromptMouseDown($event, prompt, i)"
           @dragover.prevent.stop="onPromptDragOver($event, i)"
           @drop.prevent.stop="onPromptDrop($event, i)"
           @contextmenu.prevent.stop="openPromptContextMenu($event, prompt)"
         >
+          <div
+            v-if="showExternalPromptInsertSpacer(i)"
+            class="external-insert-spacer"
+          />
           <button
             v-if="selectionMode && !isPresetPlaceholderPrompt(prompt)"
             class="prompt-select-toggle"
@@ -88,6 +95,7 @@
             :drag-type="'preset-prompt'"
             :drag-source="panelId"
             :drag-index="i"
+            :manual-drag="true"
             :relation-label="relationLabel(prompt)"
             :can-transfer="canTransferPromptToOther(prompt)"
             :can-detach="canDeletePrompt(prompt)"
@@ -122,8 +130,27 @@
         @drop.prevent.stop="onPromptDrop($event, prompts.length)"
         @contextmenu.prevent.stop="openPromptTailContextMenu"
       >
+        <div
+          v-if="showExternalPromptInsertSpacer(prompts.length)"
+          class="external-insert-spacer tail"
+        />
         <span v-if="dropIndex === prompts.length" class="drop-hint tail" aria-live="polite">{{ dropHintText }}</span>
       </div>
+    </div>
+
+    <div
+      v-if="presetPromptDragPreview.visible && presetPromptDragPreview.prompt"
+      class="preset-prompt-drag-preview preset-drag-preview"
+      :style="presetPromptDragPreviewStyle"
+    >
+      <PromptItem
+        :prompt="presetPromptDragPreview.prompt"
+        :preview="true"
+        :can-transfer="false"
+        :can-detach="false"
+        :can-delete="false"
+        :can-restore-default="false"
+      />
     </div>
 
     <PromptDetailOverlay
@@ -214,6 +241,9 @@ import {
   isOfficialRestorableSystemPrompt,
   isPresetPlaceholderPrompt,
 } from '../utils/officialPromptManager';
+import { startParentDrag } from '../utils/drag';
+
+const PRESET_PROMPT_DRAG_START_DISTANCE = 4;
 
 const props = defineProps<{
   panelId: 'main' | 'second';
@@ -238,6 +268,7 @@ const zoomPrompt = ref<PresetPrompt | null>(null);
 const isDropTarget = ref(false);
 const dropIndex = ref<number | null>(null);
 const isSortingDrop = ref(false);
+const externalPromptInsertPreview = ref<PresetNormalPrompt | null>(null);
 const selectionMode = ref(false);
 const selectedPromptKeys = ref<string[]>([]);
 const focusedPromptKey = ref('');
@@ -252,6 +283,32 @@ const copiedPromptClipboard = ref<PresetNormalPrompt | null>(null);
 const contextPasteIndex = ref(0);
 const creatingSinglePrompt = ref(false);
 const parentDocument = inject<Document>('parentDocument', document);
+const iframeElement = inject<HTMLIFrameElement | null>('iframeElement', null);
+const localDoc: Document = iframeElement?.contentDocument ?? document;
+const presetPromptMouseDrag = reactive({
+  active: false,
+  dragging: false,
+  key: '',
+  startIndex: -1,
+  startX: 0,
+  startY: 0,
+  lastX: 0,
+  lastY: 0,
+  width: 0,
+  height: 40,
+  offsetX: 0,
+  offsetY: 0,
+});
+const presetPromptDragPreview = reactive({
+  visible: false,
+  key: '',
+  prompt: null as PresetNormalPrompt | null,
+  x: 0,
+  y: 0,
+  width: 0,
+});
+let suppressPresetPromptClick = false;
+let suppressPresetPromptClickTimer: ReturnType<typeof window.setTimeout> | null = null;
 
 const emptyPrompt: PresetPrompt = { id: '', name: '', enabled: false, role: 'system' };
 
@@ -259,6 +316,11 @@ const presetNames = computed(() => store.presetNames);
 const showSecondHeader = computed(() => props.showSecondHeader ?? true);
 const prompts = ref<PresetPrompt[]>([]);
 const promptListKey = computed(() => `${props.panelId}:${selectedPreset.value}:${prompts.value.length}:${prompts.value.map(p => `${getPromptKey(p)}:${p.enabled}`).join('|')}`);
+const presetPromptDragPreviewStyle = computed(() => ({
+  '--preset-prompt-drag-x': `${presetPromptDragPreview.x}px`,
+  '--preset-prompt-drag-y': `${presetPromptDragPreview.y}px`,
+  width: presetPromptDragPreview.width ? `${presetPromptDragPreview.width}px` : undefined,
+}));
 const dropHintText = computed(() => {
   if (dropIndex.value === null) return '';
   const target = Math.max(0, Math.min(dropIndex.value, prompts.value.length));
@@ -430,6 +492,18 @@ function isPromptFocused(prompt: PresetPrompt) {
 function setFocusedPrompt(prompt: PresetPrompt) {
   if (isPresetPlaceholderPrompt(prompt)) return;
   focusedPromptKey.value = getPromptKey(prompt);
+}
+
+function isPresetPromptDragging(prompt: PresetPrompt, index: number) {
+  return presetPromptMouseDrag.dragging
+    && presetPromptMouseDrag.startIndex === index
+    && presetPromptMouseDrag.key === getPromptKey(prompt);
+}
+
+function getPresetPromptSlotStyle(prompt: PresetPrompt, index: number) {
+  if (!presetPromptDragPreview.visible || !presetPromptDragPreview.key || isPresetPromptDragging(prompt, index)) return {};
+  const offset = getPresetPromptReflowOffset(index);
+  return offset ? { transform: `translate3d(0, ${offset}px, 0)` } : {};
 }
 
 function togglePromptSelected(prompt: PresetPrompt) {
@@ -819,9 +893,189 @@ function onDragLeave(e: DragEvent) {
 
 function onListDragOver(e: DragEvent) {
   onDragOver(e);
+  externalPromptInsertPreview.value = null;
   if (e.target === e.currentTarget) {
     dropIndex.value = prompts.value.length;
   }
+}
+
+function onPresetPromptMouseDown(event: MouseEvent, prompt: PresetPrompt, index: number) {
+  if (event.button !== 0 || selectionMode.value || isPresetPlaceholderPrompt(prompt)) return;
+
+  const target = event.target as HTMLElement | null;
+  if (target?.closest('button, input, textarea, select, label, .prompt-preview, .prompt-body, .prompt-actions, .status-toggle, .prompt-group-toggle')) return;
+
+  const slot = event.currentTarget as HTMLElement | null;
+  const rect = slot?.getBoundingClientRect();
+  const point = getPresetPromptLocalPoint(event);
+  resetPresetPromptMouseDrag();
+  presetPromptMouseDrag.active = true;
+  presetPromptMouseDrag.dragging = false;
+  presetPromptMouseDrag.key = getPromptKey(prompt);
+  presetPromptMouseDrag.startIndex = index;
+  presetPromptMouseDrag.startX = point.x;
+  presetPromptMouseDrag.startY = point.y;
+  presetPromptMouseDrag.lastX = point.x;
+  presetPromptMouseDrag.lastY = point.y;
+  presetPromptMouseDrag.width = Math.max(160, Math.round(rect?.width ?? 0));
+  presetPromptMouseDrag.height = Math.max(40, Math.round(rect?.height ?? 40));
+  presetPromptMouseDrag.offsetX = Math.max(0, point.x - (rect?.left ?? point.x));
+  presetPromptMouseDrag.offsetY = Math.max(0, point.y - (rect?.top ?? point.y));
+  startParentDrag(parentDocument, {
+    startEvent: event,
+    cursor: 'grabbing',
+    expectFocusInsideSourceFrame: true,
+    onMove: onPresetPromptMouseMove,
+    onEnd: finishPresetPromptMouseDrag,
+  });
+}
+
+function getPresetPromptLocalPoint(event: MouseEvent) {
+  if ((event.target as Node | null)?.ownerDocument === localDoc) {
+    return { x: event.clientX, y: event.clientY };
+  }
+  const frameRect = (iframeElement ?? window.frameElement)?.getBoundingClientRect();
+  return {
+    x: event.clientX - (frameRect?.left ?? 0),
+    y: event.clientY - (frameRect?.top ?? 0),
+  };
+}
+
+function startPresetPromptMouseDrag(x = presetPromptMouseDrag.lastX, y = presetPromptMouseDrag.lastY) {
+  if (!presetPromptMouseDrag.active || presetPromptMouseDrag.dragging || presetPromptMouseDrag.startIndex < 0) return;
+  const prompt = prompts.value[presetPromptMouseDrag.startIndex];
+  if (!prompt || isPresetPlaceholderPrompt(prompt)) return;
+
+  presetPromptMouseDrag.dragging = true;
+  suppressNextPresetPromptClick();
+  presetPromptDragPreview.key = presetPromptMouseDrag.key;
+  presetPromptDragPreview.prompt = normalizePrompt(prompt);
+  presetPromptDragPreview.width = presetPromptMouseDrag.width;
+  presetPromptDragPreview.visible = true;
+  isDropTarget.value = true;
+  isSortingDrop.value = true;
+  externalPromptInsertPreview.value = null;
+  dropIndex.value = presetPromptMouseDrag.startIndex;
+  closePromptContextMenu();
+  updatePresetPromptDragFromPoint(x, y);
+}
+
+function updatePresetPromptDragPreviewPosition(clientX = presetPromptMouseDrag.lastX, clientY = presetPromptMouseDrag.lastY) {
+  if (!presetPromptDragPreview.visible) return;
+  presetPromptDragPreview.x = clientX - presetPromptMouseDrag.offsetX;
+  presetPromptDragPreview.y = clientY - presetPromptMouseDrag.offsetY;
+}
+
+function updatePresetPromptDragFromPoint(clientX: number, clientY: number) {
+  isDropTarget.value = true;
+  isSortingDrop.value = true;
+  externalPromptInsertPreview.value = null;
+  dropIndex.value = resolvePresetPromptMouseDropIndex(clientY);
+  requestAnimationFrame(() => updatePresetPromptDragPreviewPosition(clientX, clientY));
+}
+
+function onPresetPromptMouseMove(event: MouseEvent) {
+  if (!presetPromptMouseDrag.active) return;
+  const point = getPresetPromptLocalPoint(event);
+  presetPromptMouseDrag.lastX = point.x;
+  presetPromptMouseDrag.lastY = point.y;
+
+  if (!presetPromptMouseDrag.dragging) {
+    const distance = Math.hypot(point.x - presetPromptMouseDrag.startX, point.y - presetPromptMouseDrag.startY);
+    if (distance < PRESET_PROMPT_DRAG_START_DISTANCE) return;
+    startPresetPromptMouseDrag(point.x, point.y);
+    return;
+  }
+
+  updatePresetPromptDragFromPoint(point.x, point.y);
+}
+
+async function finishPresetPromptMouseDrag() {
+  if (!presetPromptMouseDrag.active) return;
+  const prompt = prompts.value[presetPromptMouseDrag.startIndex];
+  const targetIndex = dropIndex.value ?? presetPromptMouseDrag.startIndex;
+  const sourceIndex = presetPromptMouseDrag.startIndex;
+  const wasDragging = presetPromptMouseDrag.dragging;
+
+  if (wasDragging && prompt && isPresetPromptPointerInsidePanel()) {
+    await recordPresetChange(`Adjust order: ${prompt.name}`, async () => {
+      return store.reorderPromptInPreset(props.panelId, presetPromptMouseDrag.startIndex, targetIndex);
+    });
+    suppressNextPresetPromptClick();
+  }
+
+  const moved = targetIndex !== sourceIndex && targetIndex !== sourceIndex + 1;
+  resetPresetPromptMouseDrag();
+  if (wasDragging && moved && prompt) {
+    toastr.success(`Adjusted "${prompt.name}" order`, '', { timeOut: 1400 });
+  }
+}
+
+function resetPresetPromptMouseDrag() {
+  presetPromptMouseDrag.active = false;
+  presetPromptMouseDrag.dragging = false;
+  presetPromptMouseDrag.key = '';
+  presetPromptMouseDrag.startIndex = -1;
+  presetPromptMouseDrag.startX = 0;
+  presetPromptMouseDrag.startY = 0;
+  presetPromptMouseDrag.lastX = 0;
+  presetPromptMouseDrag.lastY = 0;
+  presetPromptMouseDrag.width = 0;
+  presetPromptMouseDrag.height = 40;
+  presetPromptMouseDrag.offsetX = 0;
+  presetPromptMouseDrag.offsetY = 0;
+  presetPromptDragPreview.visible = false;
+  presetPromptDragPreview.key = '';
+  presetPromptDragPreview.prompt = null;
+  presetPromptDragPreview.x = 0;
+  presetPromptDragPreview.y = 0;
+  presetPromptDragPreview.width = 0;
+  resetDropState();
+}
+
+function resolvePresetPromptMouseDropIndex(clientY: number) {
+  const slots = Array.from(promptListRef.value?.querySelectorAll<HTMLElement>('.prompt-drop-slot') ?? []);
+  if (!slots.length) return prompts.value.length;
+
+  for (const slot of slots) {
+    const rect = slot.getBoundingClientRect();
+    const index = Number(slot.dataset.presetPromptIndex);
+    if (Number.isFinite(index) && clientY < rect.top + rect.height / 2) return index;
+  }
+
+  return prompts.value.length;
+}
+
+function getPresetPromptReflowOffset(index: number) {
+  const sourceIndex = presetPromptMouseDrag.startIndex;
+  const targetIndex = dropIndex.value;
+  if (sourceIndex < 0 || targetIndex === null) return 0;
+
+  const rowStep = presetPromptMouseDrag.height;
+  if (targetIndex > sourceIndex && index > sourceIndex && index < targetIndex) return -rowStep;
+  if (targetIndex < sourceIndex && index >= targetIndex && index < sourceIndex) return rowStep;
+  return 0;
+}
+
+function isPresetPromptPointerInsidePanel() {
+  const target = localDoc.elementFromPoint(presetPromptMouseDrag.lastX, presetPromptMouseDrag.lastY);
+  return Boolean(target && panelRoot.value?.contains(target));
+}
+
+function suppressNextPresetPromptClick() {
+  suppressPresetPromptClick = true;
+  if (suppressPresetPromptClickTimer !== null) window.clearTimeout(suppressPresetPromptClickTimer);
+  suppressPresetPromptClickTimer = window.setTimeout(() => {
+    suppressPresetPromptClick = false;
+    suppressPresetPromptClickTimer = null;
+  }, 0);
+}
+
+function onPresetPromptClickCapture(event: MouseEvent) {
+  if (!suppressPresetPromptClick) return;
+  suppressPresetPromptClick = false;
+  event.preventDefault();
+  event.stopPropagation();
 }
 
 function focusPromptToggle(promptKey: string) {
@@ -893,6 +1147,10 @@ function normalizePrompt(prompt: PresetPrompt): PresetNormalPrompt {
   return normalized as PresetNormalPrompt;
 }
 
+function showExternalPromptInsertSpacer(index: number) {
+  return !isSortingDrop.value && dropIndex.value === index && !!externalPromptInsertPreview.value;
+}
+
 async function insertDroppedPrompt(prompt: PresetPrompt, index: number) {
   if (!prompt || !prompt.name || isPresetPlaceholderPrompt(prompt)) return false;
 
@@ -919,10 +1177,12 @@ function resolvePointerDropIndex(clientY: number) {
 }
 
 function onFavoritePromptDragOver(event: Event) {
-  const detail = (event as CustomEvent<{ clientY?: number }>).detail;
+  const detail = (event as CustomEvent<{ clientY?: number; prompt?: PresetPrompt }>).detail;
   if (typeof detail?.clientY !== 'number') return;
+  const prompt = detail.prompt;
   isDropTarget.value = true;
   isSortingDrop.value = false;
+  externalPromptInsertPreview.value = prompt ? normalizePrompt(prompt) : null;
   dropIndex.value = resolvePointerDropIndex(detail.clientY);
 }
 
@@ -972,6 +1232,7 @@ function resetDropState() {
   isDropTarget.value = false;
   dropIndex.value = null;
   isSortingDrop.value = false;
+  externalPromptInsertPreview.value = null;
 }
 
 async function confirmRelation(prompt: PresetPrompt, actionLabel: string) {
@@ -1052,7 +1313,7 @@ async function handleDrop(e: DragEvent, index: number) {
 
     if (isSamePanelPresetDrag(data)) {
       const moved = await recordPresetChange(`调整顺序: ${prompt.name}`, async () => {
-        return store.reorderPromptInPreset(props.panelId, data.index, index);
+        return false;
       });
 
       if (moved) toastr.success(`已调整 "${prompt.name}" 的顺序`, '', { timeOut: 1400 });
@@ -1454,12 +1715,51 @@ onUnmounted(() => {
   grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   align-items: start;
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
 }
 .prompt-drop-slot.selecting {
   grid-template-columns: 22px minmax(0, 1fr);
 }
+.prompt-drop-slot.dragging {
+  opacity: 0;
+  pointer-events: none;
+}
 .prompt-drop-slot :deep(.prompt-item) {
   min-width: 0;
+}
+.preset-prompt-drag-preview {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1300;
+  box-sizing: border-box;
+  max-width: calc(100vw - 16px);
+  padding: 0;
+  border-radius: 10px;
+  pointer-events: none;
+  cursor: grabbing;
+  transform: translate3d(var(--preset-prompt-drag-x, 0), var(--preset-prompt-drag-y, 0), 0);
+  transform-origin: left top;
+  will-change: transform;
+}
+.preset-prompt-drag-preview :deep(.prompt-item) {
+  opacity: 0.86;
+  box-shadow: 0 10px 26px color-mix(in srgb, #000 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pm-text) 18%, transparent);
+}
+.external-insert-spacer {
+  position: relative;
+  z-index: 1;
+  min-height: 72px;
+  margin: 0 0 6px;
+  border: 1px dashed color-mix(in srgb, var(--pm-accent) 30%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--pm-accent) 6%, transparent);
+  pointer-events: none;
+}
+.external-insert-spacer.tail {
+  margin-top: 6px;
 }
 .prompt-select-toggle,
 .prompt-select-spacer {

@@ -1,8 +1,8 @@
 <template>
   <div
     class="prompt-item"
-    :class="{ expanded, dragging: isDragging, enabled: prompt.enabled, disabled: !prompt.enabled, 'is-placeholder': isPlaceholder, 'locked': locked, 'empty-content': isEmptyContent }"
-    :draggable="!isPlaceholder"
+    :class="{ expanded, dragging: isDragging, enabled: prompt.enabled, disabled: !prompt.enabled, 'is-placeholder': isPlaceholder, locked, 'empty-content': isEmptyContent, preview: isPreview }"
+    :draggable="!isPlaceholder && !isPreview && !manualDrag"
     @dragstart="onDragStart"
     @dragend="onDragEnd"
   >
@@ -69,9 +69,9 @@
         v-if="'enabled' in prompt"
         class="status-toggle"
         :class="{ on: prompt.enabled }"
-        :disabled="isPlaceholder"
+        :disabled="isPlaceholder || isPreview"
         :title="prompt.enabled ? '禁用条目' : '启用条目'"
-        @click.stop="!isPlaceholder && $emit('toggleEnabled')"
+        @click.stop="!isPlaceholder && !isPreview && $emit('toggleEnabled')"
       >
         <span class="status-dot" />
       </button>
@@ -228,6 +228,8 @@ const props = defineProps<{
   canRestoreDefault?: boolean;
   transferTargetLabel?: string;
   locked?: boolean;
+  preview?: boolean;
+  manualDrag?: boolean;
   isGroupHeader?: boolean;
   groupCollapsed?: boolean;
   collapsedGroupCount?: number;
@@ -294,6 +296,8 @@ const draft = reactive<PromptEditDraft>({
 });
 
 const isPlaceholder = computed(() => isPresetPlaceholderPrompt(props.prompt));
+const isPreview = computed(() => !!props.preview);
+const manualDrag = computed(() => !!props.manualDrag);
 const isEmptyContent = computed(() => !String(props.prompt.content ?? '').trim());
 const promptAny = computed(() => props.prompt as any);
 const isGroupHeader = computed(() => !!props.isGroupHeader);
@@ -320,6 +324,7 @@ const positionLabel = computed(() => {
 const triggerSummaryLabel = computed(() => `触发类型 · ${draft.triggers.length}`);
 
 function toggle() {
+  if (isPreview.value) return;
   if (expanded.value) {
     flushAutoSave();
     editing.value = false;
@@ -362,7 +367,7 @@ function focusInitialField(initialFocus: InlineEditFocus) {
 }
 
 function startInlineEdit(initialFocus: InlineEditFocus = 'content') {
-  if (isPlaceholder.value) return;
+  if (isPlaceholder.value || isPreview.value) return;
   expanded.value = true;
   resetDraft();
   editing.value = true;
@@ -370,7 +375,7 @@ function startInlineEdit(initialFocus: InlineEditFocus = 'content') {
 }
 
 function startTitleNameEdit() {
-  if (isPlaceholder.value || !editing.value) return;
+  if (isPlaceholder.value || isPreview.value || !editing.value) return;
   editingTitleName.value = true;
   nextTick(() => {
     titleInput.value?.focus();
@@ -426,7 +431,7 @@ function hasDraftChanges() {
 }
 
 function scheduleAutoSave() {
-  if (!editing.value || isPlaceholder.value) return;
+  if (!editing.value || isPlaceholder.value || isPreview.value) return;
   if (autoSaveTimer) window.clearTimeout(autoSaveTimer);
   autoSaveTimer = window.setTimeout(() => {
     autoSaveTimer = null;
@@ -439,7 +444,7 @@ function flushAutoSave() {
     window.clearTimeout(autoSaveTimer);
     autoSaveTimer = null;
   }
-  if (!editing.value || isPlaceholder.value || !hasDraftChanges()) return;
+  if (!editing.value || isPlaceholder.value || isPreview.value || !hasDraftChanges()) return;
   emit('saveEdits', buildDraftUpdates());
 }
 
@@ -457,7 +462,7 @@ function cancelInlineEdit() {
 }
 
 function onDragStart(e: DragEvent) {
-  if (isPlaceholder.value) {
+  if (isPreview.value || isPlaceholder.value || manualDrag.value) {
     e.preventDefault();
     return;
   }
@@ -579,6 +584,16 @@ defineExpose({ expanded, editing, startInlineEdit });
 .prompt-item.is-placeholder {
   cursor: default;
   opacity: 0.5;
+}
+.prompt-item.preview {
+  cursor: default;
+  opacity: 0.82;
+  pointer-events: none;
+  filter: saturate(0.86);
+}
+.prompt-item.preview .prompt-row,
+.prompt-item.preview .prompt-preview {
+  cursor: default;
 }
 .prompt-row {
   display: flex;

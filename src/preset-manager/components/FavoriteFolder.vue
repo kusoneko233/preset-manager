@@ -212,9 +212,21 @@
       <div v-if="favoriteDropIndex === folder.items.length" class="fav-drag-spacer fav-drop-indicator" />
     </div>
 
-    <div v-if="favoriteDragPreview.visible" class="fav-drag-preview" :style="favoriteDragPreviewStyle">
-      <span class="fav-title-text">{{ favoriteDragPreview.name }}</span>
-      <div v-if="favoriteDragPreview.preview" class="fav-preview left-entry-preview">{{ favoriteDragPreview.preview }}</div>
+    <div
+      v-if="favoriteDragPreview.visible"
+      class="fav-drag-preview preset-drag-preview"
+      :class="{ preset: favoriteDragPreview.mode === 'preset' }"
+      :style="favoriteDragPreview.mode === 'preset' ? favoritePresetDragPreviewStyle : favoriteDragPreviewStyle"
+    >
+      <template v-if="favoriteDragPreview.mode === 'sidebar'">
+        <span class="fav-title-text">{{ favoriteDragPreview.name }}</span>
+        <div v-if="favoriteDragPreview.preview" class="fav-preview left-entry-preview">{{ favoriteDragPreview.preview }}</div>
+      </template>
+      <PromptItem
+        v-else-if="presetPreviewPrompt"
+        :prompt="presetPreviewPrompt"
+        :preview="true"
+      />
     </div>
 
     <Transition name="sidebar-entry-context-pop">
@@ -242,6 +254,7 @@
 
 <script setup lang="ts">
 import Icon from './Icon.vue';
+import PromptItem from './PromptItem.vue';
 import { getPromptKey, useManagerStore, type FavoriteFolder } from '../stores/manager';
 import { isPresetPlaceholderPrompt } from '../utils/officialPromptManager';
 import { startParentDrag } from '../utils/drag';
@@ -315,9 +328,12 @@ const favoriteDragPreview = reactive({
   key: '',
   name: '',
   preview: '',
+  mode: 'sidebar' as 'sidebar' | 'preset',
+  prompt: null as PresetNormalPrompt | null,
   x: 0,
   y: 0,
   width: 0,
+  presetWidth: 0,
 });
 const favoriteMouseDrag = reactive({
   active: false,
@@ -334,6 +350,8 @@ const favoriteMouseDrag = reactive({
   offsetY: 0,
 });
 const parentDocument = inject<Document>('parentDocument', document);
+const iframeElement = inject<HTMLIFrameElement | null>('iframeElement', null);
+const localDoc: Document = iframeElement?.contentDocument ?? document;
 let suppressFavoriteClick = false;
 let suppressFavoriteClickTimer: ReturnType<typeof window.setTimeout> | null = null;
 let activeFavoritePromptDropPanel: HTMLElement | null = null;
@@ -342,7 +360,12 @@ const favoriteDragPreviewStyle = computed(() => ({
   '--favorite-drag-y': `${favoriteDragPreview.y}px`,
   width: favoriteDragPreview.width ? `${favoriteDragPreview.width}px` : undefined,
 }));
-
+const favoritePresetDragPreviewStyle = computed(() => ({
+  '--favorite-drag-x': `${favoriteDragPreview.x}px`,
+  '--favorite-drag-y': `${favoriteDragPreview.y}px`,
+  width: favoriteDragPreview.presetWidth ? `${favoriteDragPreview.presetWidth}px` : undefined,
+}));
+const presetPreviewPrompt = computed(() => favoriteDragPreview.prompt);
 function startEdit() {
   editName.value = props.folder.name;
   isEditing.value = true;
@@ -377,7 +400,7 @@ function isFavoriteExpanded(item: PresetNormalPrompt, index: number) {
 }
 
 function isFavoriteDragging(item: PresetNormalPrompt, index: number) {
-  return favoriteDragPreview.key === favoriteKey(item, index) && favoriteDragPreview.visible;
+  return favoriteMouseDrag.dragging && favoriteMouseDrag.startIndex === index;
 }
 
 function getFavoriteItemStyle(item: PresetNormalPrompt, index: number) {
@@ -708,10 +731,12 @@ function onFavoriteMouseDown(event: MouseEvent, item: PresetNormalPrompt, index:
 }
 
 function getFavoriteLocalPoint(event: MouseEvent) {
-  if (event.view === window || (event.target as Node | null)?.ownerDocument === document) {
+  // event.target.ownerDocument === localDoc → 事件已处于 iframe 坐标系，直接返回
+  if ((event.target as Node | null)?.ownerDocument === localDoc) {
     return { x: event.clientX, y: event.clientY };
   }
-  const frameRect = window.frameElement?.getBoundingClientRect();
+  // 事件来自酒馆主页（拖拽遮罩层），需转换为 iframe 本地坐标
+  const frameRect = (iframeElement ?? window.frameElement)?.getBoundingClientRect();
   return {
     x: event.clientX - (frameRect?.left ?? 0),
     y: event.clientY - (frameRect?.top ?? 0),
@@ -728,7 +753,10 @@ function startFavoriteMouseDrag(x = favoriteMouseDrag.lastX, y = favoriteMouseDr
   favoriteDragPreview.key = favoriteMouseDrag.key;
   favoriteDragPreview.name = item.name || '未命名';
   favoriteDragPreview.preview = previewText(item);
+  favoriteDragPreview.mode = 'sidebar';
+  favoriteDragPreview.prompt = klona(item as any) as PresetNormalPrompt;
   favoriteDragPreview.width = favoriteMouseDrag.width;
+  favoriteDragPreview.presetWidth = 0;
   favoriteDragPreview.visible = true;
   favoriteDropIndex.value = favoriteMouseDrag.startIndex;
   closeFavoritePopupMenus();
@@ -743,6 +771,7 @@ function updateFavoriteDragPreviewPosition(clientX = favoriteMouseDrag.lastX, cl
 
 function updateFavoriteDragFromPoint(clientX: number, clientY: number) {
   const overPresetPanel = dispatchFavoritePromptDragOver(clientX, clientY);
+  favoriteDragPreview.mode = overPresetPanel ? 'preset' : 'sidebar';
   favoriteDropIndex.value = overPresetPanel ? null : resolveFavoriteMouseDropIndex(clientY);
   requestAnimationFrame(() => updateFavoriteDragPreviewPosition(clientX, clientY));
 }
@@ -815,7 +844,10 @@ function resetFavoriteMouseDrag() {
   favoriteDragPreview.key = '';
   favoriteDragPreview.name = '';
   favoriteDragPreview.preview = '';
+  favoriteDragPreview.mode = 'sidebar';
+  favoriteDragPreview.prompt = null;
   favoriteDragPreview.width = 0;
+  favoriteDragPreview.presetWidth = 0;
 }
 
 function resolveFavoriteMouseDropIndex(clientY: number) {
@@ -829,26 +861,45 @@ function resolveFavoriteMouseDropIndex(clientY: number) {
 }
 
 function getFavoritePromptDropPanel(clientX = favoriteMouseDrag.lastX, clientY = favoriteMouseDrag.lastY) {
-  return document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('.preset-panel') ?? null;
+  // clientX/Y 是本地 iframe 坐标（由 getFavoriteLocalPoint 转换）
+  // localDoc 是 iframe 内文档，document 是外层酒馆页面
+  const hit = localDoc.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('.preset-panel');
+  if (hit) return hit;
+  for (const panel of Array.from(localDoc.querySelectorAll<HTMLElement>('.preset-panel'))) {
+    const rect = panel.getBoundingClientRect();
+    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) return panel;
+  }
+  return null;
 }
 
 function dispatchFavoritePromptDragOver(clientX: number, clientY: number) {
   const panel = getFavoritePromptDropPanel(clientX, clientY);
   if (activeFavoritePromptDropPanel && activeFavoritePromptDropPanel !== panel) {
-    activeFavoritePromptDropPanel.dispatchEvent(new CustomEvent(FAVORITE_PROMPT_DRAG_END_EVENT));
+    activeFavoritePromptDropPanel.dispatchEvent(new CustomEvent(FAVORITE_PROMPT_DRAG_END_EVENT, {
+      detail: { previewMode: 'sidebar' },
+    }));
   }
   activeFavoritePromptDropPanel = panel;
   if (!panel) return false;
 
+  const item = props.folder.items[favoriteMouseDrag.startIndex];
+  const panelRect = panel.getBoundingClientRect();
+  favoriteDragPreview.presetWidth = Math.max(160, Math.round(panelRect.width - 28));
   panel.dispatchEvent(new CustomEvent(FAVORITE_PROMPT_DRAG_OVER_EVENT, {
-    detail: { clientY },
+    detail: {
+      clientY,
+      prompt: item && !isPresetPlaceholderPrompt(item) ? klona(item as any) : undefined,
+      previewMode: 'preset',
+    },
   }));
   return true;
 }
 
 function clearFavoritePromptDragTarget() {
   if (!activeFavoritePromptDropPanel) return;
-  activeFavoritePromptDropPanel.dispatchEvent(new CustomEvent(FAVORITE_PROMPT_DRAG_END_EVENT));
+  activeFavoritePromptDropPanel.dispatchEvent(new CustomEvent(FAVORITE_PROMPT_DRAG_END_EVENT, {
+    detail: { previewMode: 'sidebar' },
+  }));
   activeFavoritePromptDropPanel = null;
 }
 
@@ -869,7 +920,7 @@ function dispatchFavoritePromptDrop() {
 }
 
 function isFavoritePointerInsideFolder() {
-  const target = document.elementFromPoint(favoriteMouseDrag.lastX, favoriteMouseDrag.lastY);
+  const target = localDoc.elementFromPoint(favoriteMouseDrag.lastX, favoriteMouseDrag.lastY);
   return Boolean(target && favoriteFolderRoot.value?.contains(target));
 }
 
@@ -1013,7 +1064,7 @@ onUnmounted(() => {
   padding: 3px 0 6px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
 }
 .empty-folder {
   min-height: 46px;
@@ -1097,6 +1148,16 @@ onUnmounted(() => {
 .fav-drag-preview .left-entry-preview {
   margin-bottom: 7px;
 }
+.fav-drag-preview.preset {
+  padding: 0;
+  background: transparent;
+  border-radius: 10px;
+}
+.fav-drag-preview.preset :deep(.prompt-item) {
+  opacity: 0.86;
+  box-shadow: 0 10px 26px color-mix(in srgb, #000 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pm-text) 18%, transparent);
+}
 .fav-row {
   display: flex;
   align-items: center;
@@ -1160,7 +1221,7 @@ onUnmounted(() => {
 }
 .fav-preview {
   display: -webkit-box;
-  margin: -2px 35px 2px 13px;
+  margin: -2px 35px 4px 13px;
   color: color-mix(in srgb, var(--pm-text) 66%, transparent);
   font-size: 12px;
   line-height: 1.45;

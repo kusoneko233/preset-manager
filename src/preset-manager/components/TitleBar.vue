@@ -54,6 +54,7 @@
       <div class="title-controls">
         <IconButton name="corner-up-left" size="md" :disabled="!canUndo" title="撤回 (Ctrl+Z)" @click="$emit('undo')" />
         <IconButton name="corner-up-right" size="md" :disabled="!canRedo" title="重做 (Ctrl+Shift+Z)" @click="$emit('redo')" />
+        <IconButton name="save" size="md" title="保存当前预设" @click="$emit('savePreset')" />
         <button
           type="button"
           class="sidebar-toggle-button"
@@ -98,6 +99,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   undo: [];
   redo: [];
+  savePreset: [];
   toggleLeftSidebar: [];
   toggleRightSidebar: [];
   selectPreset: [name: string];
@@ -129,7 +131,9 @@ function formatTokenAmount(value: number | null | undefined) {
 }
 
 function togglePresetMenu() {
-  presetMenuOpen.value = !presetMenuOpen.value;
+  const nextOpen = !presetMenuOpen.value;
+  presetMenuOpen.value = nextOpen;
+  if (nextOpen) announceMenuOpen('title-preset-menu');
 }
 
 function selectPreset(name: string) {
@@ -141,6 +145,23 @@ function closePresetMenuFromOutside(event?: Event) {
   const target = event?.target as Node | null;
   if (target && presetMenuRef.value?.contains(target)) return;
   presetMenuOpen.value = false;
+}
+
+function getPanelDocument() {
+  return iframeEl.contentDocument ?? document;
+}
+
+function closePresetMenuFromKey(event: KeyboardEvent) {
+  if (event.key === 'Escape') presetMenuOpen.value = false;
+}
+
+function closePresetMenuFromPeer(event: Event) {
+  const source = (event as CustomEvent<{ source?: string }>).detail?.source;
+  if (source !== 'title-preset-menu') presetMenuOpen.value = false;
+}
+
+function announceMenuOpen(source: string) {
+  getPanelDocument().dispatchEvent(new CustomEvent('preset-manager-menu-opened', { detail: { source } }));
 }
 
 function onDragStart(e: MouseEvent) {
@@ -220,21 +241,27 @@ function onDragStart(e: MouseEvent) {
 }
 
 onMounted(() => {
-  document.addEventListener('pointerdown', closePresetMenuFromOutside, true);
-  document.addEventListener('mousedown', closePresetMenuFromOutside, true);
-  document.addEventListener('click', closePresetMenuFromOutside, true);
+  getPanelDocument().addEventListener('pointerdown', closePresetMenuFromOutside, true);
+  getPanelDocument().addEventListener('mousedown', closePresetMenuFromOutside, true);
+  getPanelDocument().addEventListener('click', closePresetMenuFromOutside, true);
   parentDoc.addEventListener('pointerdown', closePresetMenuFromOutside, true);
   parentDoc.addEventListener('mousedown', closePresetMenuFromOutside, true);
   parentDoc.addEventListener('click', closePresetMenuFromOutside, true);
+  getPanelDocument().defaultView?.addEventListener('keydown', closePresetMenuFromKey, true);
+  parentDoc.defaultView?.addEventListener('keydown', closePresetMenuFromKey, true);
+  getPanelDocument().addEventListener('preset-manager-menu-opened', closePresetMenuFromPeer);
 });
 
 onUnmounted(() => {
-  document.removeEventListener('pointerdown', closePresetMenuFromOutside, true);
-  document.removeEventListener('mousedown', closePresetMenuFromOutside, true);
-  document.removeEventListener('click', closePresetMenuFromOutside, true);
+  getPanelDocument().removeEventListener('pointerdown', closePresetMenuFromOutside, true);
+  getPanelDocument().removeEventListener('mousedown', closePresetMenuFromOutside, true);
+  getPanelDocument().removeEventListener('click', closePresetMenuFromOutside, true);
   parentDoc.removeEventListener('pointerdown', closePresetMenuFromOutside, true);
   parentDoc.removeEventListener('mousedown', closePresetMenuFromOutside, true);
   parentDoc.removeEventListener('click', closePresetMenuFromOutside, true);
+  getPanelDocument().defaultView?.removeEventListener('keydown', closePresetMenuFromKey, true);
+  parentDoc.defaultView?.removeEventListener('keydown', closePresetMenuFromKey, true);
+  getPanelDocument().removeEventListener('preset-manager-menu-opened', closePresetMenuFromPeer);
 });
 </script>
 

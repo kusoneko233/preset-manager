@@ -291,6 +291,7 @@ const settingsOpen = ref(false);
 const uiSettingsExpanded = ref(false);
 const settingsDockRef = ref<HTMLElement | null>(null);
 const parentDocument = inject<Document>('parentDocument', document);
+const iframeEl = inject<HTMLIFrameElement>('iframeElement')!;
 
 function setMode(mode: SidebarMode) {
   emit('change-mode', mode);
@@ -301,11 +302,14 @@ function createMainChat() {
 }
 
 function toggleSettings() {
-  settingsOpen.value = !settingsOpen.value;
+  const nextOpen = !settingsOpen.value;
+  settingsOpen.value = nextOpen;
+  if (nextOpen) announceMenuOpen('sidebar-settings-menu');
 }
 
 function closeSettings() {
   settingsOpen.value = false;
+  uiSettingsExpanded.value = false;
 }
 
 function toggleUiSettingsExpanded() {
@@ -366,30 +370,45 @@ function closeSettingsFromPointer(event: Event) {
   closeSettings();
 }
 
+function getPanelDocument() {
+  return iframeEl.contentDocument ?? document;
+}
+
 function closeSettingsFromKey(event: KeyboardEvent) {
   if (event.key === 'Escape') closeSettings();
 }
 
+function closeSettingsFromPeer(event: Event) {
+  const source = (event as CustomEvent<{ source?: string }>).detail?.source;
+  if (source !== 'sidebar-settings-menu') closeSettings();
+}
+
+function announceMenuOpen(source: string) {
+  getPanelDocument().dispatchEvent(new CustomEvent('preset-manager-menu-opened', { detail: { source } }));
+}
+
 onMounted(() => {
-  document.addEventListener('pointerdown', closeSettingsFromPointer, true);
-  document.addEventListener('mousedown', closeSettingsFromPointer, true);
-  document.addEventListener('click', closeSettingsFromPointer, true);
+  getPanelDocument().addEventListener('pointerdown', closeSettingsFromPointer, true);
+  getPanelDocument().addEventListener('mousedown', closeSettingsFromPointer, true);
+  getPanelDocument().addEventListener('click', closeSettingsFromPointer, true);
   parentDocument.addEventListener('pointerdown', closeSettingsFromPointer, true);
   parentDocument.addEventListener('mousedown', closeSettingsFromPointer, true);
   parentDocument.addEventListener('click', closeSettingsFromPointer, true);
-  window.addEventListener('keydown', closeSettingsFromKey, true);
+  getPanelDocument().defaultView?.addEventListener('keydown', closeSettingsFromKey, true);
   parentDocument.defaultView?.addEventListener('keydown', closeSettingsFromKey, true);
+  getPanelDocument().addEventListener('preset-manager-menu-opened', closeSettingsFromPeer);
 });
 
 onUnmounted(() => {
-  document.removeEventListener('pointerdown', closeSettingsFromPointer, true);
-  document.removeEventListener('mousedown', closeSettingsFromPointer, true);
-  document.removeEventListener('click', closeSettingsFromPointer, true);
+  getPanelDocument().removeEventListener('pointerdown', closeSettingsFromPointer, true);
+  getPanelDocument().removeEventListener('mousedown', closeSettingsFromPointer, true);
+  getPanelDocument().removeEventListener('click', closeSettingsFromPointer, true);
   parentDocument.removeEventListener('pointerdown', closeSettingsFromPointer, true);
   parentDocument.removeEventListener('mousedown', closeSettingsFromPointer, true);
   parentDocument.removeEventListener('click', closeSettingsFromPointer, true);
-  window.removeEventListener('keydown', closeSettingsFromKey, true);
+  getPanelDocument().defaultView?.removeEventListener('keydown', closeSettingsFromKey, true);
   parentDocument.defaultView?.removeEventListener('keydown', closeSettingsFromKey, true);
+  getPanelDocument().removeEventListener('preset-manager-menu-opened', closeSettingsFromPeer);
 });
 </script>
 

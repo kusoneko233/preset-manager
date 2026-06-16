@@ -86,8 +86,11 @@ expectNotIncludes(app, '.right-preset-toolbar');
 expectNotIncludes(app, '@click="openPresetInRightSidebar(activeRightAuxTab.presetName)"');
 expectNotIncludes(app, '@click="manager.loadSecondPreset(activeRightAuxTab.presetName)"');
 expectIncludes(app, '<PresetMigrationPanel');
+expectIncludes(app, 'v-show="activeRightAuxTab.migrationOpen"');
 expectIncludes(app, '@focus-main-prompt="focusMainPromptFromMigration"');
-expectIncludes(app, '<PresetPanel\n                    v-else');
+expectIncludes(app, '@focus-second-prompt="focusSecondPromptFromMigration"');
+expectIncludes(app, '<PresetPanel\n                    ref="secondPresetPanelRef"');
+expectIncludes(app, ':migration-active="activeRightAuxTab.migrationOpen"');
 
 expectIncludes(presetPanel, 'showSecondHeader?: boolean;');
 expectIncludes(presetPanel, "v-if=\"panelId === 'second' && showSecondHeader\"");

@@ -23,6 +23,7 @@
       :right-sidebar-open="showRightAuxArea"
       @undo="doUndo"
       @redo="doRedo"
+      @save-preset="saveCurrentPresetToTavern"
       @toggle-left-sidebar="leftCollapsed = !leftCollapsed"
       @select-preset="selectMainPreset"
       @toggle-right-sidebar="toggleRightSidebar"
@@ -93,7 +94,10 @@
                   panel-id="main"
                   :active-preset-name="activeMainPresetName"
                   :favorited-ids="favoritedIds"
+                  :migration-active="activeMigrationOpen"
+                  :migration-diff-items="presetMigrationDiff.items"
                   @favorite="onFavorite"
+                  @focus-migration-prompt="focusMigrationPromptFromPanel"
                 />
                 <AiAssistant @open-config="openAiConfig" />
               </template>
@@ -101,7 +105,7 @@
 
             <template v-if="showRightAuxArea">
               <SplitHandle hit-area="narrow" direction="vertical" @drag-start="onRightDragStart" @resize="onRightSplitResize" />
-              <div class="right-aux-area" :style="{ width: `${rightWidth}px` }">
+              <div class="right-aux-area" :style="{ width: `${effectiveRightWidth}px` }">
                 <div v-if="rightAuxTabs.length" class="right-aux-tab-strip">
                   <div
                     v-for="tab in rightAuxTabs"
@@ -162,7 +166,11 @@
 
                 <template v-else-if="activeRightAuxTab?.type === 'preset'">
                   <div class="right-preset-select-row">
-                    <div class="right-preset-select-wrap" :data-right-preset-menu-id="activeRightAuxTab.id">
+                    <div
+                      class="right-preset-select-wrap"
+                      :class="{ open: rightPresetMenuTabId === activeRightAuxTab.id }"
+                      :data-right-preset-menu-id="activeRightAuxTab.id"
+                    >
                       <button
                         class="right-preset-select"
                         :class="{ open: rightPresetMenuTabId === activeRightAuxTab.id }"
@@ -208,16 +216,20 @@
                     </button>
                   </div>
                   <PresetMigrationPanel
-                    v-if="activeRightAuxTab.migrationOpen"
+                    v-show="activeRightAuxTab.migrationOpen"
                     @focus-main-prompt="focusMainPromptFromMigration"
+                    @focus-second-prompt="focusSecondPromptFromMigration"
                   />
                   <PresetPanel
-                    v-else
+                    ref="secondPresetPanelRef"
                     panel-id="second"
                     :active-preset-name="activeRightAuxTab.presetName"
                     :favorited-ids="favoritedIds"
                     :show-second-header="false"
+                    :migration-active="activeRightAuxTab.migrationOpen"
+                    :migration-diff-items="presetMigrationDiff.items"
                     @favorite="onFavorite"
+                    @focus-migration-prompt="focusMigrationPromptFromPanel"
                   />
                 </template>
 
@@ -252,6 +264,13 @@
       type="file"
       accept="application/json,.json"
       @change="handleImportPromptsFile"
+    />
+    <input
+      ref="presetImportInput"
+      class="hidden-file-input"
+      type="file"
+      accept="application/json,.json"
+      @change="handleImportPresetFile"
     />
 
     <Transition name="settings-pop">
@@ -327,10 +346,12 @@ import { useTextPromptStore } from './stores/textPrompt';
 import { getPromptKey, useManagerStore } from './stores/manager';
 import { useHistoryStore } from './stores/history';
 import { startParentDrag } from './utils/drag';
+import { buildPresetMigrationDiff } from './utils/presetCompare';
 import {
   clampSecondPresetWidth,
   clampWindowState,
   clampWindowStateWithVisibleArea,
+  getCollapsedSecondPresetWidth,
   getSecondPresetBounds,
   type WindowState,
 } from './utils/panelLayout';
@@ -360,9 +381,16 @@ const rightPresetMenuTabId = ref('');
 const leftCollapsed = ref(false);
 const leftWidth = ref(CODEX_REFERENCE_METRICS.sidebar.width);
 const rightWidth = ref(280);
+const presetWorkspaceWidth = ref(900);
 const presetWorkspaceRef = ref<HTMLElement>();
-const mainPresetPanelRef = ref<{ scrollToPromptAnchor?: (payload: { key?: string; index?: number; mainAnchorIndex?: number }) => void } | null>(null);
+type PresetPanelExpose = {
+  scrollToPromptAnchor?: (payload: { key?: string; index?: number; mainAnchorIndex?: number; alignViewportTop?: number }) => void;
+  getPromptListViewportTop?: () => number | null;
+};
+const mainPresetPanelRef = ref<PresetPanelExpose | null>(null);
+const secondPresetPanelRef = ref<PresetPanelExpose | null>(null);
 const officialPromptImportInput = ref<HTMLInputElement | null>(null);
+const presetImportInput = ref<HTMLInputElement | null>(null);
 const creatingOfficialPrompt = ref(false);
 const unusedPromptSearch = ref('');
 const instanceKey = inject<PresetManagerInstanceKey>('presetManagerInstanceKey', 'default');
@@ -372,6 +400,7 @@ let removeCodeInspectorSelectListener: (() => void) | null = null;
 let presetSyncTimer: number | null = null;
 let nativeTokenObserver: MutationObserver | null = null;
 let nativeTokenPollTimer: number | null = null;
+let presetWorkspaceResizeObserver: ResizeObserver | null = null;
 let pendingTavernPresetName = '';
 let pendingTavernPresetUntil = 0;
 
@@ -530,6 +559,17 @@ const filteredOfficialUnusedPrompts = computed(() => {
 
 const showRightAuxArea = computed(() => rightAuxOpen.value);
 const activeRightAuxTab = computed(() => rightAuxTabs.value.find(tab => tab.id === activeRightAuxTabId.value) ?? null);
+const activeMigrationOpen = computed(() => activeRightAuxTab.value?.type === 'preset' && activeRightAuxTab.value.migrationOpen);
+const effectiveRightWidth = computed(() =>
+  leftCollapsed.value
+    ? getCollapsedSecondPresetWidth(rightWidth.value, presetWorkspaceWidth.value)
+    : rightWidth.value,
+);
+const presetMigrationDiff = computed(() => buildPresetMigrationDiff({
+  mainPrompts: manager.mainPrompts,
+  secondPrompts: manager.secondPrompts,
+  isLocked: key => manager.isPromptLocked(key, 'main'),
+}));
 const mainChatTab = computed(() => mainChatTabs.value.find(tab => tab.id === activeMainChatTabId.value) ?? null);
 const mainChatSessionId = computed(() => mainChatTab.value?.sessionId ?? 'main-chat-default');
 const mainChatTitle = computed(() => mainChatTab.value?.title ?? '新聊天');
@@ -713,7 +753,9 @@ function toggleRightPresetMigration(tabId: string) {
 }
 
 function toggleRightPresetMenu(tabId: string) {
-  rightPresetMenuTabId.value = rightPresetMenuTabId.value === tabId ? '' : tabId;
+  const nextOpen = rightPresetMenuTabId.value !== tabId;
+  rightPresetMenuTabId.value = nextOpen ? tabId : '';
+  if (nextOpen) announceMenuOpen(`right-preset-menu:${tabId}`);
 }
 
 function selectRightPresetFromMenu(tabId: string, presetName: string) {
@@ -728,8 +770,60 @@ function closeRightPresetMenuFromOutside(event?: Event) {
   rightPresetMenuTabId.value = '';
 }
 
-function focusMainPromptFromMigration(payload: { key?: string; index?: number; mainAnchorIndex?: number }) {
-  mainPresetPanelRef.value?.scrollToPromptAnchor?.(payload);
+function getPanelDocument() {
+  return iframeEl.contentDocument ?? document;
+}
+
+function closeRightPresetMenuFromKey(event: KeyboardEvent) {
+  if (event.key === 'Escape') rightPresetMenuTabId.value = '';
+}
+
+function closeRightPresetMenuFromPeer(event: Event) {
+  const source = (event as CustomEvent<{ source?: string }>).detail?.source ?? '';
+  if (source !== `right-preset-menu:${rightPresetMenuTabId.value}`) rightPresetMenuTabId.value = '';
+}
+
+function announceMenuOpen(source: string) {
+  getPanelDocument().dispatchEvent(new CustomEvent('preset-manager-menu-opened', { detail: { source } }));
+}
+
+type MigrationFocusPayload = {
+  key?: string;
+  index?: number;
+  mainIndex?: number;
+  secondIndex?: number;
+  mainAnchorIndex?: number;
+};
+
+function focusMainPromptFromMigration(payload: MigrationFocusPayload) {
+  mainPresetPanelRef.value?.scrollToPromptAnchor?.({
+    key: payload.key,
+    index: payload.mainIndex ?? payload.index,
+    mainAnchorIndex: payload.mainAnchorIndex,
+    alignViewportTop: getMigrationAlignViewportTop(),
+  });
+}
+
+function focusSecondPromptFromMigration(payload: MigrationFocusPayload) {
+  secondPresetPanelRef.value?.scrollToPromptAnchor?.({
+    key: payload.key,
+    index: payload.secondIndex ?? payload.index,
+    mainAnchorIndex: payload.secondIndex ?? payload.index,
+    alignViewportTop: getMigrationAlignViewportTop(),
+  });
+}
+
+function getMigrationAlignViewportTop() {
+  const tops = [
+    mainPresetPanelRef.value?.getPromptListViewportTop?.(),
+    secondPresetPanelRef.value?.getPromptListViewportTop?.(),
+  ].filter((top): top is number => typeof top === 'number' && Number.isFinite(top));
+  return tops.length ? Math.max(...tops) : undefined;
+}
+
+function focusMigrationPromptFromPanel(payload: MigrationFocusPayload) {
+  focusMainPromptFromMigration(payload);
+  focusSecondPromptFromMigration(payload);
 }
 
 function selectMainPreset(name: string) {
@@ -747,6 +841,7 @@ function selectMainPreset(name: string) {
 
 async function runSidebarPresetAction(payload: SidebarPresetActionPayload) {
   if (payload.action === 'createPreset') await createOfficialPreset();
+  if (payload.action === 'importPreset') triggerPresetImport();
   if (!payload.presetName) return;
   if (payload.action === 'openSecondPreset') openPresetInRightSidebar(payload.presetName);
   if (payload.action === 'renamePreset') await renameOfficialPreset(payload.presetName);
@@ -872,6 +967,28 @@ async function createOfficialPreset() {
   }
 }
 
+async function saveCurrentPresetToTavern() {
+  const presetName = manager.presetName;
+  if (!presetName) {
+    toastr.warning('请先选择一个预设', '', { timeOut: 1600 });
+    return;
+  }
+
+  try {
+    const before = snapshotMainPreset();
+    const nextPreset = klona(manager.preset ?? getPreset('in_use'));
+    await replacePreset(presetName, nextPreset, { render: 'immediate' });
+    await replacePreset('in_use', nextPreset, { render: 'immediate' });
+    const after = snapshotMainPreset();
+    if (before && after) history.recordOperation(presetName, before, after, '保存当前预设');
+    manager.refreshMainPreset();
+    toastr.success('预设已保存', '', { timeOut: 1400 });
+  } catch (error) {
+    console.error('[PresetManager] save current preset failed:', error);
+    toastr.error('保存失败，请稍后重试', '', { timeOut: 2200 });
+  }
+}
+
 async function renameOfficialPreset(targetPresetName = manager.presetName) {
   const currentName = targetPresetName;
   if (!currentName) {
@@ -951,6 +1068,37 @@ async function handleImportPromptsFile(event: Event) {
   }
 }
 
+function getPresetImportName(file: File) {
+  return file.name.replace(/\.[^.]+$/, '').trim() || 'imported-preset';
+}
+
+function triggerPresetImport() {
+  presetImportInput.value?.click();
+}
+
+async function handleImportPresetFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  try {
+    const presetName = getPresetImportName(file);
+    const imported = await importRawPreset(presetName, await file.text());
+    manager.refreshPresetList();
+    if (imported || manager.presetNames.includes(presetName)) {
+      selectMainPreset(presetName);
+      toastr.success('预设已导入', '', { timeOut: 1600 });
+    } else {
+      toastr.warning('导入预设失败', '', { timeOut: 1800 });
+    }
+  } catch (error) {
+    console.error('[PresetManager] import preset failed:', error);
+    toastr.error('导入失败，请确认文件是有效预设 JSON', '', { timeOut: 2200 });
+  } finally {
+    input.value = '';
+  }
+}
+
 function downloadPresetPromptExport() {
   const exportData = manager.exportPromptsFromPreset('main');
   if (!exportData) {
@@ -981,11 +1129,16 @@ async function resetOfficialPromptOrder() {
 }
 
 function getPresetWorkspaceWidth() {
-  return presetWorkspaceRef.value?.clientWidth ?? iframeEl?.getBoundingClientRect().width ?? 900;
+  return presetWorkspaceRef.value?.clientWidth ?? iframeEl?.getBoundingClientRect().width ?? presetWorkspaceWidth.value;
+}
+
+function refreshPresetWorkspaceWidth() {
+  presetWorkspaceWidth.value = Math.max(1, Math.round(getPresetWorkspaceWidth()));
 }
 
 function ensureSecondPresetWidth() {
-  rightWidth.value = clampSecondPresetWidth(rightWidth.value, getPresetWorkspaceWidth());
+  refreshPresetWorkspaceWidth();
+  rightWidth.value = clampSecondPresetWidth(rightWidth.value, presetWorkspaceWidth.value);
 }
 
 function toggleRightSidebar() {
@@ -1001,7 +1154,8 @@ function toggleRightSidebar() {
 watch(rightAuxOpen, visible => {
   if (!visible) return;
   nextTick(() => {
-    rightWidth.value = getSecondPresetBounds(getPresetWorkspaceWidth()).center;
+    refreshPresetWorkspaceWidth();
+    rightWidth.value = getSecondPresetBounds(presetWorkspaceWidth.value).center;
   });
 });
 
@@ -1562,6 +1716,9 @@ onMounted(() => {
   ai.startTavernApiProfileSync();
   startPresetSyncFromTavern();
   startNativePromptTokenSync();
+  refreshPresetWorkspaceWidth();
+  presetWorkspaceResizeObserver = new ResizeObserver(refreshPresetWorkspaceWidth);
+  if (presetWorkspaceRef.value) presetWorkspaceResizeObserver.observe(presetWorkspaceRef.value);
 
   const savedState = readWindowState();
   if (savedState) applyWindowState(savedState);
@@ -1581,12 +1738,15 @@ onMounted(() => {
     devTheme.setSelectedElement(detail);
   });
 
-  document.addEventListener('pointerdown', closeRightPresetMenuFromOutside, true);
-  document.addEventListener('mousedown', closeRightPresetMenuFromOutside, true);
-  document.addEventListener('click', closeRightPresetMenuFromOutside, true);
+  getPanelDocument().addEventListener('pointerdown', closeRightPresetMenuFromOutside, true);
+  getPanelDocument().addEventListener('mousedown', closeRightPresetMenuFromOutside, true);
+  getPanelDocument().addEventListener('click', closeRightPresetMenuFromOutside, true);
   parentDoc.addEventListener('pointerdown', closeRightPresetMenuFromOutside, true);
   parentDoc.addEventListener('mousedown', closeRightPresetMenuFromOutside, true);
   parentDoc.addEventListener('click', closeRightPresetMenuFromOutside, true);
+  getPanelDocument().defaultView?.addEventListener('keydown', closeRightPresetMenuFromKey, true);
+  parentDoc.defaultView?.addEventListener('keydown', closeRightPresetMenuFromKey, true);
+  getPanelDocument().addEventListener('preset-manager-menu-opened', closeRightPresetMenuFromPeer);
 
   document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
@@ -1610,12 +1770,17 @@ onUnmounted(() => {
   }
   nativeTokenObserver?.disconnect();
   nativeTokenObserver = null;
-  document.removeEventListener('pointerdown', closeRightPresetMenuFromOutside, true);
-  document.removeEventListener('mousedown', closeRightPresetMenuFromOutside, true);
-  document.removeEventListener('click', closeRightPresetMenuFromOutside, true);
+  presetWorkspaceResizeObserver?.disconnect();
+  presetWorkspaceResizeObserver = null;
+  getPanelDocument().removeEventListener('pointerdown', closeRightPresetMenuFromOutside, true);
+  getPanelDocument().removeEventListener('mousedown', closeRightPresetMenuFromOutside, true);
+  getPanelDocument().removeEventListener('click', closeRightPresetMenuFromOutside, true);
   parentDoc.removeEventListener('pointerdown', closeRightPresetMenuFromOutside, true);
   parentDoc.removeEventListener('mousedown', closeRightPresetMenuFromOutside, true);
   parentDoc.removeEventListener('click', closeRightPresetMenuFromOutside, true);
+  getPanelDocument().defaultView?.removeEventListener('keydown', closeRightPresetMenuFromKey, true);
+  parentDoc.defaultView?.removeEventListener('keydown', closeRightPresetMenuFromKey, true);
+  getPanelDocument().removeEventListener('preset-manager-menu-opened', closeRightPresetMenuFromPeer);
   ai.stopTavernApiProfileSync();
   removeCodeInspectorSelectListener?.();
   removeCodeInspectorSelectListener = null;
@@ -2365,13 +2530,14 @@ button {
 }
 .right-preset-select {
   width: 100%;
-  height: 28px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 8px 0 0;
-  border: 0;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
   background: transparent;
   color: var(--pm-text);
   font-size: 13px;
@@ -2379,9 +2545,11 @@ button {
   outline: none;
   cursor: pointer;
   text-align: left;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 .right-preset-select:hover,
 .right-preset-select.open {
+  background: var(--pm-pill-bg-hover);
   color: var(--pm-text);
 }
 .right-preset-select span {

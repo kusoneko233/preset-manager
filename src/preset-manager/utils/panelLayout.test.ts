@@ -26,6 +26,11 @@ expectEqual(clampSecondPresetWidth(489, 1000), 489);
 expectEqual(clampSecondPresetWidth(900, 1000), desktop.max);
 expectTrue(desktop.max > 500, 'Expected desktop max width to be greater than 500');
 
+const collapsedWidth = require('./panelLayout').getCollapsedSecondPresetWidth(320, 1260);
+expectTrue(collapsedWidth > 320, 'Expected collapsed left sidebar to expand the right sidebar');
+expectTrue(collapsedWidth < getSecondPresetBounds(1260).max, 'Expected collapsed width to leave room for the main panel');
+expectEqual(clampSecondPresetWidth(collapsedWidth, 1260), collapsedWidth);
+
 const compact = getSecondPresetBounds(520);
 expectEqual(compact.center, 249);
 expectEqual(clampSecondPresetWidth(10, 520), compact.min);

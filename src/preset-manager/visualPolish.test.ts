@@ -37,7 +37,9 @@ function extractBlock(content: string, startToken: string, nextToken: string) {
 }
 
 function cssBlock(content: string, selector: string) {
-  const start = content.indexOf(`${selector} {`);
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = new RegExp(`(^|\\n)${escapedSelector} \\{`).exec(content);
+  const start = match ? match.index + match[1].length : -1;
   if (start === -1) {
     throw new Error(`Expected CSS selector to exist: ${selector}`);
   }

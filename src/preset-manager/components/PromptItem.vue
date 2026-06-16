@@ -1,7 +1,11 @@
 <template>
   <div
+    ref="promptItemRoot"
     class="prompt-item"
-    :class="{ expanded, dragging: isDragging, enabled: prompt.enabled, disabled: !prompt.enabled, 'is-placeholder': isPlaceholder, locked, 'empty-content': isEmptyContent, preview: isPreview }"
+    :class="[
+      { expanded, dragging: isDragging, enabled: prompt.enabled, disabled: !prompt.enabled, 'is-placeholder': isPlaceholder, locked, 'empty-content': isEmptyContent, preview: isPreview },
+      migrationBadge ? `migration-side-${migrationBadge.side} migration-tone-${migrationBadge.tone}` : '',
+    ]"
     :draggable="!isPlaceholder && !isPreview && !manualDrag"
     @dragstart="onDragStart"
     @dragend="onDragEnd"
@@ -62,6 +66,16 @@
         </span>
       </div>
       <span v-if="relationLabel" class="prompt-relation">{{ relationLabel }}</span>
+      <button
+        v-if="migrationBadge"
+        class="prompt-migration-badge"
+        :class="`tone-${migrationBadge.tone}`"
+        type="button"
+        :title="migrationBadge.note"
+        @click.stop="$emit('migrationBadgeClick')"
+      >
+        {{ migrationBadge.label }}
+      </button>
 
       <span class="prompt-row-spacer" />
 
@@ -98,7 +112,24 @@
 
       <template v-if="!editing">
         <div
-          v-if="prompt.content"
+          v-if="diffLinesForCurrentSide.length"
+          class="prompt-content prompt-content-diff"
+          role="button"
+          tabindex="0"
+          title="点击编辑内容"
+          @click.stop="startInlineEdit('content')"
+          @keydown.enter.stop.prevent="startInlineEdit('content')"
+          @keydown.space.stop.prevent="startInlineEdit('content')"
+        >
+          <span
+            v-for="(line, index) in diffLinesForCurrentSide"
+            :key="`${line.kind}-${index}-${line.text}`"
+            class="diff-line"
+            :class="{ removed: line.kind === 'removed', added: line.kind === 'added', same: line.kind === 'same' }"
+          >{{ line.text || ' ' }}</span>
+        </div>
+        <div
+          v-else-if="prompt.content"
           class="prompt-content"
           role="button"
           tabindex="0"
@@ -126,7 +157,27 @@
       <div v-else class="prompt-inline-editor" @click.stop>
         <label class="inline-field inline-content-field">
           <span class="inline-field-label">内容</span>
-          <textarea ref="contentInput" v-model="draft.content" class="inline-content-input" />
+          <span class="inline-content-shell">
+            <textarea
+              ref="contentInput"
+              v-model="draft.content"
+              class="inline-content-input"
+              :class="{ 'has-diff-overlay': diffLinesForCurrentSide.length }"
+            />
+            <span
+              v-if="diffLinesForCurrentSide.length"
+              class="inline-content-diff-overlay"
+              aria-label="内容差异对比"
+              :data-diff-text="diffTextForCurrentSide"
+            >
+              <span
+                v-for="(line, index) in diffLinesForCurrentSide"
+                :key="`inline-${line.kind}-${index}-${line.text}`"
+                class="diff-line"
+                :class="{ removed: line.kind === 'removed', added: line.kind === 'added', same: line.kind === 'same' }"
+              >{{ line.text || ' ' }}</span>
+            </span>
+          </span>
         </label>
 
         <div class="inline-meta-controls">
@@ -214,6 +265,7 @@
 import Icon from './Icon.vue';
 import IconButton from './IconButton.vue';
 import { isPresetPlaceholderPrompt } from '../utils/officialPromptManager';
+import type { PromptContentDiffLines } from '../utils/presetCompare';
 
 const props = defineProps<{
   prompt: PresetPrompt;
@@ -233,6 +285,13 @@ const props = defineProps<{
   isGroupHeader?: boolean;
   groupCollapsed?: boolean;
   collapsedGroupCount?: number;
+  migrationBadge?: {
+    tone: 'added' | 'removed' | 'content' | 'enabled' | 'order' | 'mixed' | 'duplicate';
+    label: string;
+    side: 'old' | 'new' | 'neutral';
+    note?: string;
+  } | null;
+  migrationDiffLines?: PromptContentDiffLines | null;
 }>();
 
 type PromptRole = 'system' | 'user' | 'assistant';
@@ -275,12 +334,14 @@ const emit = defineEmits<{
   restoreDefault: [];
   copyToOther: [];
   moveToOther: [];
+  migrationBadgeClick: [];
 }>();
 
 const expanded = ref(false);
 const editing = ref(false);
 const editingTitleName = ref(false);
 const triggerPanelOpen = ref(false);
+const promptItemRoot = ref<HTMLElement | null>(null);
 const isDragging = ref(false);
 const titleInput = ref<HTMLInputElement>();
 const contentInput = ref<HTMLTextAreaElement>();
@@ -303,6 +364,13 @@ const promptAny = computed(() => props.prompt as any);
 const isGroupHeader = computed(() => !!props.isGroupHeader);
 const groupCollapsed = computed(() => !!props.groupCollapsed);
 const collapsedGroupCount = computed(() => props.collapsedGroupCount ?? 0);
+const diffLinesForCurrentSide = computed(() => {
+  if (!props.migrationDiffLines || !props.migrationBadge) return [];
+  if (props.migrationBadge.side === 'old') return props.migrationDiffLines.oldLines;
+  if (props.migrationBadge.side === 'new') return props.migrationDiffLines.newLines;
+  return [];
+});
+const diffTextForCurrentSide = computed(() => diffLinesForCurrentSide.value.map(line => line.text).join('\n'));
 
 const triggerLabel = computed(() => {
   const triggers = promptAny.value.injection_trigger ?? promptAny.value.triggers;
@@ -461,6 +529,18 @@ function cancelInlineEdit() {
   resetDraft();
 }
 
+function closeTriggerPanelFromOutside(event: Event) {
+  if (!triggerPanelOpen.value) return;
+  const target = event.target as HTMLElement | null;
+  const triggerField = target?.closest?.('.inline-trigger-field');
+  if (triggerField && promptItemRoot.value?.contains(triggerField)) return;
+  triggerPanelOpen.value = false;
+}
+
+function closeTriggerPanelFromKey(event: KeyboardEvent) {
+  if (event.key === 'Escape') triggerPanelOpen.value = false;
+}
+
 function onDragStart(e: DragEvent) {
   if (isPreview.value || isPlaceholder.value || manualDrag.value) {
     e.preventDefault();
@@ -522,8 +602,19 @@ watch(
   { immediate: true },
 );
 
+onMounted(() => {
+  document.addEventListener('pointerdown', closeTriggerPanelFromOutside, true);
+  document.addEventListener('mousedown', closeTriggerPanelFromOutside, true);
+  document.addEventListener('click', closeTriggerPanelFromOutside, true);
+  window.addEventListener('keydown', closeTriggerPanelFromKey, true);
+});
+
 onBeforeUnmount(() => {
   flushAutoSave();
+  document.removeEventListener('pointerdown', closeTriggerPanelFromOutside, true);
+  document.removeEventListener('mousedown', closeTriggerPanelFromOutside, true);
+  document.removeEventListener('click', closeTriggerPanelFromOutside, true);
+  window.removeEventListener('keydown', closeTriggerPanelFromKey, true);
   watchDraftForAutoSave();
 });
 
@@ -594,6 +685,47 @@ defineExpose({ expanded, editing, startInlineEdit });
 .prompt-item.preview .prompt-row,
 .prompt-item.preview .prompt-preview {
   cursor: default;
+}
+.prompt-item.migration-side-old {
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--migration-side-tone, var(--pm-danger)) 78%, transparent);
+}
+.prompt-item.migration-side-new {
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--migration-side-tone, var(--pm-success)) 78%, transparent);
+}
+.prompt-item.migration-side-neutral {
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--migration-tone, var(--pm-text-muted)) 58%, transparent);
+}
+.prompt-item.migration-side-old .prompt-preview,
+.prompt-item.migration-side-old .prompt-content {
+  background: color-mix(in srgb, var(--migration-side-tone, var(--pm-danger)) 10%, var(--pm-bg-elevated));
+}
+.prompt-item.migration-side-new .prompt-preview,
+.prompt-item.migration-side-new .prompt-content {
+  background: color-mix(in srgb, var(--migration-side-tone, var(--pm-success)) 10%, var(--pm-bg-elevated));
+}
+.prompt-item.migration-side-old {
+  --migration-side-tone: #ff6f6f;
+}
+.prompt-item.migration-side-new {
+  --migration-side-tone: #56d17f;
+}
+.prompt-item.migration-tone-added {
+  --migration-tone: #56d17f;
+}
+.prompt-item.migration-tone-removed {
+  --migration-tone: #ff6f6f;
+}
+.prompt-item.migration-tone-content {
+  --migration-tone: #62a8ff;
+}
+.prompt-item.migration-tone-enabled {
+  --migration-tone: #b18cff;
+}
+.prompt-item.migration-tone-mixed {
+  --migration-tone: #ffd447;
+}
+.prompt-item.migration-tone-duplicate {
+  --migration-tone: #8c8f96;
 }
 .prompt-row {
   display: flex;
@@ -727,6 +859,42 @@ defineExpose({ expanded, editing, startInlineEdit });
   font-weight: 500;
   letter-spacing: 0.01em;
   line-height: 1;
+}
+.prompt-migration-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--migration-tone, var(--pm-text-muted)) 38%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--migration-tone, var(--pm-text-muted)) 11%, transparent);
+  color: color-mix(in srgb, var(--migration-tone, var(--pm-text-muted)) 82%, var(--pm-text));
+  font-size: 10.5px;
+  font-weight: 620;
+  line-height: 1;
+  cursor: pointer;
+}
+.prompt-migration-badge:hover {
+  background: color-mix(in srgb, var(--migration-tone, var(--pm-text-muted)) 18%, transparent);
+}
+.prompt-migration-badge.tone-added {
+  --migration-tone: #56d17f;
+}
+.prompt-migration-badge.tone-removed {
+  --migration-tone: #ff6f6f;
+}
+.prompt-migration-badge.tone-content {
+  --migration-tone: #62a8ff;
+}
+.prompt-migration-badge.tone-enabled {
+  --migration-tone: #b18cff;
+}
+.prompt-migration-badge.tone-mixed {
+  --migration-tone: #ffd447;
+}
+.prompt-migration-badge.tone-duplicate {
+  --migration-tone: #8c8f96;
 }
 .prompt-row-spacer {
   flex: 1;
@@ -913,6 +1081,29 @@ defineExpose({ expanded, editing, startInlineEdit });
   background: color-mix(in srgb, var(--pm-bg-elevated) 80%, var(--pm-bg-hover));
   outline: none;
 }
+.prompt-content-diff {
+  display: block;
+  white-space: normal;
+}
+.diff-line {
+  display: block;
+  min-height: 1.45em;
+  color: color-mix(in srgb, var(--pm-text-muted) 86%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.diff-line.same {
+  color: color-mix(in srgb, var(--pm-text-muted) 62%, transparent);
+}
+.diff-line.removed {
+  color: color-mix(in srgb, var(--pm-danger) 86%, var(--pm-text));
+}
+.diff-line.added {
+  color: color-mix(in srgb, var(--pm-success) 86%, var(--pm-text));
+}
 .prompt-item.disabled .prompt-content {
   background: color-mix(in srgb, var(--pm-bg-elevated) 90%, var(--pm-bg-hover));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pm-text) 8%, transparent);
@@ -1036,6 +1227,30 @@ defineExpose({ expanded, editing, startInlineEdit });
   font-size: var(--pm-prompt-editor-font-size, 15px);
   line-height: 1.6;
   white-space: pre-wrap;
+}
+.inline-content-shell {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+.inline-content-input.has-diff-overlay {
+  background: transparent;
+  color: transparent;
+  caret-color: var(--pm-text);
+}
+.inline-content-diff-overlay {
+  position: absolute;
+  inset: 0;
+  min-height: clamp(260px, 42vh, 560px);
+  padding: 12px 13px;
+  border-radius: 8px;
+  color: var(--pm-text-muted);
+  font-size: var(--pm-prompt-editor-font-size, 15px);
+  line-height: 1.6;
+  overflow: auto;
+  pointer-events: none;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .prompt-item.disabled .inline-content-input {
   background: color-mix(in srgb, var(--pm-bg-elevated) 92%, var(--pm-bg-hover));

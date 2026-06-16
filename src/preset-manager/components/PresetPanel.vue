@@ -3,6 +3,8 @@
     ref="panelRoot"
     class="preset-panel flex h-full flex-col"
     :class="`${panelId}-panel`"
+    :data-migration-active="migrationActive ? 'true' : undefined"
+    :data-migration-diff-items="migrationDiffItems?.length"
     @dragover.prevent="onDragOver"
     @dragleave="onDragLeave"
     @drop.prevent="onDrop"
@@ -31,17 +33,26 @@
       :class="{ 'drop-target': isDropTarget, sorting: isSortingDrop }"
       @dragover.prevent="onListDragOver"
     >
-      <div v-if="selectionMode && selectedPromptKeys.length" class="bulk-selection-bar">
-        <span class="bulk-selection-count">已选 {{ selectedPromptKeys.length }} 条</span>
-        <button class="bulk-selection-action" type="button" @click="bulkSetEnabled(true)">启用</button>
-        <button class="bulk-selection-action" type="button" @click="bulkSetEnabled(false)">禁用</button>
-        <button class="bulk-selection-action" type="button" @click="bulkSetLocked(true)">锁定</button>
-        <button class="bulk-selection-action" type="button" @click="bulkSetLocked(false)">解锁</button>
-        <button v-if="canTransferToOther" class="bulk-selection-action" type="button" @click="bulkCopySelectedToOther">复制到{{ otherPanelLabel }}</button>
-        <button v-if="canTransferToOther" class="bulk-selection-action" type="button" @click="bulkMoveSelectedToOther">移动到{{ otherPanelLabel }}</button>
-        <button class="bulk-selection-action danger" type="button" @click="bulkDetachSelected">移出</button>
-        <button class="bulk-selection-action danger" type="button" @click="bulkDeleteSelected">删除所选</button>
-        <button class="bulk-selection-clear" type="button" @click="finishSelectionMode">完成</button>
+      <div v-if="selectionMode && selectedPromptKeys.length" class="bulk-selection-toolbar">
+        <div class="bulk-selection-bar">
+          <span class="bulk-selection-count">已选 {{ selectedPromptKeys.length }} 条</span>
+          <div class="bulk-selection-actions" aria-label="批量操作">
+            <button class="bulk-selection-action" type="button" @click="bulkSetEnabled(true)">启用</button>
+            <button class="bulk-selection-action" type="button" @click="bulkSetEnabled(false)">禁用</button>
+            <button class="bulk-selection-action" type="button" @click="bulkSetLocked(true)">锁定</button>
+            <details class="bulk-selection-more">
+              <summary class="bulk-selection-more-trigger">更多</summary>
+              <div class="bulk-selection-more-menu">
+                <button class="bulk-selection-action" type="button" @click="bulkSetLocked(false)">解锁</button>
+                <button v-if="canTransferToOther" class="bulk-selection-action" type="button" @click="bulkCopySelectedToOther">复制到{{ otherPanelLabel }}</button>
+                <button v-if="canTransferToOther" class="bulk-selection-action" type="button" @click="bulkMoveSelectedToOther">移动到{{ otherPanelLabel }}</button>
+                <button class="bulk-selection-action danger" type="button" @click="bulkDetachSelected">移出</button>
+                <button class="bulk-selection-action danger" type="button" @click="bulkDeleteSelected">删除所选</button>
+              </div>
+            </details>
+          </div>
+          <button class="bulk-selection-clear" type="button" @click="finishSelectionMode">完成</button>
+        </div>
       </div>
 
       <div v-if="!prompts.length" class="empty-state">
@@ -110,11 +121,14 @@
             :is-group-header="getPromptGroupState(i).isHeader"
             :group-collapsed="getPromptGroupState(i).collapsed"
             :collapsed-group-count="getPromptGroupState(i).count"
+            :migration-badge="getMigrationBadgeForPrompt(prompt)"
+            :migration-diff-lines="getMigrationDiffLinesForPrompt(prompt)"
             @zoom="zoomPrompt = prompt"
             @save-edits="savePromptEdits(prompt, $event)"
             @toggle-enabled="togglePromptEnabled(prompt)"
             @toggle-lock="togglePromptLock(prompt)"
             @toggle-group-collapsed="togglePromptGroupCollapsed(prompt)"
+            @migration-badge-click="focusMigrationPrompt(prompt, i)"
             @toggle-favorite="$emit('favorite', prompt)"
             @copy-to-other="copyPromptToOther(prompt)"
             @move-to-other="movePromptToOther(prompt)"
@@ -245,6 +259,11 @@ import { useConfirmStore } from '../stores/confirm';
 import { useTextPromptStore } from '../stores/textPrompt';
 import { getPromptRelation, getPromptRelationLabel, type PromptRelation } from '../utils/promptRelations';
 import {
+  buildPromptContentDiffLines,
+  getMigrationVisualTone,
+  type PresetMigrationDiffItem,
+} from '../utils/presetCompare';
+import {
   isOfficialPromptDeletable,
   isOfficialRestorableSystemPrompt,
   isPresetPlaceholderPrompt,
@@ -261,10 +280,13 @@ const props = defineProps<{
   activePresetName?: string;
   favoritedIds?: Set<string>;
   showSecondHeader?: boolean;
+  migrationActive?: boolean;
+  migrationDiffItems?: PresetMigrationDiffItem[];
 }>();
 
 const emit = defineEmits<{
   favorite: [prompt: PresetPrompt];
+  focusMigrationPrompt: [payload: { key?: string; index?: number; mainAnchorIndex?: number; secondIndex?: number }];
 }>();
 
 const store = useManagerStore();
@@ -386,6 +408,61 @@ function relationLabel(prompt: PresetPrompt) {
   return getPromptRelationLabel(relation);
 }
 
+function getMigrationItemForPrompt(prompt: PresetPrompt) {
+  if (!props.migrationActive) return null;
+  const key = getPromptKey(prompt);
+  return props.migrationDiffItems?.find(item => item.key === key) ?? null;
+}
+
+function getMigrationBadgeForPrompt(prompt: PresetPrompt) {
+  const item = getMigrationItemForPrompt(prompt);
+  if (!item) return null;
+  const visualTone = getMigrationVisualTone(item.kind);
+  const side = getMigrationBadgeSide(item);
+  return {
+    tone: visualTone,
+    label: getMigrationBadgeLabel(item, side),
+    side,
+    note: item.note,
+  };
+}
+
+function getMigrationDiffLinesForPrompt(prompt: PresetPrompt) {
+  const item = getMigrationItemForPrompt(prompt);
+  if (!item) return null;
+  if (!['added', 'removed', 'content-changed', 'conflict'].includes(item.kind)) return null;
+  return buildPromptContentDiffLines(item.oldPrompt, item.newPrompt);
+}
+
+function getMigrationBadgeSide(item: PresetMigrationDiffItem): 'old' | 'new' | 'neutral' {
+  if (item.kind === 'removed') return 'old';
+  if (item.kind === 'added') return 'new';
+  if (item.kind === 'content-changed' || item.kind === 'conflict') return props.panelId === 'main' ? 'old' : 'new';
+  return 'neutral';
+}
+
+function getMigrationBadgeLabel(item: PresetMigrationDiffItem, side: 'old' | 'new' | 'neutral') {
+  if (side === 'old' && (item.kind === 'content-changed' || item.kind === 'conflict')) return `旧${item.label}`;
+  if (side === 'new' && (item.kind === 'content-changed' || item.kind === 'conflict')) return `新${item.label}`;
+  return item.label;
+}
+
+function focusMigrationPrompt(prompt: PresetPrompt, index: number) {
+  const item = getMigrationItemForPrompt(prompt);
+  if (!item) return;
+  scrollToPromptAnchor({
+    key: item.key,
+    index: props.panelId === 'main' ? item.mainIndex : item.secondIndex,
+    mainAnchorIndex: props.panelId === 'main' ? item.mainAnchorIndex : item.secondIndex,
+  });
+  emit('focusMigrationPrompt', {
+    key: item.key,
+    index,
+    mainAnchorIndex: item.mainAnchorIndex,
+    secondIndex: item.secondIndex,
+  });
+}
+
 function isFavorited(prompt: PresetPrompt): boolean {
   return props.favoritedIds?.has(getPromptKey(prompt)) ?? false;
 }
@@ -471,7 +548,11 @@ function setPromptItemRef(prompt: PresetPrompt, element: any) {
   }
 }
 
-function scrollToPromptAnchor(payload: { key?: string; index?: number; mainAnchorIndex?: number }) {
+function getPromptListViewportTop() {
+  return promptListRef.value?.getBoundingClientRect().top ?? null;
+}
+
+function scrollToPromptAnchor(payload: { key?: string; index?: number; mainAnchorIndex?: number; alignViewportTop?: number }) {
   const list = promptListRef.value;
   if (!list) return;
 
@@ -488,7 +569,9 @@ function scrollToPromptAnchor(payload: { key?: string; index?: number; mainAncho
   }
 
   if (!target) return;
-  const top = Math.max(0, target.offsetTop - list.offsetTop - 14);
+  const top = typeof payload.alignViewportTop === 'number'
+    ? Math.max(0, list.scrollTop + target.getBoundingClientRect().top - payload.alignViewportTop)
+    : Math.max(0, target.offsetTop - list.offsetTop - 14);
   list.scrollTo({ top, behavior: 'smooth' });
 
   if (payload.key) {
@@ -655,6 +738,10 @@ function closePromptContextMenuFromKey(event: KeyboardEvent) {
 
 function closePromptContextMenuOnScroll() {
   closePromptContextMenu();
+}
+
+function getPanelDocument() {
+  return iframeElement?.contentDocument ?? document;
 }
 
 function editPromptFromContext() {
@@ -1603,21 +1690,22 @@ function initializeMainPanelFromActivePreset() {
 
 defineExpose({
   scrollToPromptAnchor,
+  getPromptListViewportTop,
 });
 
 onMounted(() => {
   promptContextMenuTarget.value = panelRoot.value?.closest('.app-root') as HTMLElement | null;
-  document.addEventListener('pointerdown', closePromptContextMenuFromPointer, true);
-  document.addEventListener('mousedown', closePromptContextMenuFromPointer, true);
-  document.addEventListener('click', closePromptContextMenuFromPointer, true);
-  window.addEventListener('pointerdown', closePromptContextMenuFromPointer, true);
+  getPanelDocument().addEventListener('pointerdown', closePromptContextMenuFromPointer, true);
+  getPanelDocument().addEventListener('mousedown', closePromptContextMenuFromPointer, true);
+  getPanelDocument().addEventListener('click', closePromptContextMenuFromPointer, true);
+  getPanelDocument().defaultView?.addEventListener('pointerdown', closePromptContextMenuFromPointer, true);
   parentDocument.addEventListener('pointerdown', closePromptContextMenuFromPointer, true);
   parentDocument.addEventListener('mousedown', closePromptContextMenuFromPointer, true);
   parentDocument.addEventListener('click', closePromptContextMenuFromPointer, true);
   parentDocument.defaultView?.addEventListener('pointerdown', closePromptContextMenuFromPointer, true);
-  window.addEventListener('keydown', closePromptContextMenuFromKey, true);
+  getPanelDocument().defaultView?.addEventListener('keydown', closePromptContextMenuFromKey, true);
   parentDocument.defaultView?.addEventListener('keydown', closePromptContextMenuFromKey, true);
-  document.addEventListener('scroll', closePromptContextMenuOnScroll, true);
+  getPanelDocument().addEventListener('scroll', closePromptContextMenuOnScroll, true);
   parentDocument.addEventListener('scroll', closePromptContextMenuOnScroll, true);
 
   try {
@@ -1628,17 +1716,17 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  document.removeEventListener('pointerdown', closePromptContextMenuFromPointer, true);
-  document.removeEventListener('mousedown', closePromptContextMenuFromPointer, true);
-  document.removeEventListener('click', closePromptContextMenuFromPointer, true);
-  window.removeEventListener('pointerdown', closePromptContextMenuFromPointer, true);
+  getPanelDocument().removeEventListener('pointerdown', closePromptContextMenuFromPointer, true);
+  getPanelDocument().removeEventListener('mousedown', closePromptContextMenuFromPointer, true);
+  getPanelDocument().removeEventListener('click', closePromptContextMenuFromPointer, true);
+  getPanelDocument().defaultView?.removeEventListener('pointerdown', closePromptContextMenuFromPointer, true);
   parentDocument.removeEventListener('pointerdown', closePromptContextMenuFromPointer, true);
   parentDocument.removeEventListener('mousedown', closePromptContextMenuFromPointer, true);
   parentDocument.removeEventListener('click', closePromptContextMenuFromPointer, true);
   parentDocument.defaultView?.removeEventListener('pointerdown', closePromptContextMenuFromPointer, true);
-  window.removeEventListener('keydown', closePromptContextMenuFromKey, true);
+  getPanelDocument().defaultView?.removeEventListener('keydown', closePromptContextMenuFromKey, true);
   parentDocument.defaultView?.removeEventListener('keydown', closePromptContextMenuFromKey, true);
-  document.removeEventListener('scroll', closePromptContextMenuOnScroll, true);
+  getPanelDocument().removeEventListener('scroll', closePromptContextMenuOnScroll, true);
   parentDocument.removeEventListener('scroll', closePromptContextMenuOnScroll, true);
 });
 </script>
@@ -1741,20 +1829,21 @@ onUnmounted(() => {
   padding-top: 12px;
   padding-bottom: calc(var(--pm-ai-dock-min-height, 93px) + var(--pm-ai-dock-bottom, 18px) + 24px);
 }
+.bulk-selection-toolbar {
+  padding: 0 0 4px;
+}
 .bulk-selection-bar {
-  position: sticky;
-  top: 0;
-  z-index: 5;
+  position: static;
+  z-index: 1;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   min-height: 32px;
   padding: 4px 6px;
   border: 1px solid var(--pm-border);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--pm-bg-elevated) 88%, transparent);
-  backdrop-filter: blur(18px) saturate(135%);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  background: color-mix(in srgb, var(--pm-bg-elevated) 76%, transparent);
 }
 .bulk-selection-count {
   flex-shrink: 0;
@@ -1763,6 +1852,51 @@ onUnmounted(() => {
   font-size: 11.5px;
   font-weight: 500;
   line-height: 1;
+}
+.bulk-selection-actions {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.bulk-selection-more {
+  position: relative;
+}
+.bulk-selection-more-trigger {
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--pm-text-muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  list-style: none;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.bulk-selection-more-trigger::-webkit-details-marker {
+  display: none;
+}
+.bulk-selection-more-trigger:hover {
+  background: var(--pm-btn-hover);
+  color: var(--pm-text);
+}
+.bulk-selection-more-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 9;
+  display: grid;
+  gap: 2px;
+  min-width: 112px;
+  padding: 4px;
+  border: 1px solid var(--pm-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--pm-bg-elevated) 96%, var(--pm-bg-workspace));
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.26);
 }
 .bulk-selection-action,
 .bulk-selection-clear {
@@ -1782,6 +1916,10 @@ onUnmounted(() => {
 .bulk-selection-clear:hover {
   background: var(--pm-btn-hover);
   color: var(--pm-text);
+}
+.bulk-selection-more-menu .bulk-selection-action {
+  width: 100%;
+  text-align: left;
 }
 .bulk-selection-action.danger {
   color: var(--pm-danger);
@@ -1942,23 +2080,23 @@ onUnmounted(() => {
 .prompt-context-menu {
   position: absolute;
   z-index: 1200;
-  width: 168px;
-  padding: 4px;
-  border: 1px solid var(--pm-border);
+  width: 156px;
+  padding: 3px;
+  border: 0;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--pm-bg-elevated) 94%, transparent);
-  box-shadow: var(--pm-menu-shadow, 0 8px 24px rgba(0, 0, 0, 0.28));
-  backdrop-filter: var(--pm-menu-backdrop, blur(16px) saturate(150%));
-  -webkit-backdrop-filter: var(--pm-menu-backdrop, blur(16px) saturate(150%));
+  background: color-mix(in srgb, #000 72%, var(--pm-bg-elevated));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   animation: promptContextPop 0.12s ease-out;
 }
 .prompt-context-item {
   width: 100%;
-  min-height: 30px;
+  min-height: 28px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 10px;
+  gap: 8px;
+  padding: 0 8px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;

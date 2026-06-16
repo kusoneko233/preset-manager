@@ -295,6 +295,13 @@ export const useManagerStore = defineStore('preset-manager', {
       if (this.secondPresetName) this.loadSecondPreset(this.secondPresetName);
     },
 
+    refreshPresetList() {
+      const names = getLoadablePresetNames();
+      this.presetOrder = applyPresetOrder(names, this.presetOrder);
+      savePresetOrder(this.presetOrder);
+      return names;
+    },
+
     syncMainPresetFromTavern(currentName?: string): boolean {
       try {
         const name = currentName ?? getLoadedPresetName();

@@ -1,7 +1,9 @@
 declare const require: any;
 declare const process: any;
 
+// eslint-disable-next-line import-x/no-nodejs-modules
 const fs = require('fs');
+// eslint-disable-next-line import-x/no-nodejs-modules
 const path = require('path');
 
 function readProjectFile(file: string) {
@@ -47,6 +49,13 @@ expectIncludes(app, 'const rightAuxOpen = ref(false);');
 expectIncludes(app, 'const rightAuxTabs = ref<RightAuxTab[]>([]);');
 expectIncludes(app, 'const activeRightAuxTab = computed');
 expectIncludes(app, 'const showRightAuxArea = computed(() => rightAuxOpen.value);');
+expectIncludes(app, 'getCollapsedSecondPresetWidth');
+expectIncludes(app, 'const presetWorkspaceWidth = ref(900);');
+expectIncludes(app, 'let presetWorkspaceResizeObserver: ResizeObserver | null = null;');
+expectIncludes(app, 'const effectiveRightWidth = computed');
+expectIncludes(app, ':style="{ width: `${effectiveRightWidth}px` }"');
+expectIncludes(app, 'new ResizeObserver(refreshPresetWorkspaceWidth)');
+expectIncludes(app, 'presetWorkspaceResizeObserver?.disconnect();');
 expectIncludes(app, 'class="right-aux-tab-strip"');
 expectIncludes(app, 'class="right-aux-empty"');
 expectIncludes(app, 'class="right-aux-choice-grid"');

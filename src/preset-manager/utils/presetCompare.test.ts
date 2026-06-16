@@ -39,21 +39,22 @@ expectEqual(diff.summary, {
   removed: 1,
   contentChanged: 1,
   enabledChanged: 1,
-  orderChanged: 1,
+  orderChanged: 0,
   duplicate: 0,
   conflict: 1,
   locked: 1,
-  selectable: 5,
+  selectable: 4,
 });
 
 expectEqual(diff.items.map((item: any) => [item.key, item.kind, item.locked, item.selectable]), [
-  ['move', 'order-changed', false, true],
   ['keep', 'content-changed', false, true],
   ['locked', 'conflict', true, false],
   ['status', 'enabled-changed', false, true],
   ['add', 'added', false, true],
   ['remove', 'removed', false, true],
 ]);
+
+expectEqual(diff.items.some((item: any) => item.kind === 'order-changed' || item.visualTone === 'order'), false);
 
 expectEqual(diff.items.find((item: any) => item.key === 'add')?.mainAnchorIndex, 5);
 
@@ -111,6 +112,20 @@ expectEqual(ambiguousMigration.map((prompt: any) => [prompt.identifier, prompt.c
   ['dup', 'a', true],
   ['dup', 'b', true],
   ['safe', 'new', false],
+]);
+
+const positionMigrated = applyPresetMigrationSelection({
+  mainPrompts,
+  secondPrompts,
+  selectedKeys: ['move'],
+});
+
+expectEqual(positionMigrated.map((prompt: any) => prompt.identifier), [
+  'move',
+  'keep',
+  'locked',
+  'remove',
+  'status',
 ]);
 
 const diffLines = buildPromptContentDiffLines(

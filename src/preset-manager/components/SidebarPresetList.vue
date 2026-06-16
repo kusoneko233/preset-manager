@@ -2,18 +2,29 @@
   <div ref="sidebarRoot" class="sidebar-preset-list">
     <div class="sidebar-section-head">
       <span class="sidebar-section-kicker">预设</span>
-      <button
-        class="sidebar-section-create"
-        type="button"
-        title="新建预设"
-        aria-label="新建预设"
-        @click.stop="createPreset"
-      >
-        <Icon name="plus" :size="13" />
-      </button>
+      <div class="sidebar-section-actions">
+        <button
+          class="sidebar-section-import"
+          type="button"
+          title="导入预设"
+          aria-label="导入预设"
+          @click.stop="importPreset"
+        >
+          <Icon name="upload" :size="13" />
+        </button>
+        <button
+          class="sidebar-section-create"
+          type="button"
+          title="新建预设"
+          aria-label="新建预设"
+          @click.stop="createPreset"
+        >
+          <Icon name="plus" :size="13" />
+        </button>
+      </div>
     </div>
 
-    <div class="preset-list">
+    <div class="preset-list" @contextmenu.prevent.stop="openEmptyPresetContextMenu($event)">
       <div
         v-for="(name, i) in presetNames"
         :key="name"
@@ -73,18 +84,30 @@
           @mousedown.stop
           @contextmenu.prevent
         >
-          <button class="preset-context-item" @click="runPresetAction('openSecondPreset', $event)">
-            <Icon name="external-link" :size="14" />
-            <span>在侧边栏打开</span>
-          </button>
-          <button class="preset-context-item" @click="runPresetAction('renamePreset', $event)">
-            <Icon name="pen-line" :size="14" />
-            <span>重命名预设</span>
-          </button>
-          <button class="preset-context-item danger" @click="runPresetAction('deletePreset', $event)">
-            <Icon name="trash-2" :size="14" />
-            <span>删除预设</span>
-          </button>
+          <template v-if="contextMenuKind === 'preset'">
+            <button class="preset-context-item" @click="runPresetAction('openSecondPreset', $event)">
+              <Icon name="external-link" :size="14" />
+              <span>在侧边栏打开</span>
+            </button>
+            <button class="preset-context-item" @click="runPresetAction('renamePreset', $event)">
+              <Icon name="pen-line" :size="14" />
+              <span>重命名预设</span>
+            </button>
+            <button class="preset-context-item danger" @click="runPresetAction('deletePreset', $event)">
+              <Icon name="trash-2" :size="14" />
+              <span>删除预设</span>
+            </button>
+          </template>
+          <template v-else>
+            <button class="preset-context-item" @click="runPresetAction('importPreset', $event)">
+              <Icon name="upload" :size="14" />
+              <span>导入预设</span>
+            </button>
+            <button class="preset-context-item" @click="runPresetAction('createPreset', $event)">
+              <Icon name="plus" :size="14" />
+              <span>新建预设</span>
+            </button>
+          </template>
         </div>
       </Transition>
     </Teleport>
@@ -97,7 +120,7 @@ import { useManagerStore } from '../stores/manager';
 import type { ConfirmAnchor } from '../stores/confirm';
 import { startParentDrag } from '../utils/drag';
 
-export type SidebarPresetAction = 'createPreset' | 'openSecondPreset' | 'renamePreset' | 'deletePreset';
+export type SidebarPresetAction = 'createPreset' | 'importPreset' | 'openSecondPreset' | 'renamePreset' | 'deletePreset';
 
 export interface SidebarPresetActionPayload {
   action: SidebarPresetAction;
@@ -121,9 +144,11 @@ const sidebarRoot = ref<HTMLElement>();
 const contextMenuTarget = ref<HTMLElement | null>(null);
 const contextMenuOpen = ref(false);
 const contextPresetName = ref('');
+const contextMenuKind = ref<'preset' | 'empty'>('preset');
 const contextMenuRef = ref<HTMLElement>();
 const contextMenuPosition = reactive({ x: 0, y: 0 });
 const parentDocument = inject<Document>('parentDocument', document);
+const iframeEl = inject<HTMLIFrameElement>('iframeElement')!;
 const PRESET_DRAG_START_DISTANCE = 4;
 const draggedPresetName = ref('');
 const dragOverPresetName = ref('');
@@ -183,7 +208,21 @@ function openPresetContextMenu(event: MouseEvent, name: string) {
   event.preventDefault();
   event.stopPropagation();
   contextMenuTarget.value = sidebarRoot.value?.closest('.app-root') as HTMLElement | null;
+  contextMenuKind.value = 'preset';
   contextPresetName.value = name;
+  Object.assign(contextMenuPosition, getContextMenuPosition(event));
+  contextMenuOpen.value = true;
+  nextTick(clampContextMenuPosition);
+}
+
+function openEmptyPresetContextMenu(event: MouseEvent) {
+  const target = event.target as HTMLElement | null;
+  if (target?.closest?.('.sidebar-preset-item, .preset-context-menu')) return;
+  event.preventDefault();
+  event.stopPropagation();
+  contextMenuTarget.value = sidebarRoot.value?.closest('.app-root') as HTMLElement | null;
+  contextMenuKind.value = 'empty';
+  contextPresetName.value = props.activePresetName;
   Object.assign(contextMenuPosition, getContextMenuPosition(event));
   contextMenuOpen.value = true;
   nextTick(clampContextMenuPosition);
@@ -278,6 +317,11 @@ function createPreset() {
   emit('preset-action', { action: 'createPreset', presetName: props.activePresetName });
 }
 
+function importPreset() {
+  closePresetContextMenu();
+  emit('preset-action', { action: 'importPreset', presetName: props.activePresetName });
+}
+
 function getPresetContextActionAnchor(action: SidebarPresetAction, event?: MouseEvent): ConfirmAnchor | undefined {
   if (action !== 'deletePreset') return undefined;
   const target = event?.currentTarget as HTMLElement | null;
@@ -288,7 +332,7 @@ function getPresetContextActionAnchor(action: SidebarPresetAction, event?: Mouse
 }
 
 function runPresetAction(action: SidebarPresetAction, event?: MouseEvent) {
-  if (!contextPresetName.value) return;
+  if (!contextPresetName.value && action !== 'createPreset' && action !== 'importPreset') return;
   contextMenuOpen.value = false;
   emit('preset-action', {
     action,
@@ -430,40 +474,44 @@ function getPresetReflowOffset(name: string, index: number) {
   return 0;
 }
 
+function getPanelDocument() {
+  return iframeEl.contentDocument ?? document;
+}
+
 onMounted(() => {
   contextMenuTarget.value = sidebarRoot.value?.closest('.app-root') as HTMLElement | null;
-  document.addEventListener('pointerdown', closePresetContextMenuFromPointer, true);
-  document.addEventListener('mousedown', closePresetContextMenuFromPointer, true);
-  document.addEventListener('click', closePresetContextMenuFromPointer, true);
-  window.addEventListener('pointerdown', closePresetContextMenuFromPointer, true);
+  getPanelDocument().addEventListener('pointerdown', closePresetContextMenuFromPointer, true);
+  getPanelDocument().addEventListener('mousedown', closePresetContextMenuFromPointer, true);
+  getPanelDocument().addEventListener('click', closePresetContextMenuFromPointer, true);
+  getPanelDocument().defaultView?.addEventListener('pointerdown', closePresetContextMenuFromPointer, true);
   window.addEventListener('blur', cancelPresetMouseDragFromBlur, true);
   parentDocument.addEventListener('pointerdown', closePresetContextMenuFromPointer, true);
   parentDocument.addEventListener('mousedown', closePresetContextMenuFromPointer, true);
   parentDocument.addEventListener('click', closePresetContextMenuFromPointer, true);
   parentDocument.defaultView?.addEventListener('pointerdown', closePresetContextMenuFromPointer, true);
   parentDocument.defaultView?.addEventListener('blur', cancelPresetMouseDragFromBlur, true);
-  window.addEventListener('keydown', closePresetContextMenuFromKey, true);
+  getPanelDocument().defaultView?.addEventListener('keydown', closePresetContextMenuFromKey, true);
   parentDocument.defaultView?.addEventListener('keydown', closePresetContextMenuFromKey, true);
-  document.addEventListener('scroll', closePresetContextMenuOnScroll, true);
+  getPanelDocument().addEventListener('scroll', closePresetContextMenuOnScroll, true);
   parentDocument.addEventListener('scroll', closePresetContextMenuOnScroll, true);
 });
 
 onUnmounted(() => {
   cancelPresetMouseDrag();
   if (suppressPresetClickTimer !== null) window.clearTimeout(suppressPresetClickTimer);
-  document.removeEventListener('pointerdown', closePresetContextMenuFromPointer, true);
-  document.removeEventListener('mousedown', closePresetContextMenuFromPointer, true);
-  document.removeEventListener('click', closePresetContextMenuFromPointer, true);
-  window.removeEventListener('pointerdown', closePresetContextMenuFromPointer, true);
+  getPanelDocument().removeEventListener('pointerdown', closePresetContextMenuFromPointer, true);
+  getPanelDocument().removeEventListener('mousedown', closePresetContextMenuFromPointer, true);
+  getPanelDocument().removeEventListener('click', closePresetContextMenuFromPointer, true);
+  getPanelDocument().defaultView?.removeEventListener('pointerdown', closePresetContextMenuFromPointer, true);
   window.removeEventListener('blur', cancelPresetMouseDragFromBlur, true);
   parentDocument.removeEventListener('pointerdown', closePresetContextMenuFromPointer, true);
   parentDocument.removeEventListener('mousedown', closePresetContextMenuFromPointer, true);
   parentDocument.removeEventListener('click', closePresetContextMenuFromPointer, true);
   parentDocument.defaultView?.removeEventListener('pointerdown', closePresetContextMenuFromPointer, true);
   parentDocument.defaultView?.removeEventListener('blur', cancelPresetMouseDragFromBlur, true);
-  window.removeEventListener('keydown', closePresetContextMenuFromKey, true);
+  getPanelDocument().defaultView?.removeEventListener('keydown', closePresetContextMenuFromKey, true);
   parentDocument.defaultView?.removeEventListener('keydown', closePresetContextMenuFromKey, true);
-  document.removeEventListener('scroll', closePresetContextMenuOnScroll, true);
+  getPanelDocument().removeEventListener('scroll', closePresetContextMenuOnScroll, true);
   parentDocument.removeEventListener('scroll', closePresetContextMenuOnScroll, true);
 });
 </script>
@@ -492,6 +540,12 @@ onUnmounted(() => {
   line-height: 1;
   text-transform: uppercase;
 }
+.sidebar-section-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.sidebar-section-import,
 .sidebar-section-create {
   width: 24px;
   height: 24px;
@@ -507,6 +561,8 @@ onUnmounted(() => {
     background 0.12s ease,
     color 0.12s ease;
 }
+.sidebar-section-import:hover,
+.sidebar-section-import:focus-visible,
 .sidebar-section-create:hover,
 .sidebar-section-create:focus-visible {
   outline: none;
@@ -634,23 +690,23 @@ onUnmounted(() => {
 .preset-context-menu {
   position: absolute;
   z-index: 1200;
-  width: 184px;
-  padding: 4px;
+  width: 172px;
+  padding: 3px;
   border: 0;
   border-radius: 8px;
-  background: var(--pm-left-entry-editor-bg);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(32px) saturate(140%);
-  -webkit-backdrop-filter: blur(32px) saturate(140%);
+  background: color-mix(in srgb, #000 72%, var(--pm-bg-elevated));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   animation: presetContextPop 0.12s ease-out;
 }
 .preset-context-item {
   width: 100%;
-  min-height: 30px;
+  min-height: 28px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 10px;
+  gap: 8px;
+  padding: 0 8px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;

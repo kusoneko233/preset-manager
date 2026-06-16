@@ -1,107 +1,91 @@
 <template>
   <section class="migration-panel">
-    <header class="migration-head">
-      <div class="migration-title-wrap">
-        <span class="migration-kicker">对比迁移</span>
-        <h3 class="migration-title">从第二预设同步到主预设</h3>
-      </div>
-      <button class="migration-apply" :disabled="selectedCount === 0 || applying" @click="applySelected">
-        应用所选
-      </button>
-    </header>
-
     <div v-if="!canCompare" class="migration-empty">
-      打开主预设和第二预设后，可以在这里选择要迁移的差异条目。
+      打开主预设和第二预设后，可以定位并迁移差异。
     </div>
 
     <template v-else>
-      <div class="migration-summary">
-        <span>新增 {{ diff.summary.added }}</span>
-        <span>删除 {{ diff.summary.removed }}</span>
-        <span>内容 {{ diff.summary.contentChanged }}</span>
-        <span>状态 {{ diff.summary.enabledChanged }}</span>
-        <span>顺序 {{ diff.summary.orderChanged }}</span>
-        <span>重复 {{ diff.summary.duplicate }}</span>
-        <span>冲突 {{ diff.summary.conflict }}</span>
-        <span>锁定 {{ diff.summary.locked }}</span>
+      <div class="migration-toolbar">
+        <div class="migration-controls">
+          <button type="button" :disabled="filteredItems.length === 0" @click="jumpBy(-1)">上一个</button>
+          <button type="button" :disabled="filteredItems.length === 0" @click="jumpBy(1)">下一个</button>
+          <button
+            class="migration-multi-toggle"
+            :class="{ on: multiSelectEnabled }"
+            type="button"
+            :aria-pressed="multiSelectEnabled"
+            title="开启后点击下方差异条可多选"
+            @click="toggleMultiSelect"
+          >
+            <span>多选</span>
+            <span class="migration-status-dot" aria-hidden="true" />
+          </button>
+          <button
+            ref="applyButtonRef"
+            class="migration-apply-trigger"
+            type="button"
+            :disabled="selectedCount === 0 || applying"
+            title="迁移已选中的差异项"
+            @click="applySelected"
+          >
+            {{ selectedCount > 0 ? `迁移 ${selectedCount} 项` : '迁移选中' }}
+          </button>
+        </div>
       </div>
 
-      <div class="migration-actions">
-        <button @click="selectAll">全选可迁移</button>
-        <button @click="selectedKeys = []">清空</button>
-        <button :disabled="selectedCopyItems.length === 0 || applying" @click="copySelectionToMain">
-          批量复制到主预设
+      <div class="migration-type-filter" role="group" aria-label="迁移差异类型">
+        <button
+          v-for="filter in typeFilters"
+          :key="filter.value"
+          type="button"
+          :class="[{ active: activeFilter === filter.value }, filterToneClass(filter.value)]"
+          :title="filter.description"
+          :aria-label="`${filter.label}：${filter.description}`"
+          @click="setActiveFilter(filter.value)"
+        >
+          <span class="filter-tone" />
+          <span>{{ filter.label }}</span>
+          <small>{{ filterCount(filter.value) }}</small>
         </button>
-        <span>{{ selectedCount }} / {{ diff.summary.selectable }}</span>
       </div>
 
       <div v-if="diff.items.length === 0" class="migration-empty">
-        两个预设的条目列表没有可迁移差异。
+        两个预设没有可迁移差异。
       </div>
 
-      <div v-else ref="migrationListRef" class="migration-list">
-        <label
-          v-for="item in diff.items"
-          :key="item.key"
-          class="migration-row"
-          :data-migration-key="item.key"
-          :class="{ locked: item.locked, selected: selectedSet.has(item.key), conflict: item.kind === 'conflict' || item.kind === 'duplicate' }"
+      <div v-else class="migration-marker-rail">
+        <button
+          class="migration-marker-select"
+          :class="{ active: allFilteredSelected }"
+          type="button"
+          :disabled="filteredSelectableItems.length === 0"
+          title="全选当前筛选的可迁移项"
+          @click="toggleSelectFiltered"
+        >
+          全选
+        </button>
+        <div
+          ref="migrationListRef"
+          class="migration-scroll-map"
+          :style="{ '--migration-marker-count': String(Math.max(1, filteredItems.length)) }"
+          aria-label="差异跳转标记"
         >
           <button
-            class="migration-bookmark"
+            v-for="(item, index) in filteredItems"
+            :key="item.key"
+            class="migration-scroll-marker"
+            :data-migration-key="item.key"
+            :class="[`tone-${getMigrationVisualTone(item.kind)}`, { active: activeItem?.key === item.key, locked: isDiffItemLocked(item), selected: selectedSet.has(item.key) }]"
+            :style="{ '--migration-marker-index': String(index) }"
             type="button"
-            title="定位差异"
-            @click.prevent="focusMigrationItem(item)"
+            :title="getMigrationMarkerTitle(item)"
+            :aria-pressed="selectedSet.has(item.key)"
+            @click="multiSelectEnabled ? toggleSelectItem(item) : jumpToMigrationItem(item)"
           >
-            <span />
+            <span class="marker-dot" />
+            <span class="marker-label">{{ item.label }}</span>
           </button>
-          <input
-            type="checkbox"
-            :value="item.key"
-            v-model="selectedKeys"
-            :disabled="!item.selectable"
-          />
-          <span class="migration-kind">{{ kindLabel(item.kind) }}</span>
-          <button class="migration-name" type="button" @click.prevent="toggleExpanded(item.key)">
-            <Icon :name="expandedSet.has(item.key) ? 'chevron-down' : 'chevron-right'" :size="12" />
-            <span>{{ item.name }}</span>
-          </button>
-          <span v-if="item.kind === 'conflict' || item.kind === 'duplicate'" class="conflict-badge">
-            {{ item.kind === 'duplicate' ? '需要整理重复' : '需要确认冲突' }}
-          </span>
-          <span v-if="isDiffItemLocked(item)" class="migration-lock">
-            <Icon name="lock" :size="12" />
-            锁定
-          </span>
-          <small class="migration-note">
-            <span>{{ item.note }}</span>
-            <span v-if="item.textDelta" class="text-delta">{{ item.textDelta.preview }}</span>
-          </small>
-          <div v-if="expandedSet.has(item.key)" class="migration-details">
-            <div class="migration-detail-head">
-              <span>内容预览</span>
-              <code>{{ item.mainIndex >= 0 ? `主 #${item.mainIndex + 1}` : '主 -' }} -> {{ item.secondIndex >= 0 ? `第二 #${item.secondIndex + 1}` : '第二 -' }}</code>
-            </div>
-            <div class="migration-preview-grid">
-              <section>
-                <b>旧内容</b>
-                <pre class="migration-diff-code old"><span
-                  v-for="(line, lineIndex) in getPromptDiffLines(item).oldLines"
-                  :key="`old-${item.key}-${lineIndex}`"
-                  :class="{ removed: line.kind === 'removed', same: line.kind === 'same' }"
-                >{{ formatDiffLine(line) }}</span></pre>
-              </section>
-              <section>
-                <b>新内容</b>
-                <pre class="migration-diff-code new"><span
-                  v-for="(line, lineIndex) in getPromptDiffLines(item).newLines"
-                  :key="`new-${item.key}-${lineIndex}`"
-                  :class="{ added: line.kind === 'added', same: line.kind === 'same' }"
-                >{{ formatDiffLine(line) }}</span></pre>
-              </section>
-            </div>
-          </div>
-        </label>
+        </div>
       </div>
     </template>
   </section>
@@ -116,89 +100,143 @@ import {
   applyPresetMigrationSelection,
   buildPromptContentDiffLines,
   buildPresetMigrationDiff,
+  getMigrationVisualTone,
   type PresetMigrationDiffItem,
-  type PresetMigrationKind,
-  type PromptContentDiffLine,
+  type PresetMigrationVisualTone,
 } from '../utils/presetCompare';
 
 const emit = defineEmits<{
   focusMainPrompt: [payload: { key: string; mainIndex: number; secondIndex: number; mainAnchorIndex: number }];
+  focusSecondPrompt: [payload: { key: string; mainIndex: number; secondIndex: number; mainAnchorIndex: number }];
 }>();
+
+type MigrationFilter = Exclude<PresetMigrationVisualTone, 'order'> | 'all';
 
 const store = useManagerStore();
 const history = useHistoryStore();
 const confirmDialog = useConfirmStore();
-const selectedKeys = ref<string[]>([]);
 const applying = ref(false);
-const expandedKeys = ref<string[]>([]);
+const multiSelectEnabled = ref(false);
+const selectedKeys = ref<string[]>([]);
+const activeFilter = ref<MigrationFilter>('all');
+const activeItemKey = ref('');
 const migrationListRef = ref<HTMLElement | null>(null);
+const applyButtonRef = ref<HTMLElement | null>(null);
+
+const typeFilters: Array<{ value: MigrationFilter; label: string; description: string }> = [
+  { value: 'all', label: '全部', description: '主预设和右侧预设的所有差异' },
+  { value: 'added', label: '新增', description: '右侧有、主预设没有；迁移后会加入主预设' },
+  { value: 'removed', label: '右侧无', description: '主预设有、右侧没有；迁移后会从主预设移除' },
+  { value: 'content', label: '内容', description: '同一条提示词内容不同；迁移后按右侧覆盖' },
+  { value: 'enabled', label: '状态', description: '启用或禁用状态不同；迁移后按右侧覆盖' },
+  { value: 'mixed', label: '混合', description: '同一条同时有内容、状态等多种差异' },
+];
 
 const canCompare = computed(() => Boolean(store.presetName && store.secondPresetName));
-
 const diff = computed(() => buildPresetMigrationDiff({
   mainPrompts: store.mainPrompts,
   secondPrompts: store.secondPrompts,
   isLocked: key => store.isPromptLocked(key, 'main'),
 }));
 
+const selectableItems = computed(() => diff.value.items.filter(item => item.selectable));
 const selectedSet = computed(() => new Set(selectedKeys.value));
-const expandedSet = computed(() => new Set(expandedKeys.value));
 const selectedCount = computed(() => selectedKeys.value.length);
-const selectedDiffItems = computed(() => diff.value.items.filter(item => selectedSet.value.has(item.key) && item.selectable));
-const selectedCopyItems = computed(() => selectedDiffItems.value.filter(item => item.newPrompt));
+const filteredItems = computed(() => diff.value.items.filter(item =>
+  activeFilter.value === 'all' || getMigrationVisualTone(item.kind) === activeFilter.value,
+));
+const filteredSelectableItems = computed(() => filteredItems.value.filter(item => item.selectable));
+const allFilteredSelected = computed(() => (
+  filteredSelectableItems.value.length > 0 &&
+  filteredSelectableItems.value.every(item => selectedSet.value.has(item.key))
+));
+const activeItem = computed(() => {
+  const fromKey = filteredItems.value.find(item => item.key === activeItemKey.value);
+  return fromKey ?? filteredItems.value[0] ?? null;
+});
+const activeItemIndex = computed(() => activeItem.value ? filteredItems.value.findIndex(item => item.key === activeItem.value?.key) : -1);
 
-function kindLabel(kind: PresetMigrationKind) {
-  if (kind === 'added') return '新增';
-  if (kind === 'removed') return '删除';
-  if (kind === 'content-changed') return '内容';
-  if (kind === 'enabled-changed') return '状态';
-  if (kind === 'duplicate') return '重复';
-  if (kind === 'conflict') return '冲突';
-  return '顺序';
+function filterCount(filter: MigrationFilter) {
+  if (filter === 'all') return diff.value.items.length;
+  return diff.value.items.filter(item => getMigrationVisualTone(item.kind) === filter).length;
 }
 
-function selectAll() {
-  selectedKeys.value = diff.value.items.filter(item => item.selectable).map(item => item.key);
+function setActiveFilter(filter: MigrationFilter) {
+  activeFilter.value = filter;
+  activeItemKey.value = filteredItems.value[0]?.key ?? '';
+  if (activeItem.value) jumpToMigrationItem(activeItem.value);
 }
 
-function toggleExpanded(key: string) {
-  expandedKeys.value = expandedSet.value.has(key)
-    ? expandedKeys.value.filter(item => item !== key)
-    : [...expandedKeys.value, key];
+function filterToneClass(filter: MigrationFilter) {
+  return filter === 'all' ? 'filter-all' : `filter-${filter}`;
 }
 
-function getPromptDiffLines(item: PresetMigrationDiffItem) {
-  return buildPromptContentDiffLines(item.oldPrompt, item.newPrompt);
+function toggleMultiSelect() {
+  multiSelectEnabled.value = !multiSelectEnabled.value;
+  if (!multiSelectEnabled.value) selectedKeys.value = [];
 }
 
-function formatDiffLine(line: PromptContentDiffLine) {
-  const prefix = line.kind === 'removed' ? '- ' : line.kind === 'added' ? '+ ' : '  ';
-  return `${prefix}${line.text}`;
+function toggleSelectItem(item: PresetMigrationDiffItem) {
+  if (!item.selectable) return;
+  multiSelectEnabled.value = true;
+  selectedKeys.value = selectedSet.value.has(item.key)
+    ? selectedKeys.value.filter(key => key !== item.key)
+    : [...selectedKeys.value, item.key];
+}
+
+function toggleSelectFiltered() {
+  const keys = filteredSelectableItems.value.map(item => item.key);
+  if (!keys.length) return;
+  multiSelectEnabled.value = true;
+
+  const filteredKeySet = new Set(keys);
+  selectedKeys.value = allFilteredSelected.value
+    ? selectedKeys.value.filter(key => !filteredKeySet.has(key))
+    : Array.from(new Set([...selectedKeys.value, ...keys]));
 }
 
 function scrollMigrationItemIntoView(key: string) {
   const list = migrationListRef.value;
   if (!list) return;
 
-  const row = Array.from(list.querySelectorAll<HTMLElement>('[data-migration-key]'))
+  const marker = Array.from(list.querySelectorAll<HTMLElement>('.migration-scroll-marker'))
     .find(element => element.dataset.migrationKey === key);
-  if (!row) return;
-
-  const top = Math.max(0, row.offsetTop - list.offsetTop - 12);
-  list.scrollTo({ top, behavior: 'smooth' });
+  marker?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
 }
 
-function focusMigrationItem(item: PresetMigrationDiffItem) {
-  if (!expandedSet.value.has(item.key)) {
-    expandedKeys.value = [...expandedKeys.value, item.key];
+function getMigrationMarkerTitle(item: PresetMigrationDiffItem) {
+  const titlePrefix = item.label ? `${item.label} · ` : '';
+  if (item.kind !== 'content-changed' && item.kind !== 'conflict') {
+    return `${titlePrefix}${item.name}`;
   }
-  nextTick(() => scrollMigrationItemIntoView(item.key));
+  const lines = buildPromptContentDiffLines(item.oldPrompt, item.newPrompt);
+  const removed = lines.oldLines.filter(line => line.kind === 'removed').length;
+  const added = lines.newLines.filter(line => line.kind === 'added').length;
+  return `${titlePrefix}${item.name} · -${removed} +${added}`;
+}
+
+function jumpToMigrationItem(item: PresetMigrationDiffItem) {
+  activeItemKey.value = item.key;
+  scrollMigrationItemIntoView(item.key);
   emit('focusMainPrompt', {
     key: item.key,
     mainIndex: item.mainIndex,
     secondIndex: item.secondIndex,
     mainAnchorIndex: item.mainAnchorIndex,
   });
+  emit('focusSecondPrompt', {
+    key: item.key,
+    mainIndex: item.mainIndex,
+    secondIndex: item.secondIndex,
+    mainAnchorIndex: item.mainAnchorIndex,
+  });
+}
+
+function jumpBy(offset: number) {
+  if (!filteredItems.value.length) return;
+  const current = Math.max(0, activeItemIndex.value);
+  const next = (current + offset + filteredItems.value.length) % filteredItems.value.length;
+  jumpToMigrationItem(filteredItems.value[next]);
 }
 
 function isDiffItemLocked(item: { key: string }) {
@@ -210,13 +248,22 @@ function snapshotMainPreset(): Preset | null {
   return klona(getPreset(store.presetName));
 }
 
+function getConfirmAnchor() {
+  const rect = applyButtonRef.value?.getBoundingClientRect();
+  if (!rect) return undefined;
+  return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+}
+
 async function applySelected() {
-  if (!canCompare.value || selectedKeys.value.length === 0 || applying.value) return;
+  const items = selectableItems.value.filter(item => selectedSet.value.has(item.key));
+  const keysToApply = items.map(item => item.key);
+  if (!canCompare.value || keysToApply.length === 0 || applying.value) return;
   if (!await confirmDialog.confirm({
-    title: '应用对比迁移',
-    message: `确认把 ${selectedKeys.value.length} 个迁移项应用到主预设吗？`,
-    details: '锁定条目和重复项会自动跳过；冲突项会按你勾选的新版条目覆盖。',
-    confirmLabel: '应用',
+    title: '迁移选中项',
+    message: `确认迁移 ${keysToApply.length} 个选中项到主预设吗？`,
+    details: '锁定条目和标识冲突项会自动跳过；右侧无会移除，内容/状态/混合会按右侧覆盖。',
+    confirmLabel: '迁移',
+    anchor: getConfirmAnchor(),
   })) return;
 
   const before = snapshotMainPreset();
@@ -230,7 +277,7 @@ async function applySelected() {
     const nextPrompts = applyPresetMigrationSelection({
       mainPrompts: store.mainPrompts,
       secondPrompts: store.secondPrompts,
-      selectedKeys: selectedKeys.value,
+      selectedKeys: keysToApply,
       lockedKeys,
     }) as PresetPrompt[];
 
@@ -239,40 +286,11 @@ async function applySelected() {
 
     const after = snapshotMainPreset();
     if (after) {
-      history.recordOperation(store.presetName, before, after, `对比迁移: ${selectedKeys.value.length} 个条目`);
+      history.recordOperation(store.presetName, before, after, `对比迁移: ${keysToApply.length} 个条目`);
     }
     selectedKeys.value = [];
+    multiSelectEnabled.value = false;
     toastr.success('已应用所选迁移项', '', { timeOut: 1400 });
-  } finally {
-    applying.value = false;
-  }
-}
-
-async function copySelectionToMain() {
-  if (!canCompare.value || selectedCopyItems.value.length === 0 || applying.value) return;
-  if (!await confirmDialog.confirm({
-    title: '批量复制到主预设',
-    message: `确认把 ${selectedCopyItems.value.length} 个第二预设条目复制到主预设末尾吗？`,
-    details: '这不会删除主预设原有条目，适合先保留旧条目再手动整理。',
-    confirmLabel: '复制',
-  })) return;
-
-  const before = snapshotMainPreset();
-  if (!before) return;
-
-  applying.value = true;
-  try {
-    for (const item of selectedCopyItems.value) {
-      if (!item.newPrompt) continue;
-      await store.insertPromptToPreset(item.newPrompt as unknown as PresetNormalPrompt, 'main');
-    }
-
-    const after = snapshotMainPreset();
-    if (after) {
-      history.recordOperation(store.presetName, before, after, `批量复制第二预设条目: ${selectedCopyItems.value.length} 个`);
-    }
-    selectedKeys.value = [];
-    toastr.success('已批量复制到主预设', '', { timeOut: 1400 });
   } finally {
     applying.value = false;
   }
@@ -281,306 +299,276 @@ async function copySelectionToMain() {
 watch(
   () => diff.value.items.map(item => item.key).join('|'),
   () => {
-    const valid = new Set(diff.value.items.filter(item => item.selectable).map(item => item.key));
-    selectedKeys.value = selectedKeys.value.filter(key => valid.has(key));
-    const existing = new Set(diff.value.items.map(item => item.key));
-    expandedKeys.value = expandedKeys.value.filter(key => existing.has(key));
+    if (!diff.value.items.some(item => item.key === activeItemKey.value)) {
+      activeItemKey.value = filteredItems.value[0]?.key ?? '';
+    }
+    const selectableKeySet = new Set(selectableItems.value.map(item => item.key));
+    selectedKeys.value = selectedKeys.value.filter(key => selectableKeySet.has(key));
   },
 );
 </script>
 
 <style scoped>
 .migration-panel {
-  min-height: 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  flex: 0 0 auto;
+  display: grid;
+  gap: 8px;
+  padding: 0 var(--pm-right-aux-gutter) 8px;
   color: var(--pm-text);
   background: transparent;
 }
-.migration-head {
-  min-height: 46px;
+.migration-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
-  padding: 10px 14px 8px;
-}
-.migration-title-wrap {
   min-width: 0;
 }
-.migration-kicker {
-  display: block;
-  color: var(--pm-text-subtle);
-  font-size: 11px;
-  font-weight: 650;
-  line-height: 1;
+.migration-controls,
+.migration-type-filter {
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
-.migration-title {
-  margin: 4px 0 0;
-  color: var(--pm-text);
-  font-size: 13.5px;
-  font-weight: 650;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.migration-controls {
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
-.migration-apply,
-.migration-actions button {
-  height: 28px;
-  border: 1px solid var(--pm-border);
-  border-radius: 999px;
+.migration-controls button {
+  min-height: 24px;
+  border: 0;
+  border-radius: 7px;
   background: transparent;
   color: var(--pm-text-muted);
   cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 560;
 }
-.migration-apply {
-  padding: 0 12px;
-  color: var(--pm-accent-text);
-  background: var(--pm-accent);
-  border-color: var(--pm-accent);
+.migration-controls button {
+  padding: 0 8px;
 }
-.migration-apply:disabled {
-  opacity: 0.38;
-  cursor: not-allowed;
-}
-.migration-summary {
-  display: flex;
-  flex-wrap: wrap;
+.migration-multi-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 4px 14px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, #000 44%, var(--pm-bg-elevated));
+  color: var(--pm-text-muted);
 }
-.migration-summary span,
-.migration-lock {
+.migration-apply-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, #000 44%, var(--pm-bg-elevated));
+  color: var(--pm-text-muted);
+}
+.migration-multi-toggle.on {
+  color: var(--pm-text);
+  background: color-mix(in srgb, #000 32%, var(--pm-bg-elevated));
+}
+.migration-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--pm-text-subtle) 60%, transparent);
+}
+.migration-multi-toggle.on .migration-status-dot {
+  background: #56d17f;
+  box-shadow: 0 0 8px color-mix(in srgb, #56d17f 58%, transparent);
+}
+.migration-multi-toggle:not(.on) .migration-status-dot {
+  background: color-mix(in srgb, var(--pm-text-subtle) 58%, transparent);
+}
+.migration-controls button:hover:not(:disabled),
+.migration-type-filter button:hover {
+  background: var(--pm-pill-bg-hover);
+  color: var(--pm-text);
+}
+.migration-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.migration-type-filter {
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 1px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.migration-type-filter::-webkit-scrollbar {
+  display: none;
+}
+.migration-type-filter button {
+  position: relative;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 20px;
-  padding: 0 7px;
-  border: 1px solid var(--pm-border);
+  min-height: 24px;
+  padding: 1px 8px 1px 7px;
+  border: 0;
   border-radius: 999px;
-  color: var(--pm-text-subtle);
-  font-size: 11px;
-  line-height: 1;
-}
-.migration-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 14px 8px;
-  color: var(--pm-text-subtle);
+  outline: 0;
+  background: color-mix(in srgb, #000 48%, var(--pm-bg-elevated));
+  color: var(--pm-text-muted);
+  cursor: pointer;
   font-size: 11.5px;
+  font-weight: 560;
+  box-shadow: none;
+  transition: background 0.12s ease, color 0.12s ease;
 }
-.migration-actions button {
-  padding: 0 9px;
+.migration-type-filter button.active {
+  background: color-mix(in srgb, #000 36%, var(--pm-bg-elevated));
+  color: var(--pm-text);
+  box-shadow: none;
 }
-.migration-actions button:disabled {
-  opacity: 0.42;
-  cursor: not-allowed;
+.migration-type-filter button::before,
+.filter-tone {
+  content: "";
+  width: 3px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--filter-tone, var(--pm-text-muted));
 }
-.migration-actions button:hover:not(:disabled) {
-  border-color: var(--pm-border-strong);
-  background: var(--pm-bg-hover);
+.filter-tone {
+  flex: 0 0 auto;
+}
+.migration-type-filter button::before {
+  display: none;
+}
+.migration-type-filter button.filter-all {
+  --filter-tone: color-mix(in srgb, var(--pm-text-muted) 72%, transparent);
+}
+.migration-type-filter button.filter-added {
+  --filter-tone: #56d17f;
+}
+.migration-type-filter button.filter-removed {
+  --filter-tone: #ff6f6f;
+}
+.migration-type-filter button.filter-content {
+  --filter-tone: #62a8ff;
+}
+.migration-type-filter button.filter-enabled {
+  --filter-tone: #b18cff;
+}
+.migration-type-filter button.filter-mixed {
+  --filter-tone: #ffd447;
+}
+.migration-type-filter small {
+  color: var(--pm-text-subtle);
+  font-size: 10.5px;
+}
+.migration-marker-rail {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 5px;
+  min-width: 0;
+}
+.migration-marker-select {
+  min-height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, #000 46%, var(--pm-bg-elevated));
+  color: var(--pm-text-muted);
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 620;
+}
+.migration-marker-select:hover:not(:disabled),
+.migration-marker-select.active {
+  background: color-mix(in srgb, #000 32%, var(--pm-bg-elevated));
   color: var(--pm-text);
 }
-.migration-list {
-  min-height: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 0 14px 14px;
-  overflow-y: auto;
-}
-.migration-row {
-  display: grid;
-  grid-template-columns: 14px 18px auto minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-  padding: 9px 10px;
-  border: 1px solid var(--pm-row-border);
-  border-radius: 10px;
-  background: var(--pm-bg-card);
-  cursor: pointer;
-  transition: background 0.14s ease, border-color 0.14s ease;
-}
-.migration-row:hover {
-  border-color: var(--pm-border);
-  background: color-mix(in srgb, var(--pm-bg-card) 60%, var(--pm-row-hover));
-}
-.migration-row.selected {
-  border-color: var(--pm-border-strong);
-  background: var(--pm-bg-active);
-}
-.migration-row.conflict {
-  border-color: color-mix(in srgb, var(--pm-warning) 28%, var(--pm-row-border));
-}
-.migration-row.locked {
-  opacity: 0.62;
+.migration-marker-select:disabled {
   cursor: not-allowed;
+  opacity: 0.42;
 }
-.migration-bookmark {
-  width: 14px;
-  height: 24px;
+.migration-scroll-map {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--migration-marker-count), minmax(3px, 1fr));
+  gap: 3px;
+  min-height: 24px;
+  overflow: hidden;
+  padding: 4px;
+  border: 1px solid var(--pm-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--pm-bg-elevated) 42%, transparent);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.migration-scroll-map::-webkit-scrollbar {
+  display: none;
+}
+.migration-scroll-marker {
+  position: relative;
+  min-width: 0;
+  min-height: 22px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: inherit;
+  border-radius: 5px;
+  padding: 0;
+  background: color-mix(in srgb, var(--migration-tone, var(--pm-text-muted)) 23%, transparent);
   cursor: pointer;
 }
-.migration-bookmark span {
-  width: 4px;
-  height: 16px;
-  border-radius: 999px;
-  background: var(--pm-text-faint);
-  transition: background 0.12s ease, height 0.12s ease;
+.migration-scroll-marker:hover,
+.migration-scroll-marker.active {
+  background: color-mix(in srgb, var(--migration-tone, var(--pm-text-muted)) 42%, transparent);
 }
-.migration-bookmark:hover span,
-.migration-row.selected .migration-bookmark span {
-  height: 18px;
-  background: var(--pm-text);
+.migration-scroll-marker.active {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--migration-tone, var(--pm-text-muted)) 60%, transparent);
 }
-.migration-row.conflict .migration-bookmark span {
-  background: var(--pm-warning);
+.migration-scroll-marker.selected {
+  background: color-mix(in srgb, var(--migration-tone, var(--pm-text-muted)) 50%, transparent);
 }
-.migration-row input {
-  width: 14px;
+.migration-scroll-marker.locked {
+  opacity: 0.42;
+}
+.marker-dot {
+  width: 3px;
   height: 14px;
-  accent-color: var(--pm-accent);
-}
-.migration-kind {
-  color: var(--pm-text-subtle);
-  font-size: 11px;
-  font-weight: 650;
-}
-.migration-name {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: var(--pm-text);
-  font-size: 13px;
-  font-weight: 500;
-  text-align: left;
-  cursor: pointer;
-}
-.migration-name span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.conflict-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 20px;
-  padding: 0 7px;
-  border: 1px solid color-mix(in srgb, var(--pm-warning) 36%, var(--pm-border));
   border-radius: 999px;
-  color: var(--pm-warning);
-  font-size: 11px;
-  line-height: 1;
+  background: var(--migration-tone, var(--pm-text-muted));
 }
-.migration-note {
-  grid-column: 4 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  color: var(--pm-text-subtle);
-  font-size: 11.5px;
-  line-height: 1.35;
+.marker-label {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
-.text-delta {
-  color: var(--pm-text-muted);
+.migration-scroll-marker.tone-added {
+  --migration-tone: #56d17f;
 }
-.migration-details {
-  grid-column: 1 / -1;
-  display: grid;
-  gap: 8px;
-  padding: 9px;
-  border: 1px solid var(--pm-border);
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--pm-bg-soft) 74%, transparent);
+.migration-scroll-marker.tone-removed {
+  --migration-tone: #ff6f6f;
 }
-.migration-detail-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--pm-text-muted);
-  font-size: 11.5px;
+.migration-scroll-marker.tone-content {
+  --migration-tone: #62a8ff;
 }
-.migration-detail-head code {
-  color: var(--pm-text-subtle);
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 10.5px;
+.migration-scroll-marker.tone-enabled {
+  --migration-tone: #b18cff;
 }
-.migration-preview-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+.migration-scroll-marker.tone-mixed {
+  --migration-tone: #ffd447;
 }
-.migration-preview-grid section {
-  min-width: 0;
-  display: grid;
-  gap: 5px;
-}
-.migration-preview-grid b {
-  color: var(--pm-text-muted);
-  font-size: 11px;
-  font-weight: 650;
-}
-.migration-preview-grid pre {
-  max-height: 160px;
-  margin: 0;
-  padding: 8px;
-  overflow: auto;
-  border-radius: 7px;
-  background: rgba(0, 0, 0, 0.22);
-  color: var(--pm-text-subtle);
-  font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
-  white-space: pre-wrap;
-}
-.migration-diff-code {
-  display: grid;
-  gap: 1px;
-}
-.migration-diff-code span {
-  display: block;
-  min-height: 16px;
-  padding: 0 4px;
-  border-radius: 4px;
-}
-.migration-diff-code.old span.removed {
-  background: color-mix(in srgb, var(--pm-danger) 16%, transparent);
-  color: color-mix(in srgb, var(--pm-danger) 72%, var(--pm-text));
-}
-.migration-diff-code.new span.added {
-  background: color-mix(in srgb, var(--pm-success) 16%, transparent);
-  color: color-mix(in srgb, var(--pm-success) 74%, var(--pm-text));
-}
-.migration-diff-code span.same {
-  color: color-mix(in srgb, var(--pm-text-subtle) 80%, transparent);
+.migration-scroll-marker.tone-duplicate {
+  --migration-tone: #8c8f96;
 }
 .migration-empty {
-  margin: 18px 14px;
-  padding: 18px 14px;
+  padding: 9px 10px;
   border: 1px dashed var(--pm-border);
-  border-radius: 12px;
+  border-radius: 8px;
   color: var(--pm-text-subtle);
-  font-size: 13px;
-  line-height: 1.5;
-}
-@media (max-width: 720px) {
-  .migration-preview-grid {
-    grid-template-columns: 1fr;
-  }
+  font-size: 12px;
+  line-height: 1.4;
 }
 </style>

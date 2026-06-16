@@ -7,6 +7,15 @@ export type PresetMigrationKind =
   | 'duplicate'
   | 'conflict';
 
+export type PresetMigrationVisualTone =
+  | 'added'
+  | 'removed'
+  | 'content'
+  | 'enabled'
+  | 'order'
+  | 'mixed'
+  | 'duplicate';
+
 export type ComparablePresetPrompt = {
   id?: string;
   identifier?: string;
@@ -21,6 +30,8 @@ export type PresetMigrationDiffItem = {
   key: string;
   name: string;
   kind: PresetMigrationKind;
+  visualTone: PresetMigrationVisualTone;
+  label: string;
   mainIndex: number;
   secondIndex: number;
   mainAnchorIndex: number;
@@ -201,11 +212,14 @@ function makeItem(options: {
   const name = getPromptName(options.newPrompt ?? options.oldPrompt, options.key);
   const selectable = !options.locked && options.kind !== 'duplicate';
   const note = options.note ?? (options.locked ? '已锁定，对比迁移会跳过该条目' : getMigrationNote(options.kind));
+  const visualTone = getMigrationVisualTone(options.kind);
 
   return {
     key: options.key,
     name,
     kind: options.kind,
+    visualTone,
+    label: getMigrationVisualLabel(visualTone),
     mainIndex: options.mainIndex,
     secondIndex: options.secondIndex,
     mainAnchorIndex: options.mainAnchorIndex ?? Math.max(0, options.mainIndex),
@@ -218,14 +232,34 @@ function makeItem(options: {
   };
 }
 
+export function getMigrationVisualTone(kind: PresetMigrationKind): PresetMigrationVisualTone {
+  if (kind === 'added') return 'added';
+  if (kind === 'removed') return 'removed';
+  if (kind === 'content-changed') return 'content';
+  if (kind === 'enabled-changed') return 'enabled';
+  if (kind === 'order-changed') return 'order';
+  if (kind === 'duplicate') return 'duplicate';
+  return 'mixed';
+}
+
+export function getMigrationVisualLabel(tone: PresetMigrationVisualTone) {
+  if (tone === 'added') return '新增';
+  if (tone === 'removed') return '右侧无';
+  if (tone === 'content') return '内容';
+  if (tone === 'enabled') return '状态';
+  if (tone === 'order') return '';
+  if (tone === 'duplicate') return '重复';
+  return '混合';
+}
+
 function getMigrationNote(kind: PresetMigrationKind) {
   if (kind === 'added') return '新版新增，可添加到主预设';
-  if (kind === 'removed') return '新版不存在，可从主预设移除';
+  if (kind === 'removed') return '右侧预设没有该条目，可从主预设移除';
   if (kind === 'content-changed') return '内容有变化，可用新版覆盖';
   if (kind === 'enabled-changed') return '启用状态有变化，可同步新版状态';
   if (kind === 'duplicate') return '存在重复标识，先手动整理后再迁移';
   if (kind === 'conflict') return '同一条目同时存在内容和启用状态差异，先人工确认';
-  return '顺序有变化，可按新版顺序调整';
+  return '相对顺序有变化，可按右侧排列同步';
 }
 
 function incrementSummary(summary: PresetMigrationSummary, item: PresetMigrationDiffItem) {
@@ -298,7 +332,6 @@ export function buildPresetMigrationDiff(options: {
     const contentChanged = normalizeContent(main.prompt) !== normalizeContent(second.prompt)
       || normalizeRole(main.prompt) !== normalizeRole(second.prompt);
     const enabledChanged = normalizeEnabled(main.prompt) !== normalizeEnabled(second.prompt);
-    const orderChanged = main.index !== second.index;
 
     if (contentChanged && enabledChanged) {
       items.push(makeItem({
@@ -326,16 +359,6 @@ export function buildPresetMigrationDiff(options: {
       items.push(makeItem({
         key: second.key,
         kind: 'enabled-changed',
-        mainIndex: main.index,
-        secondIndex: second.index,
-        oldPrompt: main.prompt,
-        newPrompt: second.prompt,
-        locked,
-      }));
-    } else if (orderChanged) {
-      items.push(makeItem({
-        key: second.key,
-        kind: 'order-changed',
         mainIndex: main.index,
         secondIndex: second.index,
         oldPrompt: main.prompt,
@@ -390,6 +413,19 @@ export function applyPresetMigrationSelection(options: {
     .map((prompt, index) => ({ prompt, index, key: getPresetPromptCompareKey(prompt) }))
     .filter(entry => entry.key);
   const duplicateKeys = getDuplicateKeys(groupEntriesByKey(mainEntries), groupEntriesByKey(secondEntries));
+  const mainByKey = new Map(mainEntries.map(entry => [entry.key, entry]));
+  const orderOnlyKeys = new Set(
+    secondEntries
+      .filter(second => {
+        const main = mainByKey.get(second.key);
+        return main
+          && main.index !== second.index
+          && normalizeContent(main.prompt) === normalizeContent(second.prompt)
+          && normalizeRole(main.prompt) === normalizeRole(second.prompt)
+          && normalizeEnabled(main.prompt) === normalizeEnabled(second.prompt);
+      })
+      .map(entry => entry.key),
+  );
   const secondByKey = new Map(
     options.secondPrompts
       .map(prompt => [getPresetPromptCompareKey(prompt), prompt] as const)
@@ -420,6 +456,36 @@ export function applyPresetMigrationSelection(options: {
     if (!key || existing.has(key) || locked.has(key) || blockedKeys.has(key) || !selected.has(key)) continue;
     result.push(clonePrompt(prompt));
     existing.add(key);
+  }
+
+  for (const second of secondEntries) {
+    if (!selected.has(second.key) || !orderOnlyKeys.has(second.key) || locked.has(second.key) || blockedKeys.has(second.key)) continue;
+    const currentIndex = result.findIndex(prompt => getPresetPromptCompareKey(prompt) === second.key);
+    if (currentIndex < 0) continue;
+
+    const [prompt] = result.splice(currentIndex, 1);
+    const secondIndex = secondEntries.findIndex(entry => entry.key === second.key && entry.index === second.index);
+    let insertIndex = result.length;
+
+    for (let cursor = secondIndex - 1; cursor >= 0; cursor -= 1) {
+      const previousIndex = result.findIndex(item => getPresetPromptCompareKey(item) === secondEntries[cursor].key);
+      if (previousIndex >= 0) {
+        insertIndex = previousIndex + 1;
+        break;
+      }
+    }
+
+    if (insertIndex === result.length) {
+      for (let cursor = secondIndex + 1; cursor < secondEntries.length; cursor += 1) {
+        const nextIndex = result.findIndex(item => getPresetPromptCompareKey(item) === secondEntries[cursor].key);
+        if (nextIndex >= 0) {
+          insertIndex = nextIndex;
+          break;
+        }
+      }
+    }
+
+    result.splice(insertIndex, 0, prompt);
   }
 
   return result;

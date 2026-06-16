@@ -39,6 +39,11 @@ export function clampSecondPresetWidth(width: number, totalWidth: number): numbe
   return Math.max(bounds.min, Math.min(Math.round(width), bounds.max));
 }
 
+export function getCollapsedSecondPresetWidth(expandedWidth: number, totalWidth: number): number {
+  const responsiveWidth = Math.round(Math.max(0, totalWidth) * 0.42);
+  return clampSecondPresetWidth(Math.max(expandedWidth, responsiveWidth), totalWidth);
+}
+
 export function clampWindowState(
   state: WindowState,
   viewportWidth: number,
